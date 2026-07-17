@@ -3,48 +3,62 @@
 {% block content %}
 <div class="breadcrumb"><a href="/">← На главную</a></div>
 <h1>🔧 Справочник оборудования</h1>
-<p class="lead">Используется LLM при генерации ТК — добавляй всё, что есть в цехах Техинкома</p>
+<p class="lead">Импортируется из 1С:ERP. Здесь можно только добавить локальные параметры (заметки, ограничения), которых нет в 1С.</p>
+
+<div class="info-block">
+    <strong>ℹ Источник:</strong> 1С:ERP (мастер-система). Кнопка "Добавить" для новых позиций — только для импорта из 1С.
+    Для локальных параметров (max_thickness_mm, max_mass_kg, notes) — редактируй существующие.
+</div>
 
 <details class="add-form">
-    <summary>＋ Добавить оборудование</summary>
-    <form method="post" action="/api/equipment" class="form">
+    <summary>🔄 Импорт из 1С (mock)</summary>
+    <form method="post" action="/api/import/equipment" class="form">
         <div class="form-row">
-            <label>Название *<br><input name="name" required placeholder="Кедр-300"></label>
-            <label>Тип<br>
-                <select name="type">
-                    <option>сварочный аппарат</option>
-                    <option>полуавтомат</option>
-                    <option>токарный станок</option>
-                    <option>фрезерный станок</option>
-                    <option>плазменный рез</option>
-                    <option>гильотина</option>
-                    <option>гибочный станок</option>
-                    <option>покрасочная камера</option>
+            <label>Фильтр по подразделению<br>
+                <select name="department">
+                    <option value="">Все</option>
+                    <option>Сварочно-сборочный КТ</option>
+                    <option>Сварочно-сборочный ВТ</option>
+                    <option>Уч-к механообработки</option>
+                    <option>Уч-к лазерной резки</option>
+                    <option>Покраска</option>
                 </select>
             </label>
+            <label>Фильтр по типу<br>
+                <select name="type">
+                    <option value="">Все</option>
+                    <option>Сварочный аппарат</option>
+                    <option>Токарный станок</option>
+                    <option>Фрезерный станок</option>
+                    <option>Плазменный рез</option>
+                    <option>Гильотина</option>
+                </select>
+            </label>
+            <label>Лимит записей<br><input name="limit" type="number" value="50" min="1" max="500"></label>
         </div>
-        <div class="form-row">
-            <label>Код<br><input name="code" placeholder="19905"></label>
-            <label>Макс. толщина (мм)<br><input name="max_thickness_mm" type="number" step="0.1"></label>
-            <label>Макс. масса (кг)<br><input name="max_mass_kg" type="number" step="0.1"></label>
-        </div>
-        <label>Примечания<br><textarea name="notes" rows="2"></textarea></label>
-        <button type="submit" class="btn btn-primary">Добавить</button>
+        <button type="submit" class="btn btn-primary">🔄 Импортировать</button>
     </form>
 </details>
 
 <table class="data-table">
-    <thead><tr><th>ID</th><th>Название</th><th>Тип</th><th>Код</th><th>Макс.толщ (мм)</th><th>Макс.масса (кг)</th><th>Примечания</th></tr></thead>
+    <thead><tr><th>Источник</th><th>Название</th><th>Тип</th><th>Код</th><th>Макс.толщ (мм)</th><th>Макс.масса (кг)</th><th>Примечания</th><th>Локально</th></tr></thead>
     <tbody>
         {% for e in items %}
         <tr>
-            <td><code>{{ e.id }}</code></td>
+            <td><span class="badge {% if e.source == '1c' %}green{% else %}gray{% endif %}">{% if e.source == '1c' %}1С{% else %}локально{% endif %}</span></td>
             <td><strong>{{ e.name }}</strong></td>
             <td>{{ e.type }}</td>
             <td>{{ e.code }}</td>
             <td>{{ e.max_thickness_mm or "—" }}</td>
             <td>{{ e.max_mass_kg or "—" }}</td>
-            <td>{{ e.notes }}</td>
+            <td><small>{{ e.notes or "" }}</small></td>
+            <td>
+                <form method="post" action="/api/equipment/local-params" style="display:inline">
+                    <input type="hidden" name="id" value="{{ e.id }}">
+                    <input name="local_notes" placeholder="локальные параметры..." value="" size="20">
+                    <button type="submit" class="btn btn-small">💾</button>
+                </form>
+            </td>
         </tr>
         {% endfor %}
     </tbody>

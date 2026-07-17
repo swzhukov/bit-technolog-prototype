@@ -6,8 +6,8 @@
 <p class="lead">Нормативы из ведомости Техинкома — основа для оценки времени</p>
 
 <details class="add-form">
-    <summary>＋ Добавить бенчмарк</summary>
-    <form method="post" action="/api/benchmarks" class="form">
+    <summary>🔄 Импорт ведомости трудоёмкости</summary>
+    <form method="post" action="/api/import/benchmarks" class="form">
         <div class="form-row">
             <label>Тип детали *<br><input name="detail_type" required placeholder="Кронштейн"></label>
             <label>Норма (н/ч)<br><input name="norm_hours" type="number" step="0.01" value="0"></label>

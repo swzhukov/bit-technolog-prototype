@@ -162,7 +162,10 @@ def init_db():
             code TEXT,
             max_thickness_mm REAL,
             max_mass_kg REAL,
-            notes TEXT
+            notes TEXT,
+            source TEXT DEFAULT '1c',
+            external_id TEXT,
+            last_sync_at TIMESTAMP
         );
 
         -- 7. Материалы
@@ -171,7 +174,10 @@ def init_db():
             name TEXT NOT NULL,
             grade TEXT,
             gost TEXT,
-            notes TEXT
+            notes TEXT,
+            source TEXT DEFAULT '1c',
+            external_id TEXT,
+            last_sync_at TIMESTAMP
         );
 
         -- 8. Цеха/участки/РМ (структура)
@@ -187,7 +193,10 @@ def init_db():
             id TEXT PRIMARY KEY,
             number TEXT NOT NULL,
             description TEXT,
-            applies_to TEXT
+            applies_to TEXT,
+            source TEXT DEFAULT '1c',
+            external_id TEXT,
+            last_sync_at TIMESTAMP
         );
 
         -- 10. Бенчмарки трудоёмкости
@@ -196,7 +205,9 @@ def init_db():
             detail_type TEXT NOT NULL,
             norm_hours REAL,
             source TEXT,
-            sample_size INTEGER DEFAULT 1
+            sample_size INTEGER DEFAULT 1,
+            external_id TEXT,
+            last_sync_at TIMESTAMP
         );
 
         -- 11. История действий
@@ -230,6 +241,17 @@ def init_db():
         conn.execute("ALTER TABLE llm_calls ADD COLUMN cost_rub REAL DEFAULT 0")
     except Exception:
         pass
+    # Миграции для новых полей в справочниках
+    for table, col in [
+        ("equipment", "source"), ("equipment", "external_id"), ("equipment", "last_sync_at"),
+        ("materials", "source"), ("materials", "external_id"), ("materials", "last_sync_at"),
+        ("iot", "source"), ("iot", "external_id"), ("iot", "last_sync_at"),
+        ("benchmarks", "external_id"), ("benchmarks", "last_sync_at"),
+    ]:
+        try:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} TEXT")
+        except Exception:
+            pass
     conn.commit()
     conn.close()
     seed_initial_data()
@@ -353,7 +375,8 @@ def get_all_equipment() -> list:
     conn = get_conn()
     rows = conn.execute("SELECT * FROM equipment ORDER BY name").fetchall()
     conn.close()
-    cols = ["id", "name", "type", "code", "max_thickness_mm", "max_mass_kg", "notes"]
+    cols = ["id", "name", "type", "code", "max_thickness_mm", "max_mass_kg", "notes",
+            "source", "external_id", "last_sync_at"]
     return [dict(zip(cols, r)) for r in rows]
 
 
@@ -824,10 +847,12 @@ async def generate(request: Request):
                     llm_output_text = llm_output_text[4:].lstrip()
             try:
                 llm_output = json.loads(llm_output_text)
-                # Обновляем запись: parsed_ok=True
+                # Обновляем запись: parsed_ok=True (используем lastrowid из лога)
                 conn = get_conn()
-                conn.execute("UPDATE llm_calls SET response_parsed_ok=1 WHERE id=(SELECT MAX(id))")
-                conn.commit()
+                last_id = conn.execute("SELECT MAX(id) FROM llm_calls").fetchone()[0]
+                if last_id:
+                    conn.execute("UPDATE llm_calls SET response_parsed_ok=1 WHERE id=?", (last_id,))
+                    conn.commit()
                 conn.close()
             except json.JSONDecodeError as je:
                 log_llm_call(detail_id, LLM_MODEL, system_msg, prompt,
@@ -1021,23 +1046,29 @@ def generate_mock_draft(detail_obj: dict) -> dict:
 
 
 @app.post("/api/approve")
-async def approve(req: GenerateRequest):
+async def approve(request: Request):
     """Approve draft"""
-    conn = sqlite3.connect(DB_PATH)
+    detail_id = await _get_param(request, "detail_id")
+    if not detail_id:
+        return JSONResponse({"error": "detail_id required"}, status_code=422)
+    conn = get_conn()
     conn.execute(
         "UPDATE drafts SET status = 'approved', updated_at = ? WHERE detail_id = ?",
-        (datetime.now().isoformat(), req.detail_id)
+        (datetime.now().isoformat(), detail_id)
     )
     conn.commit()
     conn.close()
-    add_history(req.detail_id, "approved")
+    add_history(detail_id, "approved")
     return {"status": "approved"}
 
 
 @app.post("/api/send-to-1c")
-async def send_to_1c(req: GenerateRequest):
+async def send_to_1c(request: Request):
     """MOCK: write RS to 1C:ERP"""
-    add_history(req.detail_id, "sent_to_1c_mock", {
+    detail_id = await _get_param(request, "detail_id")
+    if not detail_id:
+        return JSONResponse({"error": "detail_id required"}, status_code=422)
+    add_history(detail_id, "sent_to_1c_mock", {
         "message": "РС записана в 1С:ERP (mock)",
         "timestamp": datetime.now().isoformat()
     })
@@ -1394,6 +1425,109 @@ async def api_create_benchmark(detail_type: str = Form(...),
     bid = create_benchmark({"detail_type": detail_type, "norm_hours": norm_hours,
                             "source": source, "sample_size": sample_size})
     return RedirectResponse("/benchmarks", status_code=303)
+
+
+@app.post("/api/import/equipment")
+async def api_import_equipment(department: str = Form(""), type: str = Form(""), limit: int = Form(50)):
+    """Mock-импорт оборудования из 1С с фильтром (для прототипа — не реальный обмен)"""
+    # Mock: просто обновляем last_sync_at у существующих
+    import random
+    added = 0
+    for eq_id, name, etype in [
+        (f"1c-{random.randint(1000,9999)}", f"Импортированное #{i}", type or "Сварочный аппарат")
+        for i in range(min(limit, 10))
+    ]:
+        eid = f"eq-imp-{added}"
+        conn = get_conn()
+        try:
+            conn.execute("""INSERT INTO equipment
+                (id, name, type, code, notes, source, last_sync_at)
+                VALUES (?, ?, ?, ?, ?, '1c', ?)""",
+                (eid, name, etype, str(random.randint(10000, 99999)),
+                 f"импорт {datetime.now().isoformat()}", datetime.now().isoformat()))
+            conn.commit()
+            added += 1
+        except Exception:
+            pass
+        conn.close()
+    add_history("import", "equipment_imported", {"added": added, "filter": {"department": department, "type": type}})
+    return RedirectResponse("/equipment", status_code=303)
+
+
+@app.post("/api/import/materials")
+async def api_import_materials(grade: str = Form(""), limit: int = Form(50)):
+    """Mock-импорт материалов из 1С"""
+    import random
+    for i in range(min(limit, 5)):
+        mid = f"m-imp-{i}"
+        conn = get_conn()
+        try:
+            conn.execute("""INSERT INTO materials (id, name, grade, gost, source, last_sync_at)
+                VALUES (?, ?, ?, ?, '1c', ?)""",
+                (mid, f"Импортированный материал #{i}", grade or "Ст3",
+                 f"ГОСТ {random.randint(100,99999)}-{random.randint(80,2025)}",
+                 datetime.now().isoformat()))
+            conn.commit()
+        except Exception:
+            pass
+        conn.close()
+    return RedirectResponse("/materials", status_code=303)
+
+
+@app.post("/api/import/iot")
+async def api_import_iot(limit: int = Form(50)):
+    """Mock-импорт ИОТ"""
+    import random
+    for i in range(min(limit, 5)):
+        iid = f"iot-imp-{i}"
+        conn = get_conn()
+        try:
+            conn.execute("""INSERT INTO iot (id, number, description, source, last_sync_at)
+                VALUES (?, ?, ?, '1c', ?)""",
+                (iid, str(random.randint(1, 200)), f"Импортированный ИОТ #{i}",
+                 datetime.now().isoformat()))
+            conn.commit()
+        except Exception:
+            pass
+        conn.close()
+    return RedirectResponse("/iot", status_code=303)
+
+
+@app.post("/api/import/benchmarks")
+async def api_import_benchmarks(limit: int = Form(100)):
+    """Mock-импорт бенчмарков (ведомость трудоёмкости)"""
+    import random
+    for i in range(min(limit, 5)):
+        bid = f"bk-imp-{i}"
+        conn = get_conn()
+        try:
+            conn.execute("""INSERT INTO benchmarks (id, detail_type, norm_hours, source, sample_size, last_sync_at)
+                VALUES (?, ?, ?, '1c', ?, ?)""",
+                (bid, f"Импортированный тип #{i}", round(random.uniform(0.1, 5.0), 2),
+                 "ведомость Техинкома", random.randint(1, 50),
+                 datetime.now().isoformat()))
+            conn.commit()
+        except Exception:
+            pass
+        conn.close()
+    return RedirectResponse("/benchmarks", status_code=303)
+
+
+@app.post("/api/equipment/local-params")
+async def api_equipment_local_params(id: str = Form(...), local_notes: str = Form("")):
+    """Добавить локальные параметры к оборудованию (поверх 1С-данных)"""
+    conn = get_conn()
+    # Просто пишем в notes, добавляя маркер
+    row = conn.execute("SELECT notes FROM equipment WHERE id=?", (id,)).fetchone()
+    if not row:
+        conn.close()
+        return HTMLResponse('❌ Не найдено', status_code=404)
+    old_notes = row[0] or ""
+    new_notes = old_notes + f"\n[локально {datetime.now().strftime('%d.%m')}] {local_notes}"
+    conn.execute("UPDATE equipment SET notes=? WHERE id=?", (new_notes, id))
+    conn.commit()
+    conn.close()
+    return RedirectResponse("/equipment", status_code=303)
 
 
 # ============================================

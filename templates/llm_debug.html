@@ -5,6 +5,14 @@
 <h1>🐛 Отладка LLM-вызовов</h1>
 <p class="lead">Каждый запрос к LLM логируется: промпт, ответ, токены, время, ошибки</p>
 
+<div class="alert alert-demo" style="background:#eff6ff; border-left-color:#3b82f6; color:#1e3a8a;">
+    <strong>🛠 Как пользоваться:</strong><br>
+    1. Слева — список всех вызовов (🟢 = успех, 🟡 = есть ответ но не парсится, 🔴 = ошибка)<br>
+    2. Кликни на любой — справа увидишь полный <strong>system prompt</strong>, <strong>user prompt</strong> и <strong>ответ модели</strong><br>
+    3. В user prompt подставлены реальные данные (обозначение детали, оборудование, структура, few-shot)<br>
+    4. Если в ответе нет JSON или он кривой — копируй сюда, будем править промт
+</div>
+
 <div style="display:flex; gap:20px; margin-top:20px;">
     <div style="flex: 0 0 380px;">
         <h3>История вызовов ({{ calls | length }})</h3>
