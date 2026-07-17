@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+{% block title %}{{ detail.designation }} — БИТ.Технолог{% endblock %}
+{% block content %}
+<div class="breadcrumb">
+    <a href="/">← К списку деталей</a>
+</div>
+
+<div class="detail-header">
+    <h1>{{ detail.designation }} — {{ detail.name }}</h1>
+    <div class="detail-meta">
+        {% if status == "new" %}<span class="badge red">🔴 Новый</span>
+        {% elif status == "draft" %}<span class="badge yellow">🟡 Черновик</span>
+        {% elif status == "approved" %}<span class="badge green">🟢 Утверждён</span>
+        {% endif %}
+        <span class="meta-item">{{ detail.model }}</span>
+        <span class="meta-item">{{ detail.chassis }}</span>
+        <span class="meta-item">{{ detail.material }}</span>
+        <span class="meta-item">{{ detail.mass_kg }} кг</span>
+        <span class="meta-item">{{ detail.surface_treatment }}</span>
+    </div>
+</div>
+
+{% if not draft %}
+<div class="action-bar">
+    <button hx-post="/api/generate"
+            hx-vals='{"detail_id": "{{ detail.id }}"}'
+            hx-target="#draft-content"
+            hx-swap="innerHTML"
+            hx-indicator="#loading"
+            hx-disabled-elt="this"
+            hx-on::after-request="if(event.detail.successful) { setTimeout(() => location.reload(), 500); }"
+            class="btn btn-primary btn-large">
+        🤖 Сгенерировать черновик ТК
+    </button>
+    <span id="loading" class="htmx-indicator">⏳ Генерация (до 30 сек)...</span>
+</div>
+{% else %}
+<div class="action-bar">
+    {% if status != "approved" %}
+    <button hx-post="/api/approve"
+            hx-vals='{"detail_id": "{{ detail.id }}"}'
+            hx-confirm="Утвердить черновик?"
+            hx-target="body"
+            hx-swap="none"
+            hx-on::after-request="location.reload()"
+            class="btn btn-primary">
+        ✅ Утвердить
+    </button>
+    {% endif %}
+    <button hx-post="/api/send-to-1c"
+            hx-vals='{"detail_id": "{{ detail.id }}"}'
+            hx-confirm="Записать РС в 1С:ERP?"
+            hx-target="#action-result"
+            class="btn">
+        📤 Записать в 1С
+    </button>
+    <form action="/api/export/excel" method="post" style="display:inline">
+        <input type="hidden" name="detail_id" value="{{ detail.id }}">
+        <button type="submit" class="btn">📊 Excel</button>
+    </form>
+    <form action="/api/export/pdf" method="post" style="display:inline">
+        <input type="hidden" name="detail_id" value="{{ detail.id }}">
+        <button type="submit" class="btn">📄 PDF (обоснование)</button>
+    </form>
+    <span id="action-result"></span>
+</div>
+{% endif %}
+
+<div id="draft-content">
+{% if draft %}
+<div class="tabs">
+    <button class="tab active" data-tab="summary">📊 Сводка</button>
+    <button class="tab" data-tab="route">🛤 Маршрут</button>
+    <button class="tab" data-tab="operations">⚙ Операции</button>
+    <button class="tab" data-tab="reasoning">💡 Обоснование</button>
+    <button class="tab" data-tab="warnings">⚠️ Warnings <span class="badge-count">{{ draft.warnings | length }}</span></button>
+    <button class="tab" data-tab="questions">❓ Вопросы <span class="badge-count">{{ draft.questions | length }}</span></button>
+</div>
+
+<div class="tab-content" id="tab-summary">
+    <h2>Сводка</h2>
+    <div class="metrics">
+        <div class="metric">
+            <div class="metric-value">{{ draft.summary.total_operations }}</div>
+            <div class="metric-label">операций</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value">{{ draft.summary.total_hours }}</div>
+            <div class="metric-label">часов общее</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value">{{ draft.summary.prep_hours }}</div>
+            <div class="metric-label">часов подг.</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value">{{ draft.summary.complexity }}</div>
+            <div class="metric-label">сложность</div>
+        </div>
+    </div>
+
+    {% if draft.summary.closest_analog %}
+    <div class="info-block">
+        <strong>Ближайший аналог:</strong> <code>{{ draft.summary.closest_analog }}</code>
+    </div>
+    {% endif %}
+
+    <h3>Операции (кратко)</h3>
+    <table class="op-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Операция</th>
+                <th>Оборудование</th>
+                <th>Время</th>
+                <th>Уверенность</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for op in draft.operations %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ op.name }}</td>
+                <td>{{ op.equipment or "—" }}</td>
+                <td>{{ op.duration_hours }} ч</td>
+                <td>
+                    {% if op.confidence >= 80 %}🟢
+                    {% elif op.confidence >= 60 %}🟡
+                    {% else %}🔴{% endif %}
+                    {{ op.confidence }}%
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="tab-content" id="tab-route" style="display:none">
+    <h2>Маршрут производства</h2>
+    <div class="route-flow">
+        {% for step in draft.route %}
+        <div class="route-step">
+            <div class="step-num">{{ step.step }}</div>
+            <div class="step-content">
+                <div class="step-name">{{ step.operation }}</div>
+                <div class="step-time">{{ step.duration_hours }} ч</div>
+            </div>
+            {% if not loop.last %}<div class="step-arrow">↓</div>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="tab-content" id="tab-operations" style="display:none">
+    <h2>Операции (детально)</h2>
+    {% for op in draft.operations %}
+    <div class="op-card">
+        <div class="op-card-header">
+            <h3>{{ op.name }}</h3>
+            <span class="op-confidence">
+                {% if op.confidence >= 80 %}🟢
+                {% elif op.confidence >= 60 %}🟡
+                {% else %}🔴{% endif %}
+                {{ op.confidence }}%
+            </span>
+        </div>
+        <div class="op-card-body">
+            <p><strong>Оборудование:</strong> {{ op.equipment or "—" }}</p>
+            <p><strong>Время:</strong> {{ op.duration_hours }} ч</p>
+            <p><strong>Источник оценки:</strong> {{ op.duration_source }}</p>
+            <p><strong>Цех/участок/РМ:</strong> {{ op.department or "—" }} / {{ op.workplace or "—" }}</p>
+            {% if op.materials %}
+            <p><strong>Материалы:</strong> {{ op.materials | join(", ") }}</p>
+            {% endif %}
+            {% if op.control_points %}
+            <p><strong>Контрольные точки:</strong> {{ op.control_points | join(", ") }}</p>
+            {% endif %}
+            {% if op.gosts %}
+            <p><strong>ГОСТы:</strong> {{ op.gosts | join(", ") }}</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="tab-content" id="tab-reasoning" style="display:none">
+    <h2>Обоснование (для руководства)</h2>
+    <div class="info-block">
+        {% for key, value in draft.reasoning.items() %}
+        <h4>{{ key | replace('_', ' ') | title }}</h4>
+        <p>{{ value }}</p>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="tab-content" id="tab-warnings" style="display:none">
+    <h2>Предупреждения</h2>
+    {% if draft.warnings %}
+        {% for w in draft.warnings %}
+        <div class="warning-card">
+            <div class="warning-type">{{ w.type | upper }}</div>
+            <div class="warning-quote">«{{ w.quote }}»</div>
+            <div class="warning-concern"><strong>Что смущает:</strong> {{ w.concern }}</div>
+            <div class="warning-question"><strong>Вопрос:</strong> {{ w.question }}</div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p>Нет предупреждений — все данные однозначны.</p>
+    {% endif %}
+</div>
+
+<div class="tab-content" id="tab-questions" style="display:none">
+    <h2>Вопросы к технологу</h2>
+    {% if draft.questions %}
+        {% for q in draft.questions %}
+        <div class="question-card">
+            <div class="question-id">{{ q.id }}: {{ q.topic }}</div>
+            <div class="question-text">{{ q.question }}</div>
+            <div class="question-options">
+                <strong>Варианты:</strong>
+                <ul>
+                    {% for opt in q.options %}
+                    <li>{{ opt }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="question-default"><em>По умолчанию:</em> {{ q.default }}</div>
+            <div class="question-impact"><strong>Влияние:</strong> {{ q.impact_if_changed }}</div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p>Нет вопросов — данных достаточно.</p>
+    {% endif %}
+</div>
+{% endif %}
+</div>
+
+{% if draft %}
+<script>
+document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        const target = tab.dataset.tab;
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+        tab.classList.add('active');
+        document.getElementById('tab-' + target).style.display = 'block';
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

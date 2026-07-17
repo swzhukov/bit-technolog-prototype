@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# venv
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets — никогда не коммитим
+.env
+
+# Runtime
+server.log
+*.db
+*.sqlite
+*.sqlite3
+
+# Misc
+*.tar.gz

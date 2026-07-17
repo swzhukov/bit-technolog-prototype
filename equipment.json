@@ -1,0 +1,90 @@
+[
+  {
+    "name": "Кедр-300",
+    "type": "Сварочный аппарат",
+    "group": "Сварка",
+    "operations": ["MIG сварка", "MAG сварка", "механизированная сварка"],
+    "max_dim_mm": null,
+    "department": "Сварочно-сборочный КТ",
+    "workplace": "01/01/04",
+    "code": 19905,
+    "rank": 4
+  },
+  {
+    "name": "Полуавтомат сварочный",
+    "type": "Сварочный аппарат",
+    "group": "Сварка",
+    "operations": ["MIG сварка", "MAG сварка"],
+    "max_dim_mm": null,
+    "department": "Сварочно-сборочный ВТ",
+    "workplace": null,
+    "code": 19905,
+    "rank": 4
+  },
+  {
+    "name": "Токарный 16К20",
+    "type": "Токарный станок",
+    "group": "Токарные",
+    "operations": ["точение", "сверление", "нарезание резьбы"],
+    "max_dim_mm": 400,
+    "department": "Механообработка",
+    "workplace": null,
+    "code": null,
+    "rank": null
+  },
+  {
+    "name": "Фрезерный 6Р82",
+    "type": "Фрезерный станок",
+    "group": "Фрезерные",
+    "operations": ["фрезерование", "сверление"],
+    "max_dim_mm": 800,
+    "department": "Механообработка",
+    "workplace": null,
+    "code": null,
+    "rank": null
+  },
+  {
+    "name": "Плазменный рез HyperTherm",
+    "type": "Плазменный станок",
+    "group": "Раскрой",
+    "operations": ["резка листа"],
+    "max_dim_mm": 2500,
+    "department": "Лазерная резка",
+    "workplace": null,
+    "code": null,
+    "rank": null
+  },
+  {
+    "name": "Гильотина",
+    "type": "Гильотинные ножницы",
+    "group": "Раскрой",
+    "operations": ["резка листа"],
+    "max_dim_mm": 2000,
+    "department": "Мех. резка",
+    "workplace": null,
+    "code": null,
+    "rank": null
+  },
+  {
+    "name": "Гибочный станок",
+    "type": "Листогибочный пресс",
+    "group": "Гибка",
+    "operations": ["гибка листа"],
+    "max_dim_mm": 2000,
+    "department": "Гибка",
+    "workplace": null,
+    "code": null,
+    "rank": null
+  },
+  {
+    "name": "Камера покрасочная",
+    "type": "Покрасочная камера",
+    "group": "Покраска",
+    "operations": ["порошковая покраска", "жидкая покраска"],
+    "max_dim_mm": null,
+    "department": "Покраска",
+    "workplace": null,
+    "code": null,
+    "rank": null
+  }
+]
