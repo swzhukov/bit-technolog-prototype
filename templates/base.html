@@ -17,13 +17,20 @@
             <a href="/iot" class="navlink">⚠ ИОТ</a>
             <a href="/benchmarks" class="navlink">📊 Бенчмарки</a>
             <a href="/learning" class="navlink">🎓 Обучение</a>
+            <span class="spacer"></span>
+            {% set dc = daily_cost() %}
+            {% if dc.total_rub >= dc.limit_rub %}
+            <span class="cost-pill cost-exceeded" title="Лимит превышен!">⛔ {{ "%.2f"|format(dc.total_rub) }}₽ / {{ "%.0f"|format(dc.limit_rub) }}₽</span>
+            {% elif dc.total_rub >= dc.limit_rub * 0.8 %}
+            <span class="cost-pill cost-warn" title="Остаток {{ "%.2f"|format(dc.remaining_rub) }}₽ за сегодня">⚠ {{ "%.2f"|format(dc.total_rub) }}₽ / {{ "%.0f"|format(dc.limit_rub) }}₽</span>
+            {% else %}
+            <span class="cost-pill" title="Потрачено сегодня: {{ "%.2f"|format(dc.total_rub) }}₽ (остаток {{ "%.2f"|format(dc.remaining_rub) }}₽). Вызовов: {{ dc.calls }}">💰 {{ "%.2f"|format(dc.total_rub) }}₽ / {{ "%.0f"|format(dc.limit_rub) }}₽</span>
+            {% endif %}
             {% if demo_mode %}
-            <span class="tag demo">⚠ DEMO MODE</span>
+            <span class="tag demo">⚠ DEMO</span>
             {% else %}
             <span class="tag">LLM: {{ llm_model }}</span>
             {% endif %}
-            <span class="spacer"></span>
-            <span class="meta">ООО «ПК Техинком-Центр» · Прототип v0.2</span>
         </nav>
     </header>
     <main>

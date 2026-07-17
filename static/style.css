@@ -180,3 +180,27 @@ code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px; back
 .btn-small { padding: 4px 10px; font-size: 12px; }
 .btn-danger { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
 .btn-danger:hover { background: #fecaca; }
+
+/* Cost pill (in nav) */
+.cost-pill {
+    display: inline-block;
+    background: #ecfdf5;
+    color: #065f46;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-left: 8px;
+    border: 1px solid #a7f3d0;
+    cursor: help;
+}
+.cost-pill.cost-warn {
+    background: #fefce8;
+    color: #92400e;
+    border-color: #fde68a;
+}
+.cost-pill.cost-exceeded {
+    background: #fee2e2;
+    color: #991b1b;
+    border-color: #fecaca;
+}

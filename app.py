@@ -30,6 +30,11 @@ LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-v4-flash-thinking")
 LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "120"))
 DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
 
+# Стоимость и лимиты
+LLM_PRICE_INPUT_RUB_PER_1K = float(os.getenv("LLM_PRICE_INPUT_RUB_PER_1K", "0.40"))
+LLM_PRICE_OUTPUT_RUB_PER_1K = float(os.getenv("LLM_PRICE_OUTPUT_RUB_PER_1K", "1.20"))
+LLM_DAILY_LIMIT_RUB = float(os.getenv("LLM_DAILY_LIMIT_RUB", "200"))
+
 # Auto-enable demo mode if API key is empty
 if not LLM_API_KEY and not DEMO_MODE:
     log_msg = "No LLM_API_KEY set — auto-enabling DEMO_MODE"
@@ -44,9 +49,24 @@ logging.basicConfig(
 log = logging.getLogger("bit-technolog")
 
 # FastAPI app
-app = FastAPI(title="БИТ.Технолог — Прототип", version="0.1.0")
+app = FastAPI(title="БИТ.Технолог — Прототип", version="0.2.1")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+
+# Jinja globals: daily_cost() вызывается в каждом шаблоне автоматически
+def _daily_cost_global():
+    return get_daily_cost()
+
+templates.env.globals["daily_cost"] = _daily_cost_global
+
+
+# Middleware: добавляет daily_cost в request.state (для endpoints, не для шаблонов)
+@app.middleware("http")
+async def add_daily_cost(request: Request, call_next):
+    request.state.daily_cost = get_daily_cost()
+    response = await call_next(request)
+    return response
 
 # Local imports
 from prompts import TECH_CARD_PROMPT
@@ -200,10 +220,16 @@ def init_db():
             tokens_in INTEGER,
             tokens_out INTEGER,
             duration_ms INTEGER,
+            cost_rub REAL DEFAULT 0,
             error TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
+    # Миграция: добавляем колонку cost_rub если её нет (для старых БД)
+    try:
+        conn.execute("ALTER TABLE llm_calls ADD COLUMN cost_rub REAL DEFAULT 0")
+    except Exception:
+        pass
     conn.commit()
     conn.close()
     seed_initial_data()
@@ -463,22 +489,61 @@ def get_edits(detail_id: str = None) -> list:
 
 
 # Правила (обучение)
+def calc_cost_rub(tokens_in: int, tokens_out: int) -> float:
+    """Считает стоимость вызова в рублях"""
+    if not tokens_in or not tokens_out:
+        return 0.0
+    return round(
+        (tokens_in / 1000.0) * LLM_PRICE_INPUT_RUB_PER_1K +
+        (tokens_out / 1000.0) * LLM_PRICE_OUTPUT_RUB_PER_1K,
+        4
+    )
+
+
+def get_daily_cost(date_str: str = None) -> dict:
+    """Считает расход за указанный день (по умолчанию — сегодня)"""
+    if not date_str:
+        date_str = datetime.now().strftime("%Y-%m-%d")
+    conn = get_conn()
+    row = conn.execute("""SELECT
+        COALESCE(SUM(cost_rub), 0) as total,
+        COUNT(*) as calls,
+        COALESCE(SUM(tokens_in), 0) as tokens_in,
+        COALESCE(SUM(tokens_out), 0) as tokens_out
+        FROM llm_calls
+        WHERE DATE(created_at, 'localtime') = ? AND cost_rub > 0""",
+        (date_str,)).fetchone()
+    conn.close()
+    return {
+        "date": date_str,
+        "total_rub": round(row[0] or 0, 4),
+        "calls": row[1] or 0,
+        "tokens_in": row[2] or 0,
+        "tokens_out": row[3] or 0,
+        "limit_rub": LLM_DAILY_LIMIT_RUB,
+        "remaining_rub": round(LLM_DAILY_LIMIT_RUB - (row[0] or 0), 4),
+        "exceeded": (row[0] or 0) >= LLM_DAILY_LIMIT_RUB
+    }
+
+
 def log_llm_call(detail_id: str, model: str, system_prompt: str, user_prompt: str,
                  response_text: str = None, response_parsed_ok: bool = None,
                  tokens_in: int = None, tokens_out: int = None,
                  duration_ms: int = None, error: str = None):
     """Записывает каждый LLM-вызов в БД для отладки"""
+    cost = calc_cost_rub(tokens_in or 0, tokens_out or 0)
     conn = get_conn()
     conn.execute("""INSERT INTO llm_calls
         (detail_id, model, system_prompt, user_prompt, response_text,
-         response_parsed_ok, tokens_in, tokens_out, duration_ms, error)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+         response_parsed_ok, tokens_in, tokens_out, duration_ms, cost_rub, error)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (detail_id, model, system_prompt[:5000], user_prompt[:10000],
          (response_text or "")[:10000],
          1 if response_parsed_ok else (0 if response_parsed_ok is False else None),
-         tokens_in, tokens_out, duration_ms, error))
+         tokens_in, tokens_out, duration_ms, cost, error))
     conn.commit()
     conn.close()
+    return cost
 
 
 def get_llm_calls(detail_id: str = None, limit: int = 50) -> list:
@@ -690,6 +755,14 @@ async def generate(request: Request):
         return HTMLResponse(
             f'<span style="color:red">❌ Деталь {detail_id} не найдена</span>',
             status_code=404
+        )
+
+    # Проверка дневного лимита
+    daily = get_daily_cost()
+    if daily["exceeded"]:
+        return HTMLResponse(
+            f'<span style="color:red">⛔ Превышен дневной лимит {daily["limit_rub"]:.0f}₽ (потрачено {daily["total_rub"]:.2f}₽). Измени LLM_DAILY_LIMIT_RUB в .env.</span>',
+            status_code=429
         )
 
     # DEMO MODE: return mock response based on detail
