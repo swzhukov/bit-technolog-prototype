@@ -165,7 +165,10 @@ async def generate(detail_id: str = Form(...)):
     """Generate draft via LLM (or mock in demo mode). Accepts form-data (htmx default)."""
     detail_obj = next((d for d in MOCK_DETAILS if d["id"] == detail_id), None)
     if not detail_obj:
-        raise HTTPException(404, f"Detail not found: {detail_id}")
+        return HTMLResponse(
+            f'<span style="color:red">❌ Деталь {detail_id} не найдена</span>',
+            status_code=404
+        )
 
     # DEMO MODE: return mock response based on detail
     if DEMO_MODE:
@@ -216,10 +219,14 @@ async def generate(detail_id: str = Form(...)):
             })
         except Exception as e:
             log.error(f"LLM error: {e}")
-            raise HTTPException(500, f"LLM error: {str(e)}")
+            error_msg = str(e).replace("<", "&lt;").replace(">", "&gt;")[:200]
+            return HTMLResponse(
+                f'<span style="color:red">❌ Ошибка LLM: {error_msg}</span>',
+                status_code=500
+            )
 
     save_draft(detail_id, llm_output, "draft")
-    return {"status": "ok", "detail_id": detail_id, "operations": llm_output.get("summary", {}).get("total_operations", 0)}
+    return HTMLResponse('<span style="color:green">✅ Готово! Перезагружаю...</span>')
 
 
 def generate_mock_draft(detail_obj: dict) -> dict:

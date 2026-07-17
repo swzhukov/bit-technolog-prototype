@@ -24,15 +24,16 @@
 <div class="action-bar">
     <button hx-post="/api/generate"
             hx-vals='{"detail_id": "{{ detail.id }}"}'
-            hx-target="#draft-content"
+            hx-target="#generate-status"
             hx-swap="innerHTML"
             hx-indicator="#loading"
             hx-disabled-elt="this"
-            hx-on::after-request="if(event.detail.successful) { setTimeout(() => location.reload(), 500); }"
+            hx-on::after-request="setTimeout(() => location.reload(), 800);"
             class="btn btn-primary btn-large">
         🤖 Сгенерировать черновик ТК
     </button>
-    <span id="loading" class="htmx-indicator">⏳ Генерация (до 30 сек)...</span>
+    <span id="loading" class="htmx-indicator">⏳ Генерация (до 60 сек)...</span>
+    <span id="generate-status"></span>
 </div>
 {% else %}
 <div class="action-bar">
