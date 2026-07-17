@@ -257,3 +257,68 @@ def test_pilot_metrics_after_activity(client):
     assert "accepted_pct" in metrics
     assert "avg_time_to_card_min" in metrics
     assert metrics["kpi"]["time_target"] == 60
+
+
+# ========== Tech rules ==========
+def test_save_rules(client):
+    c, _ = client
+    r = c.post("/api/details/detail-001/rules",
+               data={"rules": "обезжиривание 20 мин в травильной жидкости"})
+    assert r.status_code == 200
+
+
+def test_get_detail_has_tech_rules(client):
+    _, app = client
+    d = app.get_detail("detail-001")
+    assert "tech_rules" in d
+    assert "cost_per_hour" in d
+    assert "overhead_pct" in d
+    assert "material_cost_rub" in d
+
+
+# ========== Economics ==========
+def test_save_economics(client):
+    c, _ = client
+    r = c.post("/api/details/detail-001/economics",
+               data={"cost_per_hour": "500", "overhead_pct": "15", "material_cost_rub": "1000"})
+    assert r.status_code == 200
+
+
+def test_calc_cost_estimate(client):
+    _, app = client
+    # Сначала сгенерируем и установим экономику
+    c, _ = client
+    c.post("/api/generate", data={"detail_id": "detail-001"})
+    c.post("/api/details/detail-001/economics",
+           data={"cost_per_hour": "500", "overhead_pct": "15", "material_cost_rub": "1000"})
+    econ = app.calc_cost_estimate("detail-001")
+    assert "total_hours" in econ
+    assert "labor_cost" in econ
+    assert "total_cost" in econ
+    assert econ["total_cost"] > 0
+
+
+# ========== Role model ==========
+def test_submit_for_review(client):
+    c, _ = client
+    c.post("/api/generate", data={"detail_id": "detail-001"})
+    r = c.post("/api/submit-for-review", data={"detail_id": "detail-001"})
+    assert r.status_code == 200
+
+
+def test_approve_chief(client):
+    c, _ = client
+    c.post("/api/generate", data={"detail_id": "detail-001"})
+    r = c.post("/api/approve-chief",
+               data={"detail_id": "detail-001", "chief": "Баранов"})
+    assert r.status_code == 200
+
+
+def test_economics_endpoint(client):
+    c, _ = client
+    c.post("/api/generate", data={"detail_id": "detail-001"})
+    c.post("/api/details/detail-001/economics",
+           data={"cost_per_hour": "500", "overhead_pct": "15", "material_cost_rub": "1000"})
+    r = c.get("/api/economics/detail-001")
+    assert r.status_code == 200
+    assert "труд" in r.text or "себестоимость" in r.text

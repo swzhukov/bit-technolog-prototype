@@ -103,6 +103,10 @@ def init_db():
             mass_kg REAL,
             surface_treatment TEXT,
             extra_props TEXT,
+            tech_rules TEXT,
+            cost_per_hour REAL DEFAULT 0,
+            overhead_pct REAL DEFAULT 15,
+            material_cost_rub REAL DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
@@ -260,6 +264,18 @@ def init_db():
     ]:
         try:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} TEXT")
+        except Exception:
+            pass
+    # Миграции для details
+    for col, dtype in [("tech_rules", "TEXT"), ("cost_per_hour", "REAL"), ("overhead_pct", "REAL"), ("material_cost_rub", "REAL")]:
+        try:
+            conn.execute(f"ALTER TABLE details ADD COLUMN {col} {dtype}")
+        except Exception:
+            pass
+    # Миграции для drafts (ролевая модель)
+    for col, dtype in [("status_ext", "TEXT DEFAULT 'draft'"), ("approver", "TEXT"), ("submitted_at", "TIMESTAMP")]:
+        try:
+            conn.execute(f"ALTER TABLE drafts ADD COLUMN {col} {dtype}")
         except Exception:
             pass
     conn.commit()
@@ -812,12 +828,20 @@ async def detail(request: Request, detail_id: str):
     draft_data = get_draft(detail_id)
     versions = get_versions(detail_id)
     edits = get_edits(detail_id)
+    status_ext = "draft"
+    if draft_data:
+        conn = get_conn()
+        row = conn.execute("SELECT status_ext FROM drafts WHERE detail_id=?", (detail_id,)).fetchone()
+        conn.close()
+        if row and row[0]:
+            status_ext = row[0]
 
     return templates.TemplateResponse("detail.html", {
         "request": request,
         "detail": detail_obj,
         "draft": draft_data["output"] if draft_data else None,
         "status": draft_data["status"] if draft_data else "new",
+        "status_ext": status_ext,
         "versions": versions,
         "edits": edits,
         "demo_mode": DEMO_MODE,
@@ -865,11 +889,15 @@ async def generate(request: Request):
             )
 
             from string import Template
+            tech_rules_text = detail_obj.get("tech_rules") or ""
+            rules_block = f"\nВАЖНО: Технолог указал следующие правила и нюансы — ОБЯЗАТЕЛЬНО учти их:\n{tech_rules_text}\n" if tech_rules_text.strip() else ""
             prompt = Template(TECH_CARD_PROMPT).substitute(
                 properties_json=json.dumps(detail_obj, indent=2, ensure_ascii=False),
                 equipment_json=json.dumps(EQUIPMENT, indent=2, ensure_ascii=False),
                 structure_json=json.dumps(STRUCTURE, indent=2, ensure_ascii=False),
-                few_shot_json=json.dumps(FEW_SHOT_4C85941A, indent=2, ensure_ascii=False)
+                few_shot_json=json.dumps(FEW_SHOT_4C85941A, indent=2, ensure_ascii=False),
+                tech_rules="(правила не указаны)",
+                rules_block=rules_block
             )
 
             log.info(f"Calling {LLM_MODEL} via {LLM_API_URL}...")
@@ -1762,6 +1790,122 @@ async def api_pilot_accepted(detail_id: str = Form(...), total_ops: int = Form(.
     record_metric(detail_id, "total_ops", total_ops)
     record_metric(detail_id, "accepted_op", accepted_ops)
     return RedirectResponse("/pilot", status_code=303)
+
+
+# ============================================
+# ПРАВИЛА ТЕХНОЛОГА (структурированный ввод)
+# ============================================
+@app.post("/api/details/{detail_id}/rules")
+async def api_save_rules(detail_id: str, rules: str = Form(...)):
+    """Сохраняет правила технолога для конкретной детали (в свободной форме)"""
+    conn = get_conn()
+    conn.execute("UPDATE details SET tech_rules=?, updated_at=? WHERE id=?",
+                 (rules, datetime.now().isoformat(), detail_id))
+    conn.commit()
+    conn.close()
+    add_history(detail_id, "rules_updated", {"length": len(rules)})
+    return {"status": "ok"}
+
+
+# ============================================
+# ЭКОНОМИКА: ставка, накладные, себестоимость
+# ============================================
+@app.post("/api/details/{detail_id}/economics")
+async def api_save_economics(detail_id: str,
+                              cost_per_hour: float = Form(...),
+                              overhead_pct: float = Form(...),
+                              material_cost_rub: float = Form(...)):
+    conn = get_conn()
+    conn.execute("""UPDATE details SET cost_per_hour=?, overhead_pct=?, material_cost_rub=?, updated_at=?
+                    WHERE id=?""",
+                 (cost_per_hour, overhead_pct, material_cost_rub,
+                  datetime.now().isoformat(), detail_id))
+    conn.commit()
+    conn.close()
+    return {"status": "ok"}
+
+
+def calc_cost_estimate(detail_id: str) -> dict:
+    """Расчёт себестоимости: труд (ставка * часы) + материал + накладные"""
+    draft = get_draft(detail_id)
+    detail = get_detail(detail_id)
+    if not draft or not detail:
+        return {}
+    operations = draft["output"].get("operations", [])
+    total_hours = sum(op.get("duration_hours", 0) for op in operations)
+    cost_per_hour = detail.get("cost_per_hour") or 0
+    material_cost = detail.get("material_cost_rub") or 0
+    overhead_pct = detail.get("overhead_pct") or 0
+
+    labor_cost = total_hours * cost_per_hour
+    direct_cost = labor_cost + material_cost
+    overhead = direct_cost * (overhead_pct / 100)
+    total_cost = direct_cost + overhead
+    price = total_cost * 1.3  # 30% наценка (mock)
+
+    return {
+        "total_hours": round(total_hours, 2),
+        "labor_cost": round(labor_cost, 2),
+        "material_cost": round(material_cost, 2),
+        "direct_cost": round(direct_cost, 2),
+        "overhead_pct": overhead_pct,
+        "overhead": round(overhead, 2),
+        "total_cost": round(total_cost, 2),
+        "price": round(price, 2)
+    }
+
+
+# ============================================
+# РОЛЕВАЯ МОДЕЛЬ: workflow утверждения
+# ============================================
+@app.post("/api/submit-for-review")
+async def api_submit_for_review(request: Request):
+    detail_id = await _get_param(request, "detail_id")
+    if not detail_id:
+        return JSONResponse({"error": "detail_id required"}, status_code=422)
+    conn = get_conn()
+    conn.execute("""UPDATE drafts SET status_ext='review', submitted_at=?
+                    WHERE detail_id=?""", (datetime.now().isoformat(), detail_id))
+    conn.commit()
+    conn.close()
+    add_history(detail_id, "submitted_for_review")
+    return {"status": "submitted"}
+
+
+@app.post("/api/approve-chief")
+async def api_approve_chief(request: Request):
+    """Утверждение начальником (другая роль, не технолог)"""
+    detail_id = await _get_param(request, "detail_id")
+    chief = await _get_param(request, "chief") or "chief"
+    if not detail_id:
+        return JSONResponse({"error": "detail_id required"}, status_code=422)
+    conn = get_conn()
+    conn.execute("""UPDATE drafts SET status_ext='approved_chief', approver=?
+                    WHERE detail_id=?""", (chief, detail_id))
+    conn.commit()
+    conn.close()
+    add_history(detail_id, "approved_by_chief", {"chief": chief})
+    return {"status": "approved_chief"}
+
+
+@app.get("/api/economics/{detail_id}")
+async def api_economics(detail_id: str):
+    """Возвращает HTML-блок с расчётом себестоимости"""
+    econ = calc_cost_estimate(detail_id)
+    if not econ:
+        return HTMLResponse('<p>Нет черновика для расчёта.</p>')
+    html = f"""
+    <div class="metrics">
+        <div class="metric"><div class="metric-value">{econ['total_hours']}</div><div class="metric-label">часов всего</div></div>
+        <div class="metric"><div class="metric-value">{econ['labor_cost']}₽</div><div class="metric-label">труд</div></div>
+        <div class="metric"><div class="metric-value">{econ['material_cost']}₽</div><div class="metric-label">материал</div></div>
+        <div class="metric"><div class="metric-value">{econ['overhead']}₽</div><div class="metric-label">накладные ({econ['overhead_pct']}%)</div></div>
+        <div class="metric"><div class="metric-value" style="color:#dc2626">{econ['total_cost']}₽</div><div class="metric-label">себестоимость</div></div>
+        <div class="metric"><div class="metric-value" style="color:#16a34a">{econ['price']}₽</div><div class="metric-label">цена (наценка 30%)</div></div>
+    </div>
+    <p class="lead">Расчёт: {econ['total_hours']} ч × ставка + {econ['material_cost']}₽ материал + {econ['overhead_pct']}% накладные = {econ['total_cost']}₽</p>
+    """
+    return HTMLResponse(html)
 
 
 if __name__ == "__main__":

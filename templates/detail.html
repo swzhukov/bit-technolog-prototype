@@ -9,8 +9,10 @@
     <h1>{{ detail.designation }} — {{ detail.name }}</h1>
     <div class="detail-meta">
         {% if status == "new" %}<span class="badge red">🔴 Новый</span>
-        {% elif status == "draft" %}<span class="badge yellow">🟡 Черновик</span>
         {% elif status == "approved" %}<span class="badge green">🟢 Утверждён</span>
+        {% else %}<span class="badge yellow">🟡 Черновик</span>{% endif %}
+        {% if status_ext == "review" %}<span class="badge yellow">👀 На проверке</span>
+        {% elif status_ext == "approved_chief" %}<span class="badge green">👑 Утверждён начальником</span>
         {% endif %}
         <span class="meta-item">{{ detail.model }}</span>
         <span class="meta-item">{{ detail.chassis }}</span>
@@ -19,6 +21,46 @@
         <span class="meta-item">{{ detail.surface_treatment }}</span>
     </div>
 </div>
+
+{% if draft %}
+<details class="add-form" style="margin-bottom: 16px;">
+    <summary>📐 Правила технолога (учитываются AI при генерации)</summary>
+    <form hx-post="/api/details/{{ detail.id }}/rules"
+          hx-target="#rules-status"
+          hx-swap="innerHTML"
+          hx-on::after-request="setTimeout(() => location.reload(), 1000);"
+          class="form">
+        <label>Правила и нюансы (свободная форма):<br>
+            <textarea name="rules" rows="4" placeholder="Например: обезжиривание 20 мин в травильной жидкости; сварку вести снизу вверх; после закалки — отпуск при 600°С">{{ detail.tech_rules or "" }}</textarea>
+        </label>
+        <button type="submit" class="btn btn-primary">💾 Сохранить правила</button>
+        <span id="rules-status"></span>
+    </form>
+</details>
+
+<details class="add-form" style="margin-bottom: 16px;">
+    <summary>💰 Экономика (расчёт себестоимости)</summary>
+    <form hx-post="/api/details/{{ detail.id }}/economics"
+          hx-target="#econ-status"
+          hx-swap="innerHTML"
+          hx-on::after-request="setTimeout(() => location.reload(), 1000);"
+          class="form">
+        <div class="form-row">
+            <label>Ставка в час (₽)<br>
+                <input name="cost_per_hour" type="number" step="0.01" value="{{ detail.cost_per_hour or 500 }}">
+            </label>
+            <label>Накладные (%)<br>
+                <input name="overhead_pct" type="number" step="0.1" value="{{ detail.overhead_pct or 15 }}">
+            </label>
+            <label>Стоимость материала (₽)<br>
+                <input name="material_cost_rub" type="number" step="0.01" value="{{ detail.material_cost_rub or 0 }}">
+            </label>
+        </div>
+        <button type="submit" class="btn btn-primary">💾 Сохранить</button>
+        <span id="econ-status"></span>
+    </form>
+</details>
+{% endif %}
 
 {% if not draft %}
 <div class="action-bar">
@@ -47,7 +89,19 @@
             class="btn btn-primary">
         ✅ Утвердить
     </button>
+    <button hx-post="/api/submit-for-review"
+            hx-vals='{"detail_id": "{{ detail.id }}"}'
+            hx-on::after-request="location.reload()"
+            class="btn">
+        👀 Отправить на проверку
+    </button>
     {% endif %}
+    <button hx-post="/api/approve-chief"
+            hx-vals='{"detail_id": "{{ detail.id }}", "chief": "Баранов"}'
+            hx-on::after-request="location.reload()"
+            class="btn">
+        👑 Утвердить как начальник
+    </button>
     <button hx-post="/api/send-to-1c"
             hx-vals='{"detail_id": "{{ detail.id }}"}'
             hx-confirm="Записать РС в 1С:ERP?"
@@ -314,6 +368,18 @@
     </table>
 </div>
 {% endif %}
+
+<div class="tab-content" id="tab-economics" style="display:none">
+    <h2>💰 Экономика</h2>
+    <p class="lead">Себестоимость и рекомендуемая цена продажи (с наценкой 30%)</p>
+    <div id="econ-data"
+         hx-get="/api/economics/{{ detail.id }}"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        ⏳ Загрузка...
+    </div>
+    <p class="lead"><small>Сначала заполните ставку и стоимость материала в форме "Экономика" выше и утвердите черновик.</small></p>
+</div>
 
 {% if edits %}
 <div class="tab-content" id="tab-edits" style="display:none">
