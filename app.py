@@ -219,6 +219,16 @@ def init_db():
             details TEXT
         );
 
+        -- 13. Пилотные метрики (KPI)
+        CREATE TABLE IF NOT EXISTS pilot_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            detail_id TEXT,
+            metric TEXT,
+            value REAL,
+            extra TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
         -- 12. Лог LLM-вызовов (промпт + ответ + токены)
         CREATE TABLE IF NOT EXISTS llm_calls (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -549,6 +559,57 @@ def get_daily_cost(date_str: str = None) -> dict:
     }
 
 
+# Pilot metrics
+def record_metric(detail_id: str, metric: str, value: float, extra: dict = None):
+    """Записывает KPI пилота (time_to_card, edits_count, accepted_pct, и т.д.)"""
+    conn = get_conn()
+    conn.execute("""INSERT INTO pilot_metrics (detail_id, metric, value, extra)
+        VALUES (?, ?, ?, ?)""",
+        (detail_id, metric, value, json.dumps(extra or {}, ensure_ascii=False)))
+    conn.commit()
+    conn.close()
+
+
+def get_pilot_metrics() -> dict:
+    """Возвращает KPI для дашборда пилота"""
+    conn = get_conn()
+    # Всего деталей прошло через пилот
+    total = conn.execute("SELECT COUNT(DISTINCT detail_id) FROM pilot_metrics").fetchone()[0] or 0
+    # Среднее число правок на черновик
+    edits_per_card = conn.execute("""SELECT AVG(cnt) FROM (
+        SELECT detail_id, COUNT(*) as cnt FROM pilot_metrics WHERE metric='edit' GROUP BY detail_id
+    )""").fetchone()[0] or 0
+    # % принятых операций (метрика 'accepted')
+    accepted = conn.execute("""SELECT
+        COALESCE(SUM(CASE WHEN metric='accepted_op' THEN value ELSE 0 END), 0),
+        COALESCE(SUM(CASE WHEN metric='total_ops' THEN value ELSE 0 END), 1)
+        FROM pilot_metrics""").fetchone()
+    accepted_pct = (accepted[0] / accepted[1] * 100) if accepted[1] else 0
+    # Среднее время на техкарту
+    avg_time = conn.execute("""SELECT AVG(value) FROM pilot_metrics
+        WHERE metric='time_to_card_min'""").fetchone()[0] or 0
+    # Всего потрачено на LLM
+    total_cost = conn.execute("""SELECT COALESCE(SUM(cost_rub), 0) FROM llm_calls
+        WHERE cost_rub > 0""").fetchone()[0] or 0
+    # Генераций
+    total_gens = conn.execute("SELECT COUNT(*) FROM llm_calls WHERE error IS NULL AND response_parsed_ok=1").fetchone()[0] or 0
+    conn.close()
+    return {
+        "total_details_processed": total,
+        "edits_per_card": round(edits_per_card, 2),
+        "accepted_pct": round(accepted_pct, 1),
+        "avg_time_to_card_min": round(avg_time, 1),
+        "total_llm_cost_rub": round(total_cost, 2),
+        "total_successful_gens": total_gens,
+        # Целевые KPI (из совета)
+        "kpi": {
+            "time_target": 60,  # мин (текущее 240-480)
+            "accepted_target": 50,  # % (минимум)
+            "edits_target": 8,  # правок (максимум)
+        }
+    }
+
+
 def log_llm_call(detail_id: str, model: str, system_prompt: str, user_prompt: str,
                  response_text: str = None, response_parsed_ok: bool = None,
                  tokens_in: int = None, tokens_out: int = None,
@@ -876,6 +937,9 @@ async def generate(request: Request):
             )
 
     save_draft(detail_id, llm_output, "draft")
+    # Пилотная метрика: всего операций в черновике
+    total_ops = len(llm_output.get("operations", []))
+    record_metric(detail_id, "total_ops", total_ops, {"source": "llm"})
     return HTMLResponse('<span style="color:green">✅ Готово! Перезагружаю...</span>')
 
 
@@ -1059,6 +1123,10 @@ async def approve(request: Request):
     conn.commit()
     conn.close()
     add_history(detail_id, "approved")
+    # Пилотные метрики
+    edits = get_edits(detail_id)
+    record_metric(detail_id, "approved", 1, {"edits_count": len(edits)})
+    record_metric(detail_id, "edits_count", len(edits))
     return {"status": "approved"}
 
 
@@ -1657,6 +1725,43 @@ async def llm_debug_page(request: Request, detail_id: str = None, call_id: int =
         "calls": calls,
         "selected": selected
     })
+
+
+# ============================================
+# ПИЛОТ: дашборд KPI + ввод метрик
+# ============================================
+@app.get("/pilot", response_class=HTMLResponse)
+async def pilot_dashboard(request: Request):
+    metrics = get_pilot_metrics()
+    conn = get_conn()
+    recent = conn.execute("""SELECT detail_id,
+        SUM(CASE WHEN metric='edits_count' THEN value ELSE 0 END) as edits,
+        SUM(CASE WHEN metric='time_to_card_min' THEN value ELSE 0 END) as time_min,
+        MAX(created_at) as last
+        FROM pilot_metrics GROUP BY detail_id ORDER BY last DESC LIMIT 20""").fetchall()
+    conn.close()
+    approved_list = [{"detail_id": r[0], "edits": r[1] or 0,
+                      "time_min": r[2] or 0, "last": r[3]} for r in recent]
+    return templates.TemplateResponse("pilot.html", {
+        "request": request,
+        "metrics": metrics,
+        "approved_list": approved_list
+    })
+
+
+@app.post("/api/pilot/time")
+async def api_pilot_time(detail_id: str = Form(...), minutes: float = Form(...),
+                          author: str = Form("technologist")):
+    record_metric(detail_id, "time_to_card_min", minutes, {"author": author})
+    return RedirectResponse("/pilot", status_code=303)
+
+
+@app.post("/api/pilot/accepted")
+async def api_pilot_accepted(detail_id: str = Form(...), total_ops: int = Form(...),
+                              accepted_ops: int = Form(...)):
+    record_metric(detail_id, "total_ops", total_ops)
+    record_metric(detail_id, "accepted_op", accepted_ops)
+    return RedirectResponse("/pilot", status_code=303)
 
 
 if __name__ == "__main__":

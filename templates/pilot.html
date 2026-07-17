@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Пилот — БИТ.Технолог{% endblock %}
+{% block content %}
+<div class="breadcrumb"><a href="/">← Главная</a> | <a href="/learning">🎓 Обучение</a></div>
+<h1>📊 Пилот: дашборд KPI</h1>
+<p class="lead">Метрики для измерения ценности БИТ.Технолог в реальной работе Техинкома</p>
+
+<div class="alert alert-demo" style="background:#eff6ff; border-left-color:#3b82f6; color:#1e3a8a;">
+    <strong>🎯 Целевые KPI пилота (2-4 недели, 10+ деталей, 3-5 технологов):</strong>
+    <ul style="margin: 6px 0;">
+        <li>⏱ Время на техкарту: <strong>&lt; 60 мин</strong> (текущее 4-8ч)</li>
+        <li>✅ % принятых AI-операций без правки: <strong>&gt; 50%</strong></li>
+        <li>✏️ Правок на черновик: <strong>&lt; 8</strong> (иначе быстрее с нуля)</li>
+        <li>📈 Confidence растёт неделя к неделе (обучение работает)</li>
+    </ul>
+</div>
+
+<h2>📈 Текущие метрики</h2>
+<div class="stats">
+    <div class="stat">
+        <div class="stat-value">{{ metrics.total_details_processed }}</div>
+        <div class="stat-label">деталей прошло</div>
+    </div>
+    <div class="stat">
+        <div class="stat-value {% if metrics.edits_per_card > metrics.kpi.edits_target %}cost-exceeded{% endif %}">
+            {{ metrics.edits_per_card }}
+        </div>
+        <div class="stat-label">правок / черновик<br><small>(цель &lt; {{ metrics.kpi.edits_target }})</small></div>
+    </div>
+    <div class="stat">
+        <div class="stat-value {% if metrics.accepted_pct < metrics.kpi.accepted_target %}cost-exceeded{% endif %}">
+            {{ metrics.accepted_pct }}%
+        </div>
+        <div class="stat-label">% принятых<br><small>(цель &gt; {{ metrics.kpi.accepted_target }}%)</small></div>
+    </div>
+    <div class="stat">
+        <div class="stat-value {% if metrics.avg_time_to_card_min > metrics.kpi.time_target %}cost-warn{% endif %}">
+            {{ metrics.avg_time_to_card_min }}
+        </div>
+        <div class="stat-label">мин / техкарта<br><small>(цель &lt; {{ metrics.kpi.time_target }})</small></div>
+    </div>
+    <div class="stat">
+        <div class="stat-value">{{ metrics.total_llm_cost_rub }}₽</div>
+        <div class="stat-label">потрачено на LLM</div>
+    </div>
+    <div class="stat">
+        <div class="stat-value">{{ metrics.total_successful_gens }}</div>
+        <div class="stat-label">успешных генераций</div>
+    </div>
+</div>
+
+<h2>⏱ Ввести время вручную (технолог)</h2>
+<p>После утверждения техкарты — запиши сколько минут реально ушло:</p>
+<form method="post" action="/api/pilot/time" class="form">
+    <div class="form-row">
+        <label>Деталь ID<br><input name="detail_id" required placeholder="detail-001"></label>
+        <label>Минут ушло<br><input name="minutes" type="number" step="1" required value="60"></label>
+        <label>Технолог<br><input name="author" placeholder="Баранова"></label>
+    </div>
+    <button type="submit" class="btn btn-primary">💾 Записать</button>
+</form>
+
+<h2>✅ Ввести % принятых операций</h2>
+<p>Сколько операций из черновика ты оставил без изменений:</p>
+<form method="post" action="/api/pilot/accepted" class="form">
+    <div class="form-row">
+        <label>Деталь ID<br><input name="detail_id" required placeholder="detail-001"></label>
+        <label>Всего операций<br><input name="total_ops" type="number" required></label>
+        <label>Из них без правок<br><input name="accepted_ops" type="number" required></label>
+    </div>
+    <button type="submit" class="btn btn-primary">💾 Записать</button>
+</form>
+
+<h2>📋 Последние одобренные детали</h2>
+{% if approved_list %}
+<table class="data-table">
+    <thead><tr><th>Деталь</th><th>Правок</th><th>Время (мин)</th><th>Когда</th></tr></thead>
+    <tbody>
+        {% for d in approved_list %}
+        <tr>
+            <td><a href="/detail/{{ d.detail_id }}">{{ d.detail_id }}</a></td>
+            <td>{{ d.edits }}</td>
+            <td>{{ d.time_min or "—" }}</td>
+            <td><small>{{ d.last[:16] }}</small></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>Пока нет одобренных черновиков. Сгенерируй и утверди первый — увидеть метрики.</p>
+{% endif %}
+{% endblock %}

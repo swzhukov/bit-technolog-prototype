@@ -215,3 +215,45 @@ def test_get_all_details_has_ids(client):
     assert len(details) > 0
     for d in details:
         assert "id" in d
+
+
+# ========== Pilot metrics ==========
+def test_record_metric(client):
+    _, app = client
+    app.record_metric("test-detail", "test_metric", 42.0, {"foo": "bar"})
+    # No exception = pass
+
+
+def test_pilot_metrics_endpoint(client):
+    c, _ = client
+    assert c.get("/pilot").status_code == 200
+
+
+def test_pilot_time_form(client):
+    c, _ = client
+    r = c.post("/api/pilot/time", data={"detail_id": "test-1", "minutes": "45"}, follow_redirects=False)
+    assert r.status_code in (200, 303)
+
+
+def test_pilot_accepted_form(client):
+    c, _ = client
+    r = c.post("/api/pilot/accepted", data={
+        "detail_id": "test-2", "total_ops": "10", "accepted_ops": "6"
+    }, follow_redirects=False)
+    assert r.status_code in (200, 303)
+
+
+def test_pilot_metrics_after_activity(client):
+    _, app = client
+    # Сгенерируем черновик
+    c, _ = client
+    c.post("/api/generate", data={"detail_id": "detail-001"})
+    # Утвердим
+    c.post("/api/approve", data={"detail_id": "detail-001"})
+    # Получим метрики
+    metrics = app.get_pilot_metrics()
+    assert "total_details_processed" in metrics
+    assert "edits_per_card" in metrics
+    assert "accepted_pct" in metrics
+    assert "avg_time_to_card_min" in metrics
+    assert metrics["kpi"]["time_target"] == 60
