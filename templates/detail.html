@@ -22,16 +22,16 @@
 
 {% if not draft %}
 <div class="action-bar">
-    <button hx-post="/api/generate"
-            hx-vals='{"detail_id": "{{ detail.id }}"}'
-            hx-target="#generate-status"
-            hx-swap="innerHTML"
-            hx-indicator="#loading"
-            hx-disabled-elt="this"
-            hx-on::after-request="setTimeout(() => location.reload(), 800);"
-            class="btn btn-primary btn-large">
-        🤖 Сгенерировать черновик ТК
-    </button>
+    <form hx-post="/api/generate"
+          hx-target="#generate-status"
+          hx-swap="innerHTML"
+          hx-indicator="#loading"
+          hx-disabled-elt="find button"
+          hx-on::after-request="setTimeout(() => location.reload(), 800);"
+          style="display:inline">
+        <input type="hidden" name="detail_id" value="{{ detail.id }}">
+        <button type="submit" class="btn btn-primary btn-large">🤖 Сгенерировать черновик ТК</button>
+    </form>
     <span id="loading" class="htmx-indicator">⏳ Генерация (до 60 сек)...</span>
     <span id="generate-status"></span>
 </div>
