@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Новая деталь — БИТ.Технолог{% endblock %}
+{% block content %}
+<div class="breadcrumb"><a href="/">← К списку деталей</a></div>
+<h1>Новая деталь от конструктора</h1>
+<p class="lead">Заполни свойства — система сгенерирует черновик ТК</p>
+
+<form method="post" action="/api/details" class="form">
+    <div class="form-row">
+        <label>Обозначение *<br><input name="designation" required placeholder="КРН-001-АЦ6"></label>
+        <label>Название<br><input name="name" placeholder="Кронштейн крепления насоса"></label>
+    </div>
+    <div class="form-row">
+        <label>Модель шасси<br>
+            <select name="model">
+                <option value="">—</option>
+                <option>АЦ-6-40 (КАМАЗ)</option>
+                <option>ПСС-131.18Э (ГАЗ)</option>
+                <option>ПСС-131.22Э (ГАЗ)</option>
+                <option>УМК</option>
+                <option>МТБ-7</option>
+            </select>
+        </label>
+        <label>Шасси (производитель)<br>
+            <select name="chassis">
+                <option value="">—</option>
+                <option>КАМАЗ</option>
+                <option>ГАЗ</option>
+                <option>УРАЛ</option>
+                <option>МАЗ</option>
+                <option>ЗИЛ</option>
+            </select>
+        </label>
+    </div>
+    <div class="form-row">
+        <label>Материал *<br>
+            <select name="material" required>
+                <option value="">— выбери —</option>
+                {% for m in materials %}
+                <option value="{{ m.name }}">{{ m.name }}{% if m.gost %} ({{ m.gost }}){% endif %}</option>
+                {% endfor %}
+                <option value="Сталь 3 (ГОСТ 380-2005)">Сталь 3 (ГОСТ 380-2005)</option>
+                <option value="Сталь 09Г2С (ГОСТ 19281-2014)">Сталь 09Г2С (ГОСТ 19281-2014)</option>
+            </select>
+        </label>
+        <label>Размеры (мм)<br><input name="size_mm" placeholder="500x300x20"></label>
+    </div>
+    <div class="form-row">
+        <label>Масса (кг)<br><input name="mass_kg" type="number" step="0.01" value="0"></label>
+        <label>Обработка поверхности<br>
+            <select name="surface_treatment">
+                <option value="">—</option>
+                <option>покраска</option>
+                <option>оцинковка</option>
+                <option>без обработки</option>
+                <option>грунтовка</option>
+            </select>
+        </label>
+    </div>
+    <button type="submit" class="btn btn-primary btn-large">＋ Создать деталь</button>
+</form>
+{% endblock %}

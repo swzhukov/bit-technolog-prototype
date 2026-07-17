@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Обучение — БИТ.Технолог{% endblock %}
+{% block content %}
+<div class="breadcrumb"><a href="/">← На главную</a></div>
+<h1>🎓 Обучение: метрики и правила</h1>
+<p class="lead">Что узнала система из правок технолога</p>
+
+<h2>📊 Метрики точности</h2>
+<div class="stats">
+    <div class="stat">
+        <div class="stat-value">{{ metrics.total_details }}</div>
+        <div class="stat-label">деталей в базе</div>
+    </div>
+    <div class="stat">
+        <div class="stat-value">{{ metrics.total_drafts }}</div>
+        <div class="stat-label">черновиков</div>
+    </div>
+    <div class="stat">
+        <div class="stat-value">{{ metrics.approved }}</div>
+        <div class="stat-label">утверждено</div>
+    </div>
+    <div class="stat">
+        <div class="stat-value">{{ metrics.total_edits }}</div>
+        <div class="stat-label">правок</div>
+    </div>
+    <div class="stat">
+        <div class="stat-value">{{ "%.1f"|format(metrics.avg_edits_per_draft) }}</div>
+        <div class="stat-label">среднее правок на черновик</div>
+    </div>
+    <div class="stat">
+        <div class="stat-value">{{ metrics.accuracy_pct }}%</div>
+        <div class="stat-label">оценка точности</div>
+    </div>
+</div>
+
+<h2>🧠 Извлечённые правила (из правок 2+ раз)</h2>
+{% if rules %}
+<table class="data-table">
+    <thead><tr><th>Поле</th><th>Было</th><th>Стало</th><th>Сколько раз</th></tr></thead>
+    <tbody>
+        {% for r in rules %}
+        <tr>
+            <td><code>{{ r.field }}</code></td>
+            <td>{{ r.old[:80] }}</td>
+            <td>{{ r.new[:80] }}</td>
+            <td><strong>{{ r.uses }}</strong></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>Пока нет правил (нужно минимум 2 одинаковых правки).</p>
+{% endif %}
+
+<h2>📝 Последние правки технолога</h2>
+{% if edits %}
+<table class="data-table">
+    <thead><tr><th>Когда</th><th>Деталь</th><th>v</th><th>Поле</th><th>Было → Стало</th><th>Причина</th><th>Автор</th></tr></thead>
+    <tbody>
+        {% for e in edits[:30] %}
+        <tr>
+            <td><small>{{ e.created_at[:16] }}</small></td>
+            <td><a href="/detail/{{ e.detail_id }}">{{ e.detail_id }}</a></td>
+            <td>v{{ e.version }}</td>
+            <td><code>{{ e.field }}</code></td>
+            <td><small>{{ e.old_value[:40] }} → {{ e.new_value[:40] }}</small></td>
+            <td>{{ e.reason }}</td>
+            <td>{{ e.author }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>Правок пока нет. Сгенерируй черновик → открой деталь → поправь операцию → правка появится здесь.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}ИОТ — БИТ.Технолог{% endblock %}
+{% block content %}
+<div class="breadcrumb"><a href="/">← На главную</a></div>
+<h1>⚠ ИОТ — Инструкции по охране труда</h1>
+<p class="lead">Номера ИОТ, которые технолог указывает в ТК</p>
+
+<details class="add-form">
+    <summary>＋ Добавить ИОТ</summary>
+    <form method="post" action="/api/iot" class="form">
+        <div class="form-row">
+            <label>Номер *<br><input name="number" required placeholder="3"></label>
+            <label>Применяется к<br><input name="applies_to" placeholder="Сварка"></label>
+        </div>
+        <label>Описание<br><textarea name="description" rows="2"></textarea></label>
+        <button type="submit" class="btn btn-primary">Добавить</button>
+    </form>
+</details>
+
+<table class="data-table">
+    <thead><tr><th>Номер</th><th>Описание</th><th>Применяется к</th></tr></thead>
+    <tbody>
+        {% for i in items %}
+        <tr>
+            <td><strong>№ {{ i.number }}</strong></td>
+            <td>{{ i.description }}</td>
+            <td>{{ i.applies_to }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

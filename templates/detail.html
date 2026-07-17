@@ -76,6 +76,12 @@
     <button class="tab" data-tab="reasoning">💡 Обоснование</button>
     <button class="tab" data-tab="warnings">⚠️ Warnings <span class="badge-count">{{ draft.warnings | length }}</span></button>
     <button class="tab" data-tab="questions">❓ Вопросы <span class="badge-count">{{ draft.questions | length }}</span></button>
+    {% if versions %}
+    <button class="tab" data-tab="versions">🔄 Версии <span class="badge-count">{{ versions | length }}</span></button>
+    {% endif %}
+    {% if edits %}
+    <button class="tab" data-tab="edits">✏️ Правки <span class="badge-count">{{ edits | length }}</span></button>
+    {% endif %}
 </div>
 
 <div class="tab-content" id="tab-summary">
@@ -152,11 +158,30 @@
 </div>
 
 <div class="tab-content" id="tab-operations" style="display:none">
-    <h2>Операции (детально)</h2>
+    <h2>Операции (детально + редактор)</h2>
+    <p class="lead">Кликни на значение чтобы изменить. Все правки логируются и попадают в обучение.</p>
+
+    <details class="add-form">
+        <summary>＋ Добавить операцию</summary>
+        <form hx-post="/api/edit/add-operation"
+              hx-vals='{"detail_id": "{{ detail.id }}"}'
+              hx-target="#edit-status"
+              hx-swap="innerHTML"
+              hx-on::after-request="setTimeout(() => location.reload(), 500);"
+              class="form">
+            <div class="form-row">
+                <label>Название *<br><input name="name" required placeholder="040 Зачистка"></label>
+                <label>Оборудование<br><input name="equipment" placeholder="Кедр-300"></label>
+                <label>Время (ч)<br><input name="duration_hours" type="number" step="0.01" value="0"></label>
+            </div>
+            <button type="submit" class="btn btn-primary">Добавить</button>
+        </form>
+    </details>
+
     {% for op in draft.operations %}
     <div class="op-card">
         <div class="op-card-header">
-            <h3>{{ op.name }}</h3>
+            <h3>Операция {{ loop.index }}</h3>
             <span class="op-confidence">
                 {% if op.confidence >= 80 %}🟢
                 {% elif op.confidence >= 60 %}🟡
@@ -165,8 +190,27 @@
             </span>
         </div>
         <div class="op-card-body">
-            <p><strong>Оборудование:</strong> {{ op.equipment or "—" }}</p>
-            <p><strong>Время:</strong> {{ op.duration_hours }} ч</p>
+            <p><strong>Название:</strong>
+                <span class="editable"
+                      hx-post="/api/edit/operation"
+                      hx-vals='{"detail_id": "{{ detail.id }}", "op_index": "{{ loop.index0 }}", "field": "name", "value": "PLACEHOLDER"}'
+                      hx-trigger="click once"
+                      onclick="this.setAttribute('hx-vals', this.getAttribute('hx-vals').replace('PLACEHOLDER', prompt('Новое название:', this.innerText))); htmx.process(this); htmx.trigger(this, 'click');">
+                    {{ op.name }}
+                </span>
+            </p>
+            <p><strong>Оборудование:</strong>
+                <span class="editable"
+                      onclick="let v=prompt('Новое оборудование:', this.innerText); if(v){fetch('/api/edit/operation',{method:'POST',body:new URLSearchParams({detail_id:'{{ detail.id }}',op_index:'{{ loop.index0 }}',field:'equipment',value:v,reason:'изменено вручную'})}).then(r=>r.text()).then(t=>{document.getElementById('edit-status').innerHTML=t;setTimeout(()=>location.reload(),500)})}">
+                    {{ op.equipment or "—" }}
+                </span>
+            </p>
+            <p><strong>Время (ч):</strong>
+                <span class="editable"
+                      onclick="let v=prompt('Новое время (часы):', this.innerText); if(v){fetch('/api/edit/operation',{method:'POST',body:new URLSearchParams({detail_id:'{{ detail.id }}',op_index:'{{ loop.index0 }}',field:'duration_hours',value:v,reason:'изменено вручную'})}).then(r=>r.text()).then(t=>{document.getElementById('edit-status').innerHTML=t;setTimeout(()=>location.reload(),500)})}">
+                    {{ op.duration_hours }}
+                </span>
+            </p>
             <p><strong>Источник оценки:</strong> {{ op.duration_source }}</p>
             <p><strong>Цех/участок/РМ:</strong> {{ op.department or "—" }} / {{ op.workplace or "—" }}</p>
             {% if op.materials %}
@@ -178,9 +222,14 @@
             {% if op.gosts %}
             <p><strong>ГОСТы:</strong> {{ op.gosts | join(", ") }}</p>
             {% endif %}
+            <button class="btn btn-small btn-danger"
+                    onclick="if(confirm('Удалить операцию?')){fetch('/api/edit/delete-operation',{method:'POST',body:new URLSearchParams({detail_id:'{{ detail.id }}',op_index:'{{ loop.index0 }}',reason:'удалено вручную'})}).then(r=>r.text()).then(t=>{document.getElementById('edit-status').innerHTML=t;setTimeout(()=>location.reload(),500)})}">
+                🗑 Удалить
+            </button>
         </div>
     </div>
     {% endfor %}
+    <div id="edit-status"></div>
 </div>
 
 <div class="tab-content" id="tab-reasoning" style="display:none">
@@ -232,6 +281,50 @@
         <p>Нет вопросов — данных достаточно.</p>
     {% endif %}
 </div>
+
+{% if versions %}
+<div class="tab-content" id="tab-versions" style="display:none">
+    <h2>🔄 Версии черновика</h2>
+    <p class="lead">Все правки сохраняются как версии. Можно откатиться к любой.</p>
+    <table class="data-table">
+        <thead><tr><th>v</th><th>Когда</th><th>Автор</th><th>Источник</th><th>Что изменилось</th></tr></thead>
+        <tbody>
+            {% for v in versions %}
+            <tr>
+                <td><strong>v{{ v.version }}</strong></td>
+                <td><small>{{ v.created_at[:16] }}</small></td>
+                <td>{{ v.author }}</td>
+                <td>{{ v.source }}</td>
+                <td><small>{{ v.notes or "—" }}</small></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if edits %}
+<div class="tab-content" id="tab-edits" style="display:none">
+    <h2>✏️ Правки технолога</h2>
+    <p class="lead">Все правки логируются и используются для обучения системы.</p>
+    <table class="data-table">
+        <thead><tr><th>Когда</th><th>v</th><th>Поле</th><th>Было</th><th>Стало</th><th>Причина</th><th>Автор</th></tr></thead>
+        <tbody>
+            {% for e in edits %}
+            <tr>
+                <td><small>{{ e.created_at[:16] }}</small></td>
+                <td>v{{ e.version }}</td>
+                <td><code>{{ e.field }}</code></td>
+                <td><small>{{ e.old_value[:50] }}</small></td>
+                <td><small>{{ e.new_value[:50] }}</small></td>
+                <td>{{ e.reason }}</td>
+                <td>{{ e.author }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
 {% endif %}
 </div>
 
