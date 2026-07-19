@@ -120,7 +120,17 @@ logging.basicConfig(
 log = logging.getLogger("bit-technolog")
 
 # FastAPI app
-app = FastAPI(title="БИТ.Технолог — Прототип", version="0.2.1")
+app = FastAPI(title="БИТ.Технолог — Прототип", version="0.4.2")
+
+
+@app.on_event("startup")
+async def _startup_init_db():
+    """Инициализация БД при старте uvicorn (важно: app.py не вызывается как __main__)"""
+    try:
+        init_db()
+        log.info("DB initialized on startup")
+    except Exception as e:
+        log.error(f"DB init failed: {e}")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
