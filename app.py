@@ -422,6 +422,8 @@ def check_daily_limit_or_warn() -> dict:
 import threading
 from collections import defaultdict
 from time import time
+# V4-11: для uptime в /health
+_APP_START_TS = time()
 
 # F16.10: in-memory rate limiter (для production с одним worker OK; для multi-worker нужен Redis)
 _rate_buckets = defaultdict(list)
@@ -2725,6 +2727,12 @@ async def api_analyze(request: Request):
     detail_id = await _get_param(request, "detail_id", log_name="/api/analyze")
     if not detail_id:
         return err("detail_id required", 422)
+    # V4-2: проверка дневного лимита перед LLM-вызовом
+    limit = check_daily_limit_or_warn()
+    if not limit.get("allowed"):
+        return JSONResponse({"error": "daily_limit_exceeded", "detail": limit},
+                            status_code=429,
+                            headers={"Retry-After": "86400"})
     detail_obj = get_detail(detail_id)
     if not detail_obj:
         return err("not found", 404)
@@ -2959,6 +2967,13 @@ async def generate(request: Request):
         return HTMLResponse(
             '<span style="color:red">❌ Не указан detail_id</span>',
             status_code=422
+        )
+    # V4-2: проверка дневного лимита
+    limit = check_daily_limit_or_warn()
+    if not limit.get("allowed"):
+        return HTMLResponse(
+            f'<span style="color:red">❌ {limit["message"]}</span>',
+            status_code=429
         )
     detail_obj = get_detail(detail_id)
     if not detail_obj:
@@ -3915,6 +3930,17 @@ async def export_pdf(request: Request):
     )
 
 
+# V4-10: inline favicon (1x1 transparent pixel + SVG-like emoji нельзя, используем data URL)
+@app.get("/favicon.ico")
+async def favicon():
+    """V4-10: пустой favicon (1x1 transparent PNG) — убирает 404 в логах."""
+    import base64
+    # 1x1 transparent PNG
+    pixel = base64.b64decode(b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
+    from fastapi.responses import Response
+    return Response(content=pixel, media_type="image/png")
+
+
 @app.get("/health")
 async def health():
     # OB3 fix: проверяем БД (SELECT 1)
@@ -3943,7 +3969,11 @@ async def health():
         "demo_mode": DEMO_MODE,
         "model": LLM_MODEL,
         "api_url": LLM_API_URL if not DEMO_MODE else None,
-        "details_count": len(MOCK_DETAILS)
+        "details_count": len(MOCK_DETAILS),
+        # V4-11: version + uptime + build date
+        "version": "0.4.9",
+        "build_date": "2026-07-19",
+        "uptime_sec": int(time.time() - _APP_START_TS) if '_APP_START_TS' in dir() else 0
     }
 
 
@@ -4489,6 +4519,8 @@ async def pilot_dashboard(request: Request):
     conn.close()
     approved_list = [{"detail_id": r[0], "edits": r[1] or 0,
                       "time_min": r[2] or 0, "last": r[3]} for r in recent]
+    # V4-9: дневная стоимость LLM
+    cost_today = get_daily_cost()
     return templates.TemplateResponse("pilot.html", {
         "request": request,
         "metrics": metrics,
@@ -4498,7 +4530,8 @@ async def pilot_dashboard(request: Request):
         "rag_readiness": rag_readiness,
         "rag_target": rag_target,
         "approved_count": approved_count,
-        "total_details": total_details
+        "total_details": total_details,
+        "cost_today": cost_today  # V4-9
     })
 
 

@@ -44,6 +44,13 @@
         <div class="stat-value">{{ metrics.total_llm_cost_rub }}₽</div>
         <div class="stat-label">потрачено на LLM</div>
     </div>
+    {# V4-9: дневная стоимость LLM с прогрессом #}
+    <a href="/admin/llm-calls" class="stat" style="text-decoration:none; color:inherit; cursor:pointer;" title="Дневная стоимость LLM">
+        <div class="stat-value {% if cost_today and cost_today.pct and cost_today.pct > 80 %}cost-warn{% endif %}">
+            {% if cost_today %}{{ "%.0f"|format(cost_today.total_rub or 0) }}{% else %}0{% endif %}₽
+        </div>
+        <div class="stat-label">LLM сегодня 🔍<br><small>из {{ cost_today.limit_rub or 200 }}₽ ({{ cost_today.pct or 0 }}%)</small></div>
+    </a>
     <div class="stat">
         <div class="stat-value">{{ metrics.total_successful_gens }}</div>
         <div class="stat-label">успешных генераций</div>
