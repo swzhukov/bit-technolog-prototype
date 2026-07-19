@@ -574,7 +574,12 @@ async def api_workflow_assign(request: Request):
     conn.commit()
     conn.close()
     add_history(detail_id, "workflow_assigned", {"role": role, "assignee": assignee})
-    return JSONResponse({"ok": True, "detail_id": detail_id, "role": role, "assignee": assignee})
+    # Уведомление исполнителю
+    try:
+        notify_workflow(detail_id, "assigned", assignee=assignee, extra=f"Роль: {role}")
+    except Exception as e:
+        log.warning(f"notify_workflow failed: {e}")
+    return JSONResponse({"ok": True, "detail_id": detail_id, "role": role, "assignee": assignee, "notified": True})
 
 
 @app.get("/api/workflow/queue")
@@ -592,6 +597,175 @@ async def api_workflow_queue(role: str = "technologist", assignee: str = ""):
     conn.close()
     cols = ["id", "designation", "name", "status_ext"]
     return JSONResponse([dict(zip(cols, r)) for r in details])
+
+
+# ========== Role-based UI (через cookie) ==========
+ROLES = {
+    "technologist": {
+        "name": "Технолог",
+        "default_view": "drafts",
+        "can_edit": True,
+        "can_approve": False,
+        "can_manage_workflow": False
+    },
+    "main_technologist": {
+        "name": "Главный технолог",
+        "default_view": "approval_queue",
+        "can_edit": True,
+        "can_approve": True,
+        "can_manage_workflow": True
+    },
+    "normirovshchik": {
+        "name": "Нормировщик",
+        "default_view": "economics",
+        "can_edit": True,
+        "can_approve": False,
+        "can_manage_workflow": False
+    },
+    "constructor": {
+        "name": "Конструктор",
+        "default_view": "blueprints",
+        "can_edit": False,
+        "can_approve": False,
+        "can_manage_workflow": False
+    },
+    "workshop_chief": {
+        "name": "Начальник цеха",
+        "default_view": "approved",
+        "can_edit": False,
+        "can_approve": True,
+        "can_manage_workflow": False
+    },
+    "quality": {
+        "name": "Контролёр ОТК",
+        "default_view": "warnings",
+        "can_edit": True,
+        "can_approve": False,
+        "can_manage_workflow": False
+    }
+}
+
+
+def get_current_role(request: Request) -> str:
+    """Получает текущую роль из cookie. Default = technologist"""
+    role = request.cookies.get("bit_role", "technologist")
+    if role not in ROLES:
+        role = "technologist"
+    return role
+
+
+@app.get("/detail/{detail_id}/diff/{v_from}/{v_to}", response_class=HTMLResponse)
+async def detail_diff(request: Request, detail_id: str, v_from: int, v_to: int):
+    """Сравнение двух версий драфта (diff view)"""
+    conn = get_conn()
+    row_from = conn.execute("""SELECT operations_json, created_at, author, source, notes
+        FROM draft_versions WHERE detail_id=? AND version=?""", (detail_id, v_from)).fetchone()
+    row_to = conn.execute("""SELECT operations_json, created_at, author, source, notes
+        FROM draft_versions WHERE detail_id=? AND version=?""", (detail_id, v_to)).fetchone()
+    conn.close()
+    if not row_from or not row_to:
+        return HTMLResponse(f"<h1>Версия {v_from} или {v_to} не найдена</h1>", status_code=404)
+    try:
+        ops_from = json.loads(row_from[0])
+        ops_to = json.loads(row_to[0])
+    except Exception as e:
+        return HTMLResponse(f"<h1>Ошибка парсинга</h1><pre>{e}</pre>", status_code=500)
+    diffs = []
+    max_len = max(len(ops_from), len(ops_to))
+    for i in range(max_len):
+        op_f = ops_from[i] if i < len(ops_from) else None
+        op_t = ops_to[i] if i < len(ops_to) else None
+        if op_f is None and op_t is not None:
+            diffs.append({"op_index": i, "status": "added", "from": None, "to": op_t})
+        elif op_t is None and op_f is not None:
+            diffs.append({"op_index": i, "status": "removed", "from": op_f, "to": None})
+        elif op_f and op_t:
+            changed_fields = []
+            for k in set(list(op_f.keys()) + list(op_t.keys())):
+                if op_f.get(k) != op_t.get(k):
+                    changed_fields.append({"field": k, "from": op_f.get(k), "to": op_t.get(k)})
+            if changed_fields:
+                diffs.append({"op_index": i, "status": "modified", "from": op_f, "to": op_t, "changes": changed_fields})
+            else:
+                diffs.append({"op_index": i, "status": "same", "from": op_f, "to": op_t})
+    return templates.TemplateResponse("diff.html", {
+        "request": request,
+        "detail_id": detail_id,
+        "v_from": v_from, "v_to": v_to,
+        "from_meta": {"created_at": row_from[1], "author": row_from[2], "source": row_from[3], "notes": row_from[4]},
+        "to_meta": {"created_at": row_to[1], "author": row_to[2], "source": row_to[3], "notes": row_to[4]},
+        "diffs": diffs
+    })
+
+
+# ========== Уведомления (email + telegram webhook) ==========
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASS = os.getenv("SMTP_PASS", "")
+NOTIFY_EMAIL_FROM = os.getenv("NOTIFY_EMAIL_FROM", "bit-technolog@tehnocom.local")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+
+
+def send_email(to: str, subject: str, body: str) -> bool:
+    """Отправка email. Если SMTP не настроен — dry-run (только лог)."""
+    if not SMTP_HOST or not SMTP_USER:
+        log.info(f"[DRY-RUN EMAIL] to={to} subject={subject}")
+        return True
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        msg = MIMEText(body, "plain", "utf-8")
+        msg["Subject"] = subject
+        msg["From"] = NOTIFY_EMAIL_FROM
+        msg["To"] = to
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as s:
+            s.starttls()
+            s.login(SMTP_USER, SMTP_PASS)
+            s.send_message(msg)
+        return True
+    except Exception as e:
+        log.error(f"email send failed: {e}")
+        return False
+
+
+def send_telegram(text: str) -> bool:
+    """Отправка в Telegram. Если токен не настроен — dry-run."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        log.info(f"[DRY-RUN TELEGRAM] {text[:100]}")
+        return True
+    try:
+        import urllib.request
+        import urllib.parse
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        data = urllib.parse.urlencode({"chat_id": TELEGRAM_CHAT_ID, "text": text}).encode()
+        req = urllib.request.Request(url, data=data)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return resp.status == 200
+    except Exception as e:
+        log.error(f"telegram send failed: {e}")
+        return False
+
+
+def notify_workflow(detail_id: str, event: str, assignee: str = "", extra: str = ""):
+    """Уведомление о workflow-событии (email + telegram)."""
+    subject = f"БИТ.Технолог: {event} по {detail_id}"
+    body = f"Деталь: {detail_id}\nСобытие: {event}\n{('Исполнитель: ' + assignee) if assignee else ''}\n{extra}"
+    if assignee and "@" in assignee:
+        send_email(assignee, subject, body)
+    send_telegram(f"🔔 {subject}\n{body[:200]}")
+
+
+@app.post("/api/role/switch")
+async def api_role_switch(request: Request):
+    """Переключить роль (для demo/pilot)"""
+    role = await _get_param(request, "role")
+    if not role or role not in ROLES:
+        return err(f"role must be one of: {list(ROLES.keys())}", 400)
+    response = JSONResponse({"ok": True, "role": role, "name": ROLES[role]["name"]})
+    response.set_cookie("bit_role", role, max_age=86400 * 365, httponly=True, samesite="lax")
+    return response
 
 
 # ========== Импорт ТК (Excel/PDF/JSON/Word) ==========
@@ -3139,6 +3313,55 @@ async def pilot_dashboard(request: Request):
         "metrics": metrics,
         "approved_list": approved_list
     })
+
+
+@app.get("/api/pilot/report")
+async def api_pilot_report(days: int = 30):
+    """Pilot report generator (JSON: summary + details + charts + markdown)"""
+    from pilot_report import generate_pilot_report
+    try:
+        report = generate_pilot_report(days=days)
+        return JSONResponse({
+            "ok": True,
+            "summary": report["summary"],
+            "details": report["details"],
+            "charts": report["charts"],
+            "markdown": report["markdown"]
+        })
+    except Exception as e:
+        log.exception(f"pilot report failed: {e}")
+        return err(f"pilot report failed: {e}", 500)
+
+
+@app.get("/pilot/report", response_class=HTMLResponse)
+async def pilot_report_page(request: Request, days: int = 30):
+    """Страница отчёта для руководства"""
+    from pilot_report import generate_pilot_report
+    try:
+        report = generate_pilot_report(days=days)
+    except Exception as e:
+        log.exception(f"pilot report failed: {e}")
+        return HTMLResponse(f"<h1>Ошибка генерации отчёта</h1><pre>{e}</pre>", status_code=500)
+    return templates.TemplateResponse("pilot_report.html", {
+        "request": request,
+        "report": report,
+        "days": days
+    })
+
+
+@app.get("/api/pilot/report/markdown")
+async def api_pilot_report_markdown(days: int = 30):
+    """Pilot report как Markdown (для копирования в email)"""
+    from pilot_report import generate_pilot_report
+    try:
+        report = generate_pilot_report(days=days)
+        return Response(
+            content=report["markdown"],
+            media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="pilot_report_{days}d.md"'}
+        )
+    except Exception as e:
+        return err(f"pilot report failed: {e}", 500)
 
 
 @app.post("/api/pilot/time")

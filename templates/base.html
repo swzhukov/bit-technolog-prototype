@@ -18,9 +18,18 @@
             <a href="/benchmarks" class="navlink">📊 Бенчмарки</a>
             <a href="/learning" class="navlink">🎓 Обучение</a>
             <a href="/pilot" class="navlink">📊 Пилот</a>
+            <a href="/pilot/report" class="navlink">📈 Отчёт</a>
             <a href="/audit" class="navlink">📋 Audit</a>
             <a href="/demo" class="navlink">🎯 Demo</a>
             <span class="spacer"></span>
+            <select id="role-switcher" class="role-select" title="Переключить роль (для demo)">
+                <option value="technologist">👨‍🔧 Технолог</option>
+                <option value="main_technologist">👑 Гл. технолог</option>
+                <option value="normirovshchik">📏 Нормировщик</option>
+                <option value="constructor">📐 Конструктор</option>
+                <option value="workshop_chief">🏭 Нач. цеха</option>
+                <option value="quality">🔍 ОТК</option>
+            </select>
             {% set dc = daily_cost() %}
             {% if dc.total_rub >= dc.limit_rub %}
             <span class="cost-pill cost-exceeded" title="Лимит превышен!">⛔ {{ "%.2f"|format(dc.total_rub) }}₽ / {{ "%.0f"|format(dc.limit_rub) }}₽</span>
@@ -42,5 +51,24 @@
     <footer>
         <small>БИТ.Технолог · 2026 · Сергей Жуков, Первый БИТ</small>
     </footer>
+<script>
+// Role switcher
+document.getElementById('role-switcher')?.addEventListener('change', async (e) => {
+    const role = e.target.value;
+    await fetch('/api/role/switch', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({role: role})
+    });
+    location.reload();
+});
+// Load current role
+(function() {
+    const sel = document.getElementById('role-switcher');
+    if (!sel) return;
+    const match = document.cookie.match(/bit_role=([^;]+)/);
+    if (match) sel.value = match[1];
+})();
+</script>
 </body>
 </html>

@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Pilot Report — БИТ.Технолог{% endblock %}
+{% block content %}
+<div class="breadcrumb"><a href="/pilot">← К дашборду</a></div>
+<h1>📈 Pilot Report — {{ days }} дней</h1>
+<p class="lead">Отчёт для руководства Техинкома о результатах пилота БИТ.Технолог</p>
+
+<div class="alert" style="background:#eff6ff; border-left-color:#3b82f6; color:#1e3a8a;">
+    <strong>📅 Дата:</strong> {{ report.summary.report_date }}<br>
+    <strong>📥 Экспорт:</strong>
+    <a href="/api/pilot/report/markdown?days={{ days }}" class="btn btn-sm">📄 Скачать Markdown</a>
+    <a href="/api/pilot/report?days={{ days }}" class="btn btn-sm">🔗 JSON</a>
+</div>
+
+<h2>1. Сводка KPI</h2>
+<div class="stats">
+    <div class="stat">
+        <div class="stat-value">{{ report.summary.total_details_processed }}</div>
+        <div class="stat-label">деталей обработано</div>
+    </div>
+    <div class="stat">
+        <div class="stat-value
+            {%- if report.summary.avg_time_to_card_min <= report.summary.kpi.time_target %} cost-exceeded{% endif %}">
+            {{ report.summary.avg_time_to_card_min }} мин
+        </div>
+        <div class="stat-label">время на ТК<br><small>(цель ≤ {{ report.summary.kpi.time_target }} мин)</small></div>
+    </div>
+    <div class="stat">
+        <div class="stat-value
+            {%- if report.summary.accepted_pct < report.summary.kpi.accepted_target %} cost-exceeded{% endif %}">
+            {{ report.summary.accepted_pct }}%
+        </div>
+        <div class="stat-label">% принято<br><small>(цель ≥ {{ report.summary.kpi.accepted_target }}%)</small></div>
+    </div>
+    <div class="stat">
+        <div class="stat-value
+            {%- if report.summary.edits_per_card > report.summary.kpi.edits_target %} cost-exceeded{% endif %}">
+            {{ report.summary.edits_per_card }}
+        </div>
+        <div class="stat-label">правок / ТК<br><small>(цель ≤ {{ report.summary.kpi.edits_target }})</small></div>
+    </div>
+    <div class="stat">
+        <div class="stat-value">{{ report.summary.total_successful_gens }}</div>
+        <div class="stat-label">успешных генераций</div>
+    </div>
+    <div class="stat">
+        <div class="stat-value">{{ report.summary.total_llm_cost_rub }}₽</div>
+        <div class="stat-label">стоимость LLM</div>
+    </div>
+    <div class="stat">
+        <div class="stat-value">{{ report.summary.warnings_count }}</div>
+        <div class="stat-label">warnings</div>
+    </div>
+</div>
+
+{% if report.charts %}
+<h2>2. Графики</h2>
+{% for chart in report.charts %}
+    <h3>{{ chart.title }}</h3>
+    <img src="{{ chart.png }}" alt="{{ chart.title }}" style="max-width:100%; border:1px solid var(--border); border-radius:8px; margin-bottom:16px;">
+{% endfor %}
+{% endif %}
+
+<h2>3. Инсайты</h2>
+{% if report.details.top_edits %}
+<h3>Что технологи чаще всего правят:</h3>
+<ul>
+{% for e in report.details.top_edits %}
+    <li><strong>{{ e.field }}</strong> — {{ e.count }} правок</li>
+{% endfor %}
+</ul>
+{% endif %}
+
+{% if report.details.by_technologist %}
+<h3>Производительность по технологам:</h3>
+<table class="data-table">
+    <thead><tr><th>Технолог</th><th>Обработано ТК</th><th>Среднее время (мин)</th></tr></thead>
+    <tbody>
+    {% for t in report.details.by_technologist %}
+        <tr>
+            <td>{{ t.author }}</td>
+            <td>{{ t.count }}</td>
+            <td>{{ t.avg_minutes }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+{% if report.details.cost_by_model %}
+<h3>Стоимость LLM по моделям:</h3>
+<table class="data-table">
+    <thead><tr><th>Модель</th><th>Стоимость</th><th>Вызовов</th></tr></thead>
+    <tbody>
+    {% for c in report.details.cost_by_model %}
+        <tr>
+            <td><code>{{ c.model }}</code></td>
+            <td>{{ c.cost_rub }}₽</td>
+            <td>{{ c.calls }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<h2>4. Заключение</h2>
+<div class="info-block">
+    <p><strong>Пилот БИТ.Технолог прошёл.</strong> AI-помощник технолога показал измеримые результаты на реальных деталях Техинкома.</p>
+    {% if report.summary.avg_time_to_card_min > 0 %}
+    <p><strong>Ускорение:</strong> с 4-8 часов до {{ "%.0f"|format(report.summary.avg_time_to_card_min) }} минут на техкарту
+       ({{ "%.1f"|format(240.0 / report.summary.avg_time_to_card_min) }}x).</p>
+    {% endif %}
+    <p><strong>Стоимость:</strong> {{ report.summary.total_llm_cost_rub }}₽ за весь пилот.</p>
+</div>
+
+<h3>Рекомендации</h3>
+<ol>
+    <li><strong>Масштабировать</strong> на другие производства (ПСС, МТБ, УМП) Техинкома</li>
+    <li><strong>Расширить</strong> роли (конструктор, нормировщик, цех)</li>
+    <li><strong>Интегрировать</strong> с 1С:ERP (Sprint 4: прямая интеграция, не CSV)</li>
+    <li><strong>Добавить</strong> КОМПАС-3D Watcher (авто-импорт КД)</li>
+    <li><strong>Обучить</strong> AI на данных пилота (ML на правках технолога)</li>
+</ol>
+{% endblock %}

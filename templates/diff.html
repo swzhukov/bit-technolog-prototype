@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Diff v{{ v_from }} → v{{ v_to }} — {{ detail_id }}{% endblock %}
+{% block content %}
+<div class="breadcrumb"><a href="/detail/{{ detail_id }}">← Назад к детали</a></div>
+<h1>🔍 Diff: v{{ v_from }} → v{{ v_to }}</h1>
+<p class="lead">Деталь: <code>{{ detail_id }}</code></p>
+
+<div class="info-block">
+    <strong>v{{ v_from }}:</strong> {{ from_meta.created_at[:19] or "—" }} · автор {{ from_meta.author or "—" }} · {{ from_meta.source or "—" }}<br>
+    {% if from_meta.notes %}<small>{{ from_meta.notes }}</small>{% endif %}
+</div>
+<div class="info-block">
+    <strong>v{{ v_to }}:</strong> {{ to_meta.created_at[:19] or "—" }} · автор {{ to_meta.author or "—" }} · {{ to_meta.source or "—" }}<br>
+    {% if to_meta.notes %}<small>{{ to_meta.notes }}</small>{% endif %}
+</div>
+
+<h2>Изменения по операциям</h2>
+{% for d in diffs %}
+<div class="op-card" style="border-left: 4px solid
+    {% if d.status == 'added' %}#22c55e
+    {% elif d.status == 'removed' %}#ef4444
+    {% elif d.status == 'modified' %}#eab308
+    {% else %}#e5e7eb{% endif %};">
+    <div class="op-card-header">
+        <h3>Операция {{ d.op_index + 1 }}
+            {% if d.status == 'added' %}<span class="badge green">+ добавлена</span>
+            {% elif d.status == 'removed' %}<span class="badge red">− удалена</span>
+            {% elif d.status == 'modified' %}<span class="badge yellow">~ изменена</span>
+            {% else %}<span class="badge gray">= без изменений</span>{% endif %}
+        </h3>
+    </div>
+    <div class="op-card-body">
+        {% if d.status == 'added' %}
+            <p><strong>Название:</strong> {{ d.to.name }}</p>
+            <p><strong>Оборудование:</strong> {{ d.to.equipment or "—" }}</p>
+            <p><strong>Время:</strong> {{ d.to.duration_hours }} ч</p>
+        {% elif d.status == 'removed' %}
+            <p><strong>Название:</strong> {{ d.from.name }}</p>
+            <p><strong>Оборудование:</strong> {{ d.from.equipment or "—" }}</p>
+            <p><strong>Время:</strong> {{ d.from.duration_hours }} ч</p>
+        {% elif d.status == 'modified' %}
+            <table class="data-table">
+                <thead><tr><th>Поле</th><th>Было</th><th>Стало</th></tr></thead>
+                <tbody>
+                {% for c in d.changes %}
+                    <tr>
+                        <td><code>{{ c.field }}</code></td>
+                        <td style="background:#fef2f2;">{{ c.from }}</td>
+                        <td style="background:#f0fdf4;">{{ c.to }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p style="color: var(--text-light);">Операция не изменилась.</p>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

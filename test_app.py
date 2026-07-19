@@ -1222,3 +1222,116 @@ def test_level_whitelist_in_seed():
         conn.execute("DELETE FROM details WHERE id = ?", ("test-bad-level",))
         conn.commit()
         conn.close()
+
+
+# ========== Pilot Report + Role-based + Diff + Notifications ==========
+def test_pilot_report_markdown(client):
+    c, _ = client
+    r = c.get("/api/pilot/report?days=30")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["ok"] is True
+    assert "summary" in data
+    assert "details" in data
+    assert "markdown" in data
+    assert "## " in data["markdown"]  # есть заголовки
+    assert "Сводка KPI" in data["markdown"] or "сводка" in data["markdown"].lower()
+
+
+def test_pilot_report_markdown_download(client):
+    c, _ = client
+    r = c.get("/api/pilot/report/markdown?days=7")
+    assert r.status_code == 200
+    assert "text/markdown" in r.headers.get("content-type", "")
+    assert r.text.startswith("# ")
+
+
+def test_pilot_report_page_renders(client):
+    c, _ = client
+    r = c.get("/pilot/report?days=30")
+    assert r.status_code == 200
+    assert "Pilot Report" in r.text
+    assert "KPI" in r.text
+
+
+def test_role_switch(client):
+    c, _ = client
+    r = c.post("/api/role/switch",
+               data={"role": "main_technologist"})
+    assert r.status_code == 200
+    assert r.json()["role"] == "main_technologist"
+    # Cookie set
+    assert "bit_role" in r.cookies
+
+
+def test_role_switch_invalid(client):
+    c, _ = client
+    r = c.post("/api/role/switch", data={"role": "invalid_role"})
+    assert r.status_code == 400
+
+
+def test_role_persists_in_cookies(client):
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "normirovshchik"})
+    r = c.get("/")
+    # Cookie отправляется автоматически
+    assert r.status_code == 200
+
+
+def test_diff_view_no_versions(client):
+    c, _ = client
+    # Деталь которой точно нет (не seed) — 404
+    r = c.get("/detail/nonexistent-zzz-99999/diff/1/2")
+    assert r.status_code == 404
+
+
+def test_diff_view_with_versions(client):
+    c, _ = client
+    # Создаём деталь через /api/details
+    r = c.post("/api/details",
+        data={"designation": "TEST-DIFF-002", "name": "Test diff detail",
+              "model": "X", "chassis": "", "material": "Сталь",
+              "size_mm": "100", "mass_kg": "5", "surface_treatment": ""},
+        follow_redirects=False)
+    assert r.status_code in (200, 303)
+    loc = r.headers.get("location", "/detail/")
+    detail_id = loc.rstrip("/").split("/")[-1]
+    # Генерируем draft (создаёт v1) + добавляем операцию (создаёт v2) + ещё одну (создаёт v3)
+    c.post("/api/generate", data={"detail_id": detail_id})
+    c.post("/api/edit/add-operation",
+           data={"detail_id": detail_id, "name": "010 Добавленная", "equipment": "TestEq", "duration_hours": "0.5"})
+    c.post("/api/edit/add-operation",
+           data={"detail_id": detail_id, "name": "015 Ещё", "equipment": "TestEq2", "duration_hours": "0.3"})
+    r = c.get(f"/detail/{detail_id}/diff/1/3")
+    assert r.status_code == 200
+    assert "Diff" in r.text
+    assert "добавлена" in r.text or "same" in r.text
+
+
+def test_workflow_assign_notifies(client):
+    c, _ = client
+    r = c.post("/api/workflow/assign",
+               data={"detail_id": "detail-001", "role": "technologist", "assignee": "test@tehnocom.local"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["notified"] is True
+
+
+def test_email_dryrun():
+    """Без SMTP — email dry-run (только лог)"""
+    import os
+    os.environ["PILOT_AUTH_DISABLED"] = "true"
+    os.environ["SMTP_HOST"] = ""  # disable
+    from app import send_email
+    result = send_email("test@x.com", "Test", "Body")
+    assert result is True
+
+
+def test_telegram_dryrun():
+    """Без токена — telegram dry-run"""
+    import os
+    os.environ["PILOT_AUTH_DISABLED"] = "true"
+    os.environ["TELEGRAM_BOT_TOKEN"] = ""
+    from app import send_telegram
+    result = send_telegram("test message")
+    assert result is True

@@ -145,6 +145,17 @@ footer { text-align: center; padding: 20px 0; color: var(--text-light); font-siz
 
 code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px; background: var(--bg); padding: 1px 4px; border-radius: 3px; }
 
+.role-select {
+    background: #f0f9ff;
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
 /* Навигация */
 .navlink { color: var(--text-light); text-decoration: none; padding: 4px 10px; border-radius: 4px; font-size: 13px; }
 .navlink:hover { background: var(--bg); color: var(--text); }
