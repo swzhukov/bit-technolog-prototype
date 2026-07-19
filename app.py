@@ -63,14 +63,31 @@ PILOT_AUTH_ENABLED = bool(PILOT_USERS) and not os.getenv("PILOT_AUTH_DISABLED", 
 _LLM_CLIENT = None
 
 def get_llm_client():
-    """Lazy-init singleton OpenAI client"""
+    """Lazy-init singleton OpenAI client.
+    Читает LLM_API_KEY/LLM_API_URL динамически из БД (get_setting) с fallback на .env.
+    Если ключ изменился в админке — клиент пересоздаётся автоматически.
+    """
     global _LLM_CLIENT
-    if _LLM_CLIENT is None and not DEMO_MODE:
+    api_key = get_setting("LLM_API_KEY", LLM_API_KEY)
+    api_url = get_setting("LLM_API_URL", LLM_API_URL)
+    demo = get_setting("DEMO_MODE", "false" if not DEMO_MODE else "true").lower() == "true"
+    if demo:
+        return None
+    # Пересоздать клиент если ключ/url изменились
+    if _LLM_CLIENT is not None:
+        cached = getattr(_LLM_CLIENT, "_bit_key", None)
+        cached_url = getattr(_LLM_CLIENT, "_bit_url", None)
+        if cached != api_key or cached_url != api_url:
+            log.info("LLM key/url changed in admin — recreating client")
+            _LLM_CLIENT = None
+    if _LLM_CLIENT is None:
         _LLM_CLIENT = OpenAI(
-            base_url=LLM_API_URL,
-            api_key=LLM_API_KEY,
+            base_url=api_url,
+            api_key=api_key,
             timeout=LLM_TIMEOUT
         )
+        _LLM_CLIENT._bit_key = api_key
+        _LLM_CLIENT._bit_url = api_url
     return _LLM_CLIENT
 
 
@@ -196,7 +213,22 @@ def check_auth(request: Request) -> bool:
         decoded = base64.b64decode(auth[6:]).decode("utf-8")
         if ":" in decoded:
             u, p = decoded.split(":", 1)
-            return PILOT_USERS.get(u) == p
+            # Сначала проверяем .env-Юзеров (fallback), потом БД-pilot_users
+            pilot_users_raw = get_setting("PILOT_USERS", PILOT_USERS_RAW)
+            env_users = {}
+            if pilot_users_raw:
+                for pair in pilot_users_raw.split(","):
+                    if ":" in pair:
+                        eu, ep = pair.split(":", 1)
+                        env_users[eu.strip()] = ep.strip()
+            if env_users.get(u) == p:
+                return True
+            # Fallback: БД-pilot_users (bcrypt)
+            user = authenticate_pilot_user(u, p)
+            if user:
+                ip = request.client.host if hasattr(request, "client") else ""
+                log_login(u, ip, "", True)
+                return True
     except Exception:
         return False
     return False
@@ -519,6 +551,15 @@ def init_db():
             user_agent TEXT,
             success INTEGER NOT NULL  -- 0 или 1
         );
+
+        -- 19. Глобальные настройки (LLM/Telegram/лимиты) — зашифрованные в БД
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value_encrypted BLOB,  -- Fernet-encrypted bytes
+            value_masked TEXT,      -- для отображения в UI: "sk-...abc" (последние 3)
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_by TEXT
+        );
     """)
     # Миграция: добавляем колонку cost_rub если её нет (для старых БД)
     try:
@@ -838,6 +879,7 @@ async def detail_diff(request: Request, detail_id: str, v_from: int, v_to: int):
 
 
 # ========== Уведомления (email + telegram webhook) ==========
+# Модульные значения — defaults при старте (fallback). Реальные значения читаются через get_setting() в runtime.
 SMTP_HOST = os.getenv("SMTP_HOST", "")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
@@ -848,8 +890,15 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
 
 def send_email(to: str, subject: str, body: str) -> bool:
-    """Отправка email. Если SMTP не настроен — dry-run (только лог)."""
-    if not SMTP_HOST or not SMTP_USER:
+    """Отправка email. Если SMTP не настроен — dry-run (только лог).
+    Берёт SMTP_*/NOTIFY_EMAIL_FROM из БД (через get_setting), fallback на .env.
+    """
+    host = get_setting("SMTP_HOST", SMTP_HOST)
+    port = int(get_setting("SMTP_PORT", str(SMTP_PORT)) or 587)
+    user = get_setting("SMTP_USER", SMTP_USER)
+    pwd = get_setting("SMTP_PASS", SMTP_PASS)
+    frm = get_setting("NOTIFY_EMAIL_FROM", NOTIFY_EMAIL_FROM)
+    if not host or not user:
         log.info(f"[DRY-RUN EMAIL] to={to} subject={subject}")
         return True
     try:
@@ -857,11 +906,11 @@ def send_email(to: str, subject: str, body: str) -> bool:
         from email.mime.text import MIMEText
         msg = MIMEText(body, "plain", "utf-8")
         msg["Subject"] = subject
-        msg["From"] = NOTIFY_EMAIL_FROM
+        msg["From"] = frm
         msg["To"] = to
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as s:
+        with smtplib.SMTP(host, port) as s:
             s.starttls()
-            s.login(SMTP_USER, SMTP_PASS)
+            s.login(user, pwd)
             s.send_message(msg)
         return True
     except Exception as e:
@@ -870,15 +919,19 @@ def send_email(to: str, subject: str, body: str) -> bool:
 
 
 def send_telegram(text: str) -> bool:
-    """Отправка в Telegram. Если токен не настроен — dry-run."""
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+    """Отправка в Telegram. Если токен не настроен — dry-run.
+    Берёт TELEGRAM_BOT_TOKEN/CHAT_ID из БД (get_setting), fallback на .env.
+    """
+    token = get_setting("TELEGRAM_BOT_TOKEN", TELEGRAM_BOT_TOKEN)
+    chat_id = get_setting("TELEGRAM_CHAT_ID", TELEGRAM_CHAT_ID)
+    if not token or not chat_id:
         log.info(f"[DRY-RUN TELEGRAM] {text[:100]}")
         return True
     try:
         import urllib.request
         import urllib.parse
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        data = urllib.parse.urlencode({"chat_id": TELEGRAM_CHAT_ID, "text": text}).encode()
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        data = urllib.parse.urlencode({"chat_id": chat_id, "text": text}).encode()
         req = urllib.request.Request(url, data=data)
         with urllib.request.urlopen(req, timeout=10) as resp:
             return resp.status == 200
@@ -908,6 +961,154 @@ async def api_role_switch(request: Request):
 
 
 # ========== Admin: дашборд, пользователи, лог входов, LLM-лог, бэкапы, система ==========
+from cryptography.fernet import Fernet, InvalidToken
+import secrets as _secrets
+
+
+# Мастер-ключ для Fernet (из .env или сгенерированный)
+def _get_or_create_master_key() -> bytes:
+    """Получает или создаёт Fernet-ключ.
+    Хранится в файле .master_key (chmod 600) рядом с .env.
+    Если .env содержит FERNET_KEY — использует его.
+    """
+    env_key = os.getenv("FERNET_KEY", "").strip()
+    if env_key:
+        try:
+            return base64.urlsafe_b64decode(env_key)
+        except Exception:
+            pass
+    # Файл в корне проекта
+    key_path = os.path.join(os.path.dirname(DB_PATH) or ".", ".master_key")
+    if os.path.exists(key_path):
+        with open(key_path, "rb") as f:
+            return f.read()
+    # Сгенерировать новый
+    key = Fernet.generate_key()
+    with open(key_path, "wb") as f:
+        f.write(key)
+    os.chmod(key_path, 0o600)
+    return key
+
+
+# Глобальный Fernet (инициализируется лениво)
+_FERNET = None
+
+
+def _fernet() -> Fernet:
+    global _FERNET
+    if _FERNET is None:
+        _FERNET = Fernet(_get_or_create_master_key())
+    return _FERNET
+
+
+# Реестр настроек: (key, type, default, description, masked)
+SETTING_REGISTRY = [
+    ("LLM_API_KEY", "secret", "", "YandexGPT API key", True),
+    ("LLM_MODEL", "str", "gpt://b1gj791m9sc92argfa0q/yandexgpt/latest", "LLM model URI", False),
+    ("LLM_API_URL", "str", "https://llm.api.cloud.yandex.net/v1", "OpenAI-compatible endpoint", False),
+    ("LLM_DAILY_COST_LIMIT_RUB", "int", "200", "Дневной лимит LLM (₽)", False),
+    ("DEMO_MODE", "bool", "false", "Демо-режим (без LLM)", False),
+    ("TELEGRAM_BOT_TOKEN", "secret", "", "Telegram bot token (@BotFather)", True),
+    ("TELEGRAM_CHAT_ID", "str", "", "Telegram chat ID для уведомлений", False),
+    ("SMTP_HOST", "str", "", "SMTP хост (например, smtp.yandex.ru)", False),
+    ("SMTP_PORT", "int", "587", "SMTP порт", False),
+    ("SMTP_USER", "str", "", "SMTP пользователь", False),
+    ("SMTP_PASS", "secret", "", "SMTP пароль", True),
+    ("NOTIFY_EMAIL_FROM", "str", "bit-technolog@tehnocom.local", "Email отправителя", False),
+    ("MAX_DRAWING_SIZE_MB", "int", "50", "Макс. размер чертежа (МБ)", False),
+    ("MAX_IMPORT_SIZE_MB", "int", "100", "Макс. размер импорта (МБ)", False),
+    ("PILOT_USERS", "str", "", "Basic Auth users (user:pass,user2:pass2)", True),
+]
+
+
+def _mask_value(value: str) -> str:
+    """Маскирует секрет: оставляет первые 4 и последние 3 символа"""
+    if not value or len(value) < 10:
+        return "***" if value else ""
+    return f"{value[:4]}...{value[-3:]}"
+
+
+def _encrypt(value: str) -> bytes:
+    if not value:
+        return b""
+    return _fernet().encrypt(value.encode("utf-8"))
+
+
+def _decrypt(blob: bytes) -> str:
+    if not blob:
+        return ""
+    try:
+        return _fernet().decrypt(bytes(blob)).decode("utf-8")
+    except (InvalidToken, Exception):
+        return ""
+
+
+def get_setting(key: str, default: str = "") -> str:
+    """Получает настройку: сначала из БД, потом из .env, потом default"""
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT value_encrypted FROM app_settings WHERE key=?", (key,)).fetchone()
+    finally:
+        conn.close()
+    if row and row[0]:
+        val = _decrypt(row[0])
+        if val:
+            return val
+    # Fallback: env
+    env_val = os.getenv(key, "")
+    if env_val:
+        return env_val
+    return default
+
+
+def set_setting(key: str, value: str, updated_by: str = "admin") -> bool:
+    """Сохраняет настройку в БД (зашифрованно)"""
+    conn = get_conn()
+    try:
+        encrypted = _encrypt(value)
+        masked = _mask_value(value) if value else ""
+        conn.execute("""INSERT INTO app_settings (key, value_encrypted, value_masked, updated_at, updated_by)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
+            ON CONFLICT(key) DO UPDATE SET
+                value_encrypted=excluded.value_encrypted,
+                value_masked=excluded.value_masked,
+                updated_at=CURRENT_TIMESTAMP,
+                updated_by=excluded.updated_by""",
+            (key, encrypted, masked, updated_by))
+        conn.commit()
+    except Exception as e:
+        log.error(f"set_setting({key}) failed: {e}")
+        return False
+    finally:
+        conn.close()
+    return True
+
+
+def delete_setting(key: str) -> bool:
+    """Удаляет настройку (откат на .env/default)"""
+    conn = get_conn()
+    try:
+        conn.execute("DELETE FROM app_settings WHERE key=?", (key,))
+        conn.commit()
+    finally:
+        conn.close()
+    return True
+
+
+def get_all_settings() -> list:
+    """Возвращает список всех настроек с их текущими значениями (masked)"""
+    result = []
+    for key, stype, default, desc, is_secret in SETTING_REGISTRY:
+        current = get_setting(key, default)
+        result.append({
+            "key": key, "type": stype, "default": default, "description": desc,
+            "is_secret": is_secret,
+            "value_set": bool(current),
+            "value_masked": _mask_value(current) if (is_secret and current) else (current[:200] if current else "")
+        })
+    return result
+
+
 def _require_admin_or_json(request: Request):
     """Возвращает JSON-ошибку 403 если не admin, иначе None"""
     if get_current_role(request) != "admin":
@@ -1147,6 +1348,76 @@ async def api_admin_rag_rebuild(request: Request):
         return err(f"rag rebuild failed: {e}", 500)
 
 
+# ========== Admin: Глобальные настройки (LLM/Telegram/SMTP/лимиты) ==========
+@app.get("/admin/settings", response_class=HTMLResponse)
+async def admin_settings_page(request: Request):
+    """Страница редактирования глобальных настроек"""
+    if get_current_role(request) != "admin":
+        return HTMLResponse("<h1>403</h1>", status_code=403)
+    settings = get_all_settings()
+    # Группировка по разделам
+    groups = {
+        "LLM (YandexGPT)": [s for s in settings if s["key"].startswith("LLM_") or s["key"] == "DEMO_MODE"],
+        "Telegram": [s for s in settings if s["key"].startswith("TELEGRAM_")],
+        "SMTP / Email": [s for s in settings if s["key"].startswith("SMTP_") or s["key"] == "NOTIFY_EMAIL_FROM"],
+        "Лимиты": [s for s in settings if s["key"].startswith("MAX_") or s["key"] == "PILOT_USERS"],
+    }
+    return templates.TemplateResponse("admin_settings.html", {
+        "request": request, "groups": groups, "settings_count": len(settings)
+    })
+
+
+@app.post("/api/admin/settings/set")
+async def api_admin_set_setting(request: Request):
+    """Сохранить одну настройку"""
+    err_resp = _require_admin_or_json(request)
+    if err_resp: return err_resp
+    key = await _get_param(request, "key")
+    value = await _get_param(request, "value")
+    if not key:
+        return err("key required", 422)
+    valid_keys = {s[0] for s in SETTING_REGISTRY}
+    if key not in valid_keys:
+        return err(f"unknown setting: {key}", 400)
+    reg = next(s for s in SETTING_REGISTRY if s[0] == key)
+    if reg[1] == "int" and value:
+        try:
+            int(value)
+        except ValueError:
+            return err(f"{key} must be integer", 400)
+    if reg[1] == "bool" and value not in ("true", "false", "1", "0", ""):
+        return err(f"{key} must be true/false", 400)
+    ok = set_setting(key, value or "", updated_by=getattr(request.state, "current_role", "admin"))
+    return JSONResponse({
+        "ok": ok, "key": key,
+        "value_masked": _mask_value(value) if (reg[4] and value) else (value[:100] if value else "")
+    })
+
+
+@app.post("/api/admin/settings/reset")
+async def api_admin_reset_setting(request: Request):
+    """Сбросить настройку на .env/default"""
+    err_resp = _require_admin_or_json(request)
+    if err_resp: return err_resp
+    key = await _get_param(request, "key")
+    if not key:
+        return err("key required", 422)
+    delete_setting(key)
+    return JSONResponse({"ok": True, "key": key, "msg": "reset to .env or default"})
+
+
+@app.get("/api/admin/settings/raw/{key}")
+async def api_admin_get_raw_setting(request: Request, key: str):
+    """Получить расшифрованное значение"""
+    err_resp = _require_admin_or_json(request)
+    if err_resp: return err_resp
+    reg = next((s for s in SETTING_REGISTRY if s[0] == key), None)
+    if not reg:
+        return err(f"unknown setting: {key}", 404)
+    value = get_setting(key, reg[2])
+    return JSONResponse({"ok": True, "key": key, "value": value, "type": reg[1]})
+
+
 @app.get("/admin/system", response_class=HTMLResponse)
 async def admin_system(request: Request):
     """Системные метрики"""
@@ -1257,7 +1528,7 @@ async def api_import_tk(request: Request):
             return err("file required", 422)
         f = form["file"]
         contents = await f.read()
-        if len(contents) > MAX_IMPORT_SIZE:
+        if len(contents) > int(get_setting("MAX_IMPORT_SIZE_MB", str(MAX_IMPORT_SIZE // 1024 // 1024))) * 1024 * 1024:
             return err(f"file too large: {len(contents)} bytes (max {MAX_IMPORT_SIZE})", 413)
         if len(contents) == 0:
             return err("file is empty", 422)
@@ -1313,7 +1584,7 @@ async def api_import_drawing(detail_id: str, request: Request):
         return err("file required", 422)
     f = form["file"]
     contents = await f.read()
-    if len(contents) > MAX_DRAWING_SIZE:
+    if len(contents) > int(get_setting("MAX_DRAWING_SIZE_MB", str(MAX_DRAWING_SIZE // 1024 // 1024))) * 1024 * 1024:
         return err(f"file too large: {len(contents)} bytes (max {MAX_DRAWING_SIZE})", 413)
     if len(contents) == 0:
         return err("file is empty", 422)
@@ -1802,7 +2073,7 @@ def get_daily_cost(date_str: str = None) -> dict:
         "calls": row[1] or 0,
         "tokens_in": row[2] or 0,
         "tokens_out": row[3] or 0,
-        "limit_rub": LLM_DAILY_LIMIT_RUB,
+        "limit_rub": float(get_setting("LLM_DAILY_COST_LIMIT_RUB", str(int(LLM_DAILY_LIMIT_RUB)))),
         "remaining_rub": round(LLM_DAILY_LIMIT_RUB - (row[0] or 0), 4),
         "exceeded": (row[0] or 0) >= LLM_DAILY_LIMIT_RUB
     }

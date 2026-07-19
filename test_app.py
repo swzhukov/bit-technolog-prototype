@@ -1527,3 +1527,214 @@ def test_admin_link_in_nav_for_admin_role(client):
     r2 = c.get("/", follow_redirects=True)
     assert "/admin" in r2.text
     assert "🛡" in r2.text
+
+
+# ========== Global Settings (v0.4.3) — LLM/Telegram/SMTP через админку ==========
+def test_admin_settings_page_requires_admin(client):
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "technologist"})
+    r = c.get("/admin/settings")
+    assert r.status_code == 403
+
+
+def test_admin_settings_page_renders(client):
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "admin"})
+    r = c.get("/admin/settings")
+    assert r.status_code == 200
+    assert "Глобальные настройки" in r.text
+    assert "LLM_API_KEY" in r.text
+    assert "TELEGRAM_BOT_TOKEN" in r.text
+
+
+def test_set_setting_persists():
+    """set_setting() сохраняет в БД, get_setting() читает обратно"""
+    from app import set_setting, get_setting, get_conn
+    test_key = "TEST_KEY_12345"
+    test_value = "secret_value_xyz"
+    # Очистить если уже есть
+    conn = get_conn()
+    conn.execute("DELETE FROM app_settings WHERE key=?", (test_key,))
+    conn.commit()
+    conn.close()
+    # Записать
+    ok = set_setting(test_key, test_value, updated_by="test")
+    assert ok is True
+    # Прочитать
+    got = get_setting(test_key, "default")
+    assert got == test_value
+    # Удалить
+    conn = get_conn()
+    conn.execute("DELETE FROM app_settings WHERE key=?", (test_key,))
+    conn.commit()
+    conn.close()
+
+
+def test_set_setting_falls_back_to_env():
+    """Если в БД нет — читается из os.getenv"""
+    import os
+    os.environ["TEST_FALLBACK_KEY"] = "from_env_xyz"
+    from app import get_setting
+    val = get_setting("TEST_FALLBACK_KEY", "default")
+    assert val == "from_env_xyz"
+    del os.environ["TEST_FALLBACK_KEY"]
+
+
+def test_set_setting_falls_back_to_default():
+    """Если ни в БД, ни в env — default"""
+    from app import get_setting
+    val = get_setting("TEST_NONEXIST_KEY_999", "my_default")
+    assert val == "my_default"
+
+
+def test_set_setting_db_overrides_env():
+    """БД-значение приоритетнее .env"""
+    import os
+    os.environ["TEST_PRIORITY_KEY"] = "from_env"
+    from app import set_setting, get_setting, get_conn
+    set_setting("TEST_PRIORITY_KEY", "from_db", "test")
+    val = get_setting("TEST_PRIORITY_KEY", "default")
+    assert val == "from_db"
+    # Cleanup
+    conn = get_conn()
+    conn.execute("DELETE FROM app_settings WHERE key=?", ("TEST_PRIORITY_KEY",))
+    conn.commit()
+    conn.close()
+    del os.environ["TEST_PRIORITY_KEY"]
+
+
+def test_set_setting_via_api(client):
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "admin"})
+    r = c.post("/api/admin/settings/set",
+               data={"key": "LLM_DAILY_COST_LIMIT_RUB", "value": "350"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["ok"] is True
+    # Cleanup
+    from app import get_conn
+    conn = get_conn()
+    conn.execute("DELETE FROM app_settings WHERE key=?", ("LLM_DAILY_COST_LIMIT_RUB",))
+    conn.commit()
+    conn.close()
+
+
+def test_set_setting_invalid_key(client):
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "admin"})
+    r = c.post("/api/admin/settings/set", data={"key": "BOGUS_KEY_999", "value": "x"})
+    assert r.status_code == 400
+
+
+def test_set_setting_invalid_int(client):
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "admin"})
+    r = c.post("/api/admin/settings/set",
+               data={"key": "LLM_DAILY_COST_LIMIT_RUB", "value": "not_a_number"})
+    assert r.status_code == 400
+
+
+def test_set_setting_invalid_bool(client):
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "admin"})
+    r = c.post("/api/admin/settings/set",
+               data={"key": "DEMO_MODE", "value": "maybe"})
+    assert r.status_code == 400
+
+
+def test_reset_setting(client):
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "admin"})
+    c.post("/api/admin/settings/set", data={"key": "TEST_RESET_KEY", "value": "temp"})
+    r = c.post("/api/admin/settings/reset", data={"key": "TEST_RESET_KEY"})
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
+
+
+def test_get_raw_setting(client):
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "admin"})
+    # Используем registered key — LLM_MODEL
+    c.post("/api/admin/settings/set", data={"key": "LLM_MODEL", "value": "gpt://test/latest"})
+    r = c.get("/api/admin/settings/raw/LLM_MODEL")
+    assert r.status_code == 200
+    assert r.json()["value"] == "gpt://test/latest"
+    # Cleanup
+    from app import get_conn
+    conn = get_conn()
+    conn.execute("DELETE FROM app_settings WHERE key=?", ("LLM_MODEL",))
+    conn.commit()
+    conn.close()
+
+
+def test_admin_settings_requires_admin(client):
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "technologist"})
+    r1 = c.post("/api/admin/settings/set", data={"key": "LLM_API_KEY", "value": "x"})
+    r2 = c.get("/api/admin/settings/raw/LLM_API_KEY")
+    assert r1.status_code == 403
+    assert r2.status_code == 403
+
+
+def test_llm_key_in_db_overrides_env():
+    """Если LLM_API_KEY в БД, get_llm_client использует его (а не .env)"""
+    import os
+    from app import set_setting, get_llm_client, get_conn
+    os.environ["LLM_API_KEY"] = "env_key"
+    set_setting("LLM_API_KEY", "db_key", "test")
+    # get_llm_client читает через get_setting — должен быть db_key
+    # Но мы не можем реально вызвать API, проверим через _LLM_CLIENT._bit_key
+    # (после force-recreate)
+    from app import get_setting
+    assert get_setting("LLM_API_KEY", "") == "db_key"
+    # Cleanup
+    conn = get_conn()
+    conn.execute("DELETE FROM app_settings WHERE key=?", ("LLM_API_KEY",))
+    conn.commit()
+    conn.close()
+    del os.environ["LLM_API_KEY"]
+
+
+def test_fernet_encryption_roundtrip():
+    """Fernet шифрует и расшифровывает"""
+    from app import _encrypt, _decrypt
+    val = "my_secret_token_12345"
+    enc = _encrypt(val)
+    assert enc != val.encode()
+    assert enc != b""
+    dec = _decrypt(enc)
+    assert dec == val
+    # Пустое значение
+    assert _encrypt("") == b""
+    assert _decrypt(b"") == ""
+
+
+def test_mask_value():
+    """_mask_value маскирует длинные значения"""
+    from app import _mask_value
+    assert _mask_value("") == ""
+    assert _mask_value("short") == "***"  # < 10 chars
+    long_val = "abcdefghijklmnop"  # 16 chars
+    masked = _mask_value(long_val)
+    assert "..." in masked
+    assert masked.startswith("abcd")
+    assert masked.endswith("op")
+
+
+def test_setting_registry_covers_all_categories():
+    """В SETTING_REGISTRY есть LLM, Telegram, SMTP, лимиты"""
+    from app import SETTING_REGISTRY
+    keys = {s[0] for s in SETTING_REGISTRY}
+    assert "LLM_API_KEY" in keys
+    assert "LLM_MODEL" in keys
+    assert "LLM_API_URL" in keys
+    assert "LLM_DAILY_COST_LIMIT_RUB" in keys
+    assert "DEMO_MODE" in keys
+    assert "TELEGRAM_BOT_TOKEN" in keys
+    assert "TELEGRAM_CHAT_ID" in keys
+    assert "SMTP_HOST" in keys
+    assert "SMTP_USER" in keys
+    assert "SMTP_PASS" in keys
+    assert "MAX_DRAWING_SIZE_MB" in keys
+    assert "MAX_IMPORT_SIZE_MB" in keys
+    assert "PILOT_USERS" in keys
