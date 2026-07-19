@@ -262,8 +262,16 @@ function step3_refine(did) {
     </form>
     <a href="/detail/{{ detail.id }}/print" target="_blank" class="btn btn-primary">🖨 Печатная форма (для подписи)</a>
     <a href="/api/export/onec-csv?detail_id={{ detail.id }}" class="btn">📤 CSV для 1С</a>
-    <button hx-post="/api/ai/feedback-positive" hx-vals='{"detail_id": "{{ detail.id }}"}' hx-target="#fb-status" hx-swap="innerHTML" class="btn">👍 Норм</button>
-    <button hx-post="/api/feedback" hx-vals='{"detail_id": "{{ detail.id }}", "reason": "draft не подходит"}' hx-confirm="Что не так?" hx-target="#fb-status" hx-swap="innerHTML" class="btn">👎 Не подходит</button>
+    <details class="add-form" style="display:inline-block;">
+        <summary>👍/👎 Фидбек</summary>
+        <form hx-post="/api/feedback" hx-target="#fb-status" hx-swap="innerHTML" class="form">
+            <input type="hidden" name="detail_id" value="{{ detail.id }}">
+            <label>Что не так?<br>
+                <textarea name="reason" rows="2" placeholder="Операции не те / время не то / нет нужного оборудования..." required></textarea>
+            </label>
+            <button type="submit" class="btn">Отправить</button>
+        </form>
+    </details>
     <span id="fb-status"></span>
     <span id="action-result"></span>
 </div>

@@ -45,6 +45,10 @@
     {% if q or status %}<a href="/" class="btn">Сбросить</a>{% endif %}
     <span class="hint">Показано {{ details | length }} из {{ total }}</span>
 </form>
+<form hx-post="/api/batch-generate-new" hx-target="#batch-result" hx-swap="innerHTML" hx-confirm="Сгенерировать черновики для всех новых деталей (до 20)?" style="display:inline;">
+    <button type="submit" class="btn">📦 Сгенерировать все новые</button>
+</form>
+<span id="batch-result" class="hint"></span>
 
 <table class="details-table">
     <thead>

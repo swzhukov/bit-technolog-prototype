@@ -117,6 +117,23 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 
+# ========== Helpers v3 (NC5, NC7, OB3) ==========
+def err(msg: str, code: int = 400, **extra) -> JSONResponse:
+    """NC7: единый helper для JSON-ошибок"""
+    return JSONResponse({"error": msg, **extra}, status_code=code)
+
+
+def safe_call(name: str, fn, *args, default=None, **kwargs):
+    """NC5 fix: вызов с автологированием ошибок.
+    При успехе — возврат результата.
+    При ошибке — log.exception + возврат default."""
+    try:
+        return fn(*args, **kwargs)
+    except Exception as e:
+        log.exception(f"{name} failed: {e}")
+        return default
+
+
 # ========== C1 fix: HTTP Basic Auth middleware ==========
 from fastapi import status as http_status
 from fastapi.responses import Response
@@ -2182,8 +2199,29 @@ async def export_pdf(request: Request):
 
 @app.get("/health")
 async def health():
+    # OB3 fix: проверяем БД (SELECT 1)
+    db_ok = False
+    db_error = None
+    try:
+        conn = get_conn()
+        row = conn.execute("SELECT 1").fetchone()
+        conn.close()
+        db_ok = (row is not None and row[0] == 1)
+    except Exception as e:
+        db_error = str(e)[:200]
+    # RAG статус
+    rag_status = "unknown"
+    try:
+        from rag import get_rag
+        rag = get_rag()
+        rag_status = "loaded" if rag.loaded else "empty"
+    except Exception:
+        rag_status = "unavailable"
     return {
-        "status": "ok",
+        "status": "ok" if db_ok else "degraded",
+        "db_ok": db_ok,
+        "db_error": db_error,
+        "rag_status": rag_status,
         "demo_mode": DEMO_MODE,
         "model": LLM_MODEL,
         "api_url": LLM_API_URL if not DEMO_MODE else None,

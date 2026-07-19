@@ -170,6 +170,7 @@ code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px; back
 /* Data table */
 .data-table { width: 100%; border-collapse: collapse; margin: 12px 0; }
 .data-table th, .data-table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
+.details-table th, .details-table td { font-size: 14px; padding: 12px 14px; }
 .data-table th { background: var(--bg); font-weight: 600; font-size: 12px; color: var(--text-light); text-transform: uppercase; }
 .data-table tbody tr:hover { background: #fafafa; }
 

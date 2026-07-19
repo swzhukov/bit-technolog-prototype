@@ -796,3 +796,63 @@ def test_feedback_positive_button(client):
     data = r.json()
     assert data["ok"] is True
     assert data["saved"] == "positive"
+
+
+# ========== Аудит v3 фиксы ==========
+def test_health_db_check(client):
+    """OB3: /health проверяет что БД работает"""
+    c, _ = client
+    r = c.get("/health")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["db_ok"] is True
+    assert "rag_status" in data
+    assert data["rag_status"] in ("loaded", "empty", "unknown", "unavailable")
+
+
+def test_err_helper():
+    """NC7: err() helper возвращает структурированный ответ"""
+    import os
+    os.environ["PILOT_AUTH_DISABLED"] = "true"
+    from app import err
+    r = err("test message", 400, extra_field=42)
+    assert r.status_code == 400
+    body = json.loads(r.body)
+    assert body["error"] == "test message"
+    assert body["extra_field"] == 42
+
+
+def test_safe_call_logs_exceptions():
+    """NC5: safe_call логирует и возвращает default"""
+    import os
+    os.environ["PILOT_AUTH_DISABLED"] = "true"
+    from app import safe_call
+    def bad_fn(): raise ValueError("test")
+    result = safe_call("test_op", bad_fn, default="fallback")
+    assert result == "fallback"
+
+
+def test_safe_call_returns_value():
+    import os
+    os.environ["PILOT_AUTH_DISABLED"] = "true"
+    from app import safe_call
+    result = safe_call("test_op", lambda: 42)
+    assert result == 42
+
+
+def test_batch_generate_new_with_button(client):
+    """R7: кнопка 'Сгенерировать все новые' работает через hx-post"""
+    c, _ = client
+    r = c.post("/api/batch-generate-new", headers={"HX-Request": "true"})
+    assert r.status_code == 200
+    data = r.json()
+    assert "candidate_ids" in data
+
+
+def test_feedback_form_with_reason(client):
+    """UX16: feedback форма принимает reason"""
+    c, _ = client
+    r = c.post("/api/feedback", data={"detail_id": "detail-001", "reason": "время занижено"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["ok"] is True
