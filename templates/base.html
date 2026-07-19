@@ -29,6 +29,20 @@ window.showToast = function(message, type) {
     setTimeout(() => { toast.style.display = 'none'; }, 3500);
 };
 
+// V6-15: глобальный JS error handler — показывает тост с сообщением об ошибке
+window.addEventListener('error', function(e) {
+    if (typeof showToast === 'function') {
+        showToast('JS Error: ' + (e.message || 'unknown'), 'error');
+    }
+    console.error('Global error:', e.error || e.message);
+});
+window.addEventListener('unhandledrejection', function(e) {
+    if (typeof showToast === 'function') {
+        showToast('Promise Error: ' + (e.reason && e.reason.message || e.reason), 'error');
+    }
+    console.error('Unhandled rejection:', e.reason);
+});
+
 // F16.9: A4-16 — глобальные keyboard shortcuts
 document.addEventListener('keydown', function(e) {
     if (!e.ctrlKey && !e.metaKey) return;
@@ -50,9 +64,9 @@ document.addEventListener('keydown', function(e) {
 </script>
     <header>
         <nav>
-            <a href="/" class="brand">🔧 БИТ.Технолог</a>
+            <a href="/" class="brand" aria-label="БИТ.Технолог — главная">🔧 БИТ.Технолог</a>
             <a href="/details/new" class="navlink">＋ Деталь</a>
-            <a href="/equipment" class="navlink">🔧 Оборудование</a>
+            <a href="/equipment" class="navlink" aria-label="Справочник оборудования">🔧 Оборудование</a>
             <a href="/materials" class="navlink">📋 Материалы</a>
             <a href="/iot" class="navlink">⚠ ИОТ</a>
             <a href="/benchmarks" class="navlink">📊 Бенчмарки</a>
@@ -64,13 +78,13 @@ document.addEventListener('keydown', function(e) {
             <a href="/admin/llm-calls" class="navlink" style="color:#dc2626;">⚠️ LLM-ошибки {% if n_errors > 0 %}<span style="background:#dc2626;color:white;padding:2px 6px;border-radius:10px;font-size:10px;">{{ n_errors }}</span>{% endif %}</a>
             <a href="/admin/settings" class="navlink" style="color:#dc2626;">⚙ Настройки</a>
             {% endif %}
-            <a href="/pilot" class="navlink">📊 Пилот</a>
+            <a href="/pilot" class="navlink" aria-label="Дашборд пилота — метрики">📊 Пилот</a>
             <a href="/pilot/learning" class="navlink">📈 Обучение</a>
             <a href="/pilot/report" class="navlink">📈 Отчёт</a>
             <a href="/audit" class="navlink">📋 Audit</a>
-            <a href="/demo" class="navlink">🎯 Demo</a>
+            <a href="/demo" class="navlink" aria-label="Демо-сценарий для руководства">🎯 Demo</a>
             <span class="spacer"></span>
-            <select id="role-switcher" class="role-select" title="Переключить роль (для demo)">
+            <select id="role-switcher" class="role-select" title="Переключить роль (для demo)" aria-label="Переключить роль">
                 <option value="technologist">👨‍🔧 Технолог</option>
                 <option value="main_technologist">👑 Гл. технолог</option>
                 <option value="normirovshchik">📏 Нормировщик</option>

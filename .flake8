@@ -1,0 +1,24 @@
+[flake8]
+max-line-length = 120
+exclude =
+    .git,
+    __pycache__,
+    venv,
+    .rag,
+    drawings,
+    build,
+    dist
+
+# Разрешаем:
+# E501 — слишком длинные строки (для SQL оставим, всё равно autoformat)
+# W503 — line break before binary operator (новый стиль PEP8)
+# E402 — module level import not at top (F15 имеет перезаписи)
+# F401 — imported but unused (некоторые импорты для re-export)
+# E722 — bare except (используется в emergency handlers)
+ignore =
+    E501,
+    W503,
+    E402,
+    F401,
+    E722,
+    E731

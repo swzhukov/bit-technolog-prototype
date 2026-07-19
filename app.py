@@ -129,12 +129,83 @@ def parse_llm_json(text: str) -> dict:
             pass
     raise ValueError(f"could not parse JSON from LLM response (first 200 chars): {s[:200]}")
 
+# V6-25: timezone-aware datetime
+try:
+    from zoneinfo import ZoneInfo
+    MOSCOW_TZ = ZoneInfo("Europe/Moscow")
+except ImportError:
+    MOSCOW_TZ = None  # старый Python — fallback на naive datetime
+
+
+def now_msk() -> datetime:
+    """V6-25: текущее время в Moscow timezone.
+    Без zoneinfo — naive (для совместимости)."""
+    if MOSCOW_TZ:
+        return datetime.now(MOSCOW_TZ)
+    return datetime.now()
+
+
+# V6-5: retention policy
+RETENTION_DAYS = {
+    "audit_logins": 180,    # 6 месяцев
+    "llm_calls": 90,         # 3 месяца
+    "history": 365,          # 1 год
+}
+
+
+def cleanup_old_records() -> dict:
+    """V6-5: очистка старых записей по retention policy.
+    Запускать вручную или через cron (ежемесячно)."""
+    from db import get_conn
+    conn = get_conn()
+    result = {}
+    try:
+        for table, days in RETENTION_DAYS.items():
+            cur = conn.execute(f"DELETE FROM {table} WHERE ts < datetime('now', '-{days} day')")
+            result[table] = cur.rowcount
+        conn.commit()
+    except Exception as e:
+        log.error(f"cleanup_old_records failed: {e}")
+        return {"error": str(e)}
+    finally:
+        conn.close()
+    return result
+
+
 # Logging
+import json as _json_logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s"
 )
 log = logging.getLogger("bit-technolog")
+
+# V6-22: Structured JSON logs (включается через JSON_LOGS=true)
+if os.getenv("JSON_LOGS", "true").lower() == "true":
+    class JsonFormatter(logging.Formatter):
+        """V6-22: JSON-формат логов для production.
+        Каждый log = одна строка JSON, парсится logstash/loki/etc."""
+        def format(self, record):
+            payload = {
+                "ts": _json_logging.loads(_json_logging.dumps(record.created)) if False else None,
+                "level": record.levelname,
+                "logger": record.name,
+                "msg": record.getMessage(),
+            }
+            # timestamp как ISO
+            import datetime
+            payload["ts"] = datetime.datetime.fromtimestamp(record.created).isoformat()
+            # extra fields
+            for key in ("detail_id", "author", "action", "cost", "tokens", "status", "error"):
+                if hasattr(record, key):
+                    payload[key] = getattr(record, key)
+            if record.exc_info:
+                payload["exception"] = self.formatException(record.exc_info)
+            return _json_logging.dumps(payload, ensure_ascii=False)
+    # Перенастроить handler
+    for h in logging.root.handlers:
+        h.setFormatter(JsonFormatter())
+    log.info("JSON logging enabled")
 
 # FastAPI app
 from contextlib import asynccontextmanager
