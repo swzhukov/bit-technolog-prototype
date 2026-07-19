@@ -137,17 +137,28 @@ logging.basicConfig(
 log = logging.getLogger("bit-technolog")
 
 # FastAPI app
-app = FastAPI(title="БИТ.Технолог — Прототип", version="0.4.2")
+from contextlib import asynccontextmanager
 
 
-@app.on_event("startup")
-async def _startup_init_db():
-    """Инициализация БД при старте uvicorn (важно: app.py не вызывается как __main__)"""
+@asynccontextmanager
+async def _lifespan(app):
+    """FastAPI lifespan: инициализация БД при старте, очистка при остановке.
+    Заменяет deprecated @app.on_event('startup')."""
+    # Startup
     try:
         init_db()
-        log.info("DB initialized on startup")
+        log.info("DB initialized on lifespan startup")
     except Exception as e:
-        log.error(f"DB init failed: {e}")
+        log.error(f"DB init failed on startup: {e}")
+    yield
+    # Shutdown — закрываем все открытые соединения (если есть пул)
+    try:
+        log.info("Application shutdown")
+    except Exception:
+        pass
+
+
+app = FastAPI(title="БИТ.Технолог — Прототип", version="0.4.5", lifespan=_lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
@@ -1044,16 +1055,25 @@ def _decrypt(blob: bytes) -> str:
 
 
 def get_setting(key: str, default: str = "") -> str:
-    """Получает настройку: сначала из БД, потом из .env, потом default"""
-    conn = get_conn()
+    """Получает настройку: сначала из БД, потом из .env, потом default.
+    Устойчив к отсутствию таблицы app_settings (на свежей БД)."""
+    conn = None
     try:
+        conn = get_conn()
         row = conn.execute("SELECT value_encrypted FROM app_settings WHERE key=?", (key,)).fetchone()
+        if row and row[0]:
+            val = _decrypt(row[0])
+            if val:
+                return val
+    except Exception as e:
+        # Таблица не существует или другая ошибка — fallback на env/default
+        log.debug(f"get_setting({key}) DB error (will fallback): {e}")
     finally:
-        conn.close()
-    if row and row[0]:
-        val = _decrypt(row[0])
-        if val:
-            return val
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
     # Fallback: env
     env_val = os.getenv(key, "")
     if env_val:
@@ -2062,19 +2082,28 @@ def calc_cost_rub(tokens_in: int, tokens_out: int) -> float:
 
 
 def get_daily_cost(date_str: str = None) -> dict:
-    """Считает расход за указанный день (по умолчанию — сегодня)"""
+    """Считает расход за указанный день (по умолчанию — сегодня).
+    Устойчив к отсутствию таблицы llm_calls (на свежей БД)."""
     if not date_str:
         date_str = datetime.now().strftime("%Y-%m-%d")
-    conn = get_conn()
-    row = conn.execute("""SELECT
-        COALESCE(SUM(cost_rub), 0) as total,
-        COUNT(*) as calls,
-        COALESCE(SUM(tokens_in), 0) as tokens_in,
-        COALESCE(SUM(tokens_out), 0) as tokens_out
-        FROM llm_calls
-        WHERE DATE(created_at, 'localtime') = ? AND cost_rub > 0""",
-        (date_str,)).fetchone()
-    conn.close()
+    conn = None
+    try:
+        conn = get_conn()
+        row = conn.execute("""SELECT
+            COALESCE(SUM(cost_rub), 0) as total,
+            COUNT(*) as calls,
+            COALESCE(SUM(tokens_in), 0) as tokens_in,
+            COALESCE(SUM(tokens_out), 0) as tokens_out
+            FROM llm_calls
+            WHERE DATE(created_at, 'localtime') = ? AND cost_rub > 0""",
+            (date_str,)).fetchone()
+    except Exception as e:
+        log.debug(f"get_daily_cost DB error (fresh DB?): {e}")
+        row = (0, 0, 0, 0)
+    finally:
+        if conn:
+            try: conn.close()
+            except Exception: pass
     return {
         "date": date_str,
         "total_rub": round(row[0] or 0, 4),
