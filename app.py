@@ -42,6 +42,13 @@ if not LLM_API_KEY and not DEMO_MODE:
     print(f"[WARN] {log_msg}")
     DEMO_MODE = True
 
+# P0 v6: лимиты на размер файлов (защита от DoS)
+MAX_DRAWING_SIZE = int(os.getenv("MAX_DRAWING_SIZE", str(50 * 1024 * 1024)))  # 50MB
+MAX_IMPORT_SIZE = int(os.getenv("MAX_IMPORT_SIZE", str(100 * 1024 * 1024)))  # 100MB
+ALLOWED_DRAWING_FORMATS = {"frw", "dwg", "pdf", "png", "jpg", "jpeg", "svg"}
+ALLOWED_IMPORT_FORMATS = {"xlsx", "xls", "pdf", "docx", "doc"}
+ALLOWED_LEVELS = {"detail", "assembly", "product"}
+
 # Auth (C1 fix): HTTP Basic с переменной PILOT_USERS=user:pass,admin:pass
 PILOT_USERS_RAW = os.getenv("PILOT_USERS", "")
 PILOT_USERS = {}
@@ -616,25 +623,40 @@ async def api_import_tk(request: Request):
             return err("file required", 422)
         f = form["file"]
         contents = await f.read()
+        if len(contents) > MAX_IMPORT_SIZE:
+            return err(f"file too large: {len(contents)} bytes (max {MAX_IMPORT_SIZE})", 413)
+        if len(contents) == 0:
+            return err("file is empty", 422)
         suffix = (f.filename or "").lower().split(".")[-1]
+        if suffix not in ALLOWED_IMPORT_FORMATS:
+            return err(f"unsupported format '{suffix}'. Allowed: {sorted(ALLOWED_IMPORT_FORMATS)}", 400)
         tmp_path = f"/tmp/import_{os.getpid()}.{suffix}"
         with open(tmp_path, "wb") as out:
             out.write(contents)
         try:
-            if suffix in ("xlsx", "xls"):
+            if suffix in ("xlsx",):
                 from importers import import_from_excel
                 details = import_from_excel(tmp_path)
+            elif suffix == "xls":
+                # F fix: .xls (старый бинарный формат) — openpyxl не читает.
+                # Нужна библиотека xlrd (не включена в зависимости).
+                return err("xls (old format) not supported. Please save as xlsx.", 415)
             elif suffix == "pdf":
                 from importers import import_from_pdf
                 details = import_from_pdf(tmp_path)
-            elif suffix in ("docx", "doc"):
+            elif suffix in ("docx",):
                 from importers import import_from_word
                 details = import_from_word(tmp_path)
+            elif suffix == "doc":
+                return err("doc (old format) not supported. Please save as docx.", 415)
             else:
                 return err(f"Unsupported file format: {suffix}", 400)
             result = save_imported_details(details, default_author=f"import-{suffix}")
             result["filename"] = f.filename
             return JSONResponse(result)
+        except Exception as e:
+            log.exception(f"import failed: {e}")
+            return err(f"import failed: {e}", 500)
         finally:
             try:
                 os.remove(tmp_path)
@@ -645,17 +667,34 @@ async def api_import_tk(request: Request):
 
 @app.post("/api/import/drawing/{detail_id}")
 async def api_import_drawing(detail_id: str, request: Request):
-    """Загрузка чертежа для детали. multipart file (.frw/.dwg/.pdf/.png/.jpg)"""
+    """Загрузка чертежа для детали. multipart file (.frw/.dwg/.pdf/.png/.jpg)
+    N1 fix: валидация размера, sanitize filename, проверка detail_id."""
+    conn = get_conn()
+    if not conn.execute("SELECT id FROM details WHERE id=?", (detail_id,)).fetchone():
+        conn.close()
+        return err(f"detail '{detail_id}' not found", 404)
+    conn.close()
     form = await request.form()
     if "file" not in form:
         return err("file required", 422)
     f = form["file"]
     contents = await f.read()
+    if len(contents) > MAX_DRAWING_SIZE:
+        return err(f"file too large: {len(contents)} bytes (max {MAX_DRAWING_SIZE})", 413)
+    if len(contents) == 0:
+        return err("file is empty", 422)
     drawings_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "drawings")
     os.makedirs(drawings_dir, exist_ok=True)
     suffix = (f.filename or "").lower().split(".")[-1]
+    if suffix not in ALLOWED_DRAWING_FORMATS:
+        return err(f"unsupported format '{suffix}'. Allowed: {sorted(ALLOWED_DRAWING_FORMATS)}", 400)
     safe_filename = re.sub(r"[^A-Za-z0-9._-]", "_", f.filename or "drawing")
+    safe_filename = safe_filename[:100]  # N1: limit length
     file_path = os.path.join(drawings_dir, f"{detail_id}_{safe_filename}")
+    file_path = os.path.abspath(file_path)  # resolve symlinks
+    # N1: убедиться что file_path внутри drawings_dir (нет path traversal)
+    if not file_path.startswith(os.path.abspath(drawings_dir)):
+        return err("invalid filename", 400)
     with open(file_path, "wb") as out:
         out.write(contents)
     conn = get_conn()
@@ -743,13 +782,23 @@ async def api_hierarchy():
         by_id[r[0]] = {"id": r[0], "designation": r[1], "name": r[2], "level": "assembly", "parent_id": r[3], "children": []}
     for r in details:
         by_id[r[0]] = {"id": r[0], "designation": r[1], "name": r[2], "level": "detail", "parent_id": r[3], "children": []}
+    # G fix: защита от циклов через visited set
+    visited = set()
+    def _attach_children(node):
+        if node["id"] in visited:
+            node["children"] = []  # обрезаем цикл
+            return
+        visited.add(node["id"])
+        pid = node.get("parent_id")
+        if pid and pid in by_id and pid not in [c["id"] for c in node.get("children", [])]:
+            node["children"].append(by_id[pid])
+            _attach_children(by_id[pid])
     roots = []
     for node in by_id.values():
-        pid = node.get("parent_id")
-        if pid and pid in by_id:
-            by_id[pid]["children"].append(node)
-        else:
+        if not node.get("parent_id"):
             roots.append(node)
+        else:
+            _attach_children(node)
     return JSONResponse(roots)
 
 
@@ -815,7 +864,12 @@ async def api_1c_export_rs(detail_id: str):
         if op.get("department"):
             xml.append(f'    <Department name="{_xml_escape(op["department"])}"/>')
         for r in rs_rows:
-            if r[0] == i:
+            # N4 fix: защита от None/out-of-range
+            try:
+                r_idx = int(r[0]) if r[0] is not None else -1
+            except (TypeError, ValueError):
+                continue
+            if r_idx == i and 0 <= r_idx < 10000:
                 xml.append(f'    <Resource kind="{r[1]}" name="{_xml_escape(r[2])}" quantity="{r[3]}" unit="{_xml_escape(r[4] or "")}"/>')
         xml.append('  </Operation>')
     xml.append('</ResourceSpecification>')
@@ -2206,6 +2260,17 @@ async def audit_page(request: Request, limit: int = 100):
     rows = conn.execute("SELECT * FROM history ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
     conn.close()
     entries = [dict(zip(cols, r)) for r in rows]
+    # N9 fix: pretty-print JSON для UI
+    for e in entries:
+        details_str = e.get("details") or ""
+        if details_str:
+            try:
+                parsed = json.loads(details_str)
+                e["details_pretty"] = json.dumps(parsed, indent=2, ensure_ascii=False)
+            except Exception:
+                e["details_pretty"] = details_str
+        else:
+            e["details_pretty"] = ""
     return templates.TemplateResponse("audit.html", {
         "request": request, "entries": entries, "limit": limit
     })
@@ -2709,12 +2774,22 @@ async def api_create_detail(designation: str = Form(...),
 # CRUD: оборудование
 # ============================================
 @app.get("/equipment", response_class=HTMLResponse)
-async def equipment_page(request: Request):
+async def equipment_page(request: Request, q: str = ""):
     items = get_all_equipment()
+    if q:
+        ql = q.lower()
+        items = [e for e in items if ql in (e.get("name") or "").lower() or ql in (e.get("type") or "").lower() or ql in (e.get("code") or "").lower()]
     return templates.TemplateResponse("equipment_list.html", {
         "request": request,
-        "items": items
+        "equipment": items,
+        "q": q
     })
+
+
+@app.get("/equipment/search", response_class=HTMLResponse)
+async def equipment_search(request: Request, q: str = ""):
+    """J fix: live search для equipment (htmx)"""
+    return await equipment_page(request, q=q)
 
 
 @app.post("/api/equipment")
@@ -2735,12 +2810,21 @@ async def api_create_equipment(name: str = Form(...),
 # CRUD: материалы
 # ============================================
 @app.get("/materials", response_class=HTMLResponse)
-async def materials_page(request: Request):
+async def materials_page(request: Request, q: str = ""):
     items = get_all_materials()
+    if q:
+        ql = q.lower()
+        items = [m for m in items if ql in (m.get("name") or "").lower() or ql in (m.get("grade") or "").lower() or ql in (m.get("gost") or "").lower()]
     return templates.TemplateResponse("materials_list.html", {
         "request": request,
-        "items": items
+        "items": items,
+        "q": q
     })
+
+
+@app.get("/materials/search", response_class=HTMLResponse)
+async def materials_search(request: Request, q: str = ""):
+    return await materials_page(request, q=q)
 
 
 @app.post("/api/materials")
@@ -2756,12 +2840,21 @@ async def api_create_material(name: str = Form(...),
 # CRUD: ИОТ
 # ============================================
 @app.get("/iot", response_class=HTMLResponse)
-async def iot_page(request: Request):
+async def iot_page(request: Request, q: str = ""):
     items = get_all_iot()
+    if q:
+        ql = q.lower()
+        items = [i for i in items if ql in (i.get("number") or "").lower() or ql in (i.get("description") or "").lower()]
     return templates.TemplateResponse("iot_list.html", {
         "request": request,
-        "items": items
+        "items": items,
+        "q": q
     })
+
+
+@app.get("/iot/search", response_class=HTMLResponse)
+async def iot_search(request: Request, q: str = ""):
+    return await iot_page(request, q=q)
 
 
 @app.post("/api/iot")

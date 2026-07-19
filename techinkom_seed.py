@@ -1,6 +1,9 @@
 """15 реалистичных деталей Техинком-Центр для пилота.
 Основано на техкарте «Упора продольного» (PDF 4c85941a) + контексте."""
 import json
+import logging
+
+log = logging.getLogger("bit-technolog")
 
 TECHINKOM_DETAILS = [
     # ===== ИЗДЕЛИЕ: АЦ-6,0-40 (пожарная автоцистерна) =====
@@ -284,6 +287,11 @@ def seed_techinkom_data():
         existing = conn.execute("SELECT id FROM details WHERE id=?", (d["id"],)).fetchone()
         if existing:
             continue
+        # N3 fix: validate level
+        level = d.get("level", "detail")
+        if level not in ("detail", "assembly", "product"):
+            log.warning(f"Invalid level '{level}' for {d['id']}, defaulting to 'detail'")
+            level = "detail"
         conn.execute("""INSERT INTO details
             (id, designation, name, model, chassis, material, mass_kg, surface_treatment,
              tech_rules, extra_props, level, parent_id)
@@ -292,7 +300,7 @@ def seed_techinkom_data():
             d.get("material"), d.get("mass_kg", 0), d.get("surface_treatment"),
             d.get("tech_rules"),
             json.dumps(d.get("extra_props", {}), ensure_ascii=False),
-            d.get("level", "detail"), d.get("parent_id")
+            level, d.get("parent_id")
         ))
         # Операции
         ops = TECHINKOM_OPERATIONS.get(d["id"], [])

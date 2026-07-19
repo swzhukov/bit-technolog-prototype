@@ -112,12 +112,18 @@ def import_from_pdf(filepath: str) -> list[dict]:
     import pdfplumber
     details_by_id = {}
     with pdfplumber.open(filepath) as pdf:
-        for page in pdf.pages:
-            text = page.extract_text() or ""
+        for page_idx, page in enumerate(pdf.pages):
+            try:
+                text = page.extract_text() or ""
+            except Exception as e:
+                # E fix: N5 — пропускаем страницу если extract_text упал
+                continue
+            if not text:
+                continue
             # Ищем обозначение
             m = re.search(r"([А-Я]{2,5}\.\d{6}\.\d{3}(?:/\d{3})?)", text)
             designation = m.group(1) if m else f"pdf-{len(details_by_id)+1:03d}"
-            # Ищем название (обычно после обозначения, до операций)
+            # Ищем название
             name = ""
             nm = re.search(r"Упор[^\n]+|Кронштейн[^\n]+|Рама[^\n]+|Цилиндр[^\n]+|Опора[^\n]+|Вал[^\n]+", text)
             if nm:
@@ -128,10 +134,8 @@ def import_from_pdf(filepath: str) -> list[dict]:
                 m = re.match(r"\s*(\d{3})\s+([А-ЯA-Z][^\d]{5,60})", line)
                 if m:
                     op_name = f"{m.group(1)} {m.group(2).strip()}"
-                    # Ищем время в этой строке
                     tm = re.search(r"(\d+[.,]\d+)\s*ч", line)
                     duration = float(tm.group(1).replace(",", ".")) if tm else 0
-                    # Ищем оборудование
                     eq = ""
                     em = re.search(r"Кедр-\d+|станок\s+\w+|установка\s+\w+", line, re.IGNORECASE)
                     if em:
@@ -216,7 +220,7 @@ def _normalize_detail(d: dict) -> dict:
         "surface_treatment": str(d.get("surface_treatment") or "").strip(),
         "extra_props": json.dumps(d.get("extra_props") or {}, ensure_ascii=False),
         "parent_id": d.get("parent_id"),
-        "level": d.get("level", "detail"),
+        "level": d.get("level", "detail") if d.get("level") in ("detail", "assembly", "product") else "detail",
         "drawing_path": d.get("drawing_path"),
         "drawing_format": d.get("drawing_format"),
         "operations": d.get("operations") or []
@@ -224,9 +228,20 @@ def _normalize_detail(d: dict) -> dict:
 
 
 def save_imported_details(details: list[dict], default_author: str = "import") -> dict:
-    """Сохраняет распарсенные детали в БД. Возвращает статистику."""
+    """Сохраняет распарсенные детали в БД. Возвращает статистику.
+    C8 fix: дедупликация по designation (если повтор — обновляем, а не дублируем)."""
     from app import get_conn
     conn = get_conn()
+    # Дедупликация по designation
+    seen_designations = set()
+    deduped = []
+    for d in details:
+        des = d.get("designation", "")
+        if not des or des in seen_designations:
+            continue
+        seen_designations.add(des)
+        deduped.append(d)
+    details = deduped
     created = 0
     updated = 0
     ops_saved = 0

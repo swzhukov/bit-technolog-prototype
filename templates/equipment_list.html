@@ -40,10 +40,15 @@
     </form>
 </details>
 
+<form hx-get="/equipment/search" hx-target="#equipment-list" hx-trigger="keyup changed delay:300ms from:input[name='q']" hx-swap="innerHTML" hx-push-url="true" class="form" style="display:flex; gap:8px; align-items:center;">
+    <input type="search" name="q" value="{{ q or '' }}" placeholder="🔍 Поиск оборудования (название, тип, код)..." style="flex:1; min-width:280px;" autocomplete="off">
+    <a href="/equipment" class="btn">Сбросить</a>
+</form>
+<div id="equipment-list">
 <table class="data-table">
     <thead><tr><th>Источник</th><th>Название</th><th>Тип</th><th>Код</th><th>Макс.толщ (мм)</th><th>Макс.масса (кг)</th><th>Примечания</th><th>Локально</th></tr></thead>
     <tbody>
-        {% for e in items %}
+        {% for e in equipment %}
         <tr>
             <td><span class="badge {% if e.source == '1c' %}green{% else %}gray{% endif %}">{% if e.source == '1c' %}1С{% else %}локально{% endif %}</span></td>
             <td><strong>{{ e.name }}</strong></td>
@@ -60,7 +65,10 @@
                 </form>
             </td>
         </tr>
+        {% else %}
+        <tr><td colspan="8" style="text-align:center; padding:32px; color:var(--text-light);">Ничего не найдено</td></tr>
         {% endfor %}
     </tbody>
 </table>
+</div>
 {% endblock %}

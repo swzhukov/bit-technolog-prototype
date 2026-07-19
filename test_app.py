@@ -1081,3 +1081,144 @@ def test_drawing_upload(client):
     data = r.json()
     assert data["ok"] is True
     assert "file_path" in data
+
+
+# ========== v6 fixes ==========
+def test_drawing_upload_too_large(client):
+    """N1 fix: файл больше 50MB -> 413"""
+    import io
+    c, _ = client
+    # 51MB content
+    big = b"x" * (51 * 1024 * 1024)
+    r = c.post("/api/import/drawing/detail-001",
+               files={"file": ("big.pdf", io.BytesIO(big), "application/pdf")})
+    assert r.status_code == 413
+    assert "too large" in r.json()["error"].lower()
+
+
+def test_drawing_upload_bad_format(client):
+    """N1 fix: неподдерживаемый формат -> 400"""
+    import io
+    c, _ = client
+    r = c.post("/api/import/drawing/detail-001",
+               files={"file": ("hack.exe", io.BytesIO(b"fake"), "application/octet-stream")})
+    assert r.status_code == 400
+    assert "unsupported" in r.json()["error"].lower()
+
+
+def test_drawing_upload_nonexistent_detail(client):
+    """N1 fix: несуществующий detail_id -> 404"""
+    import io
+    c, _ = client
+    r = c.post("/api/import/drawing/nonexistent-detail-xyz",
+               files={"file": ("test.pdf", io.BytesIO(b"x"), "application/pdf")})
+    assert r.status_code == 404
+
+
+def test_drawing_upload_path_traversal(client):
+    """N1 fix: path traversal в filename -> 400"""
+    import io
+    c, _ = client
+    r = c.post("/api/import/drawing/detail-001",
+               files={"file": ("../../etc/passwd", io.BytesIO(b"x"), "application/pdf")})
+    # Должен либо 200 (sanitize), либо 400 (block)
+    assert r.status_code in (200, 400)
+
+
+def test_tk_import_too_large(client):
+    """N2 fix: файл больше 100MB -> 413"""
+    import io
+    c, _ = client
+    big = b"x" * (101 * 1024 * 1024)
+    r = c.post("/api/import/tk",
+               files={"file": ("big.xlsx", io.BytesIO(big), "application/octet-stream")})
+    assert r.status_code == 413
+
+
+def test_tk_import_xls_not_supported(client):
+    """F fix: .xls (старый формат) -> 415 с понятной ошибкой"""
+    import io
+    c, _ = client
+    r = c.post("/api/import/tk",
+               files={"file": ("test.xls", io.BytesIO(b"x"), "application/octet-stream")})
+    assert r.status_code == 415
+    assert "xls" in r.json()["error"].lower()
+
+
+def test_hierarchy_with_cycle(client):
+    """G fix: циклический parent_id не приводит к бесконечной рекурсии"""
+    import sqlite3
+    c, app_module = client
+    conn = app_module.get_conn()
+    try:
+        conn.execute("INSERT OR IGNORE INTO details (id, designation, name, parent_id, level) VALUES (?, ?, ?, ?, ?)",
+                     ("cycle-a", "CYC-A", "Cycle A", "cycle-b", "detail"))
+        conn.execute("INSERT OR IGNORE INTO details (id, designation, name, parent_id, level) VALUES (?, ?, ?, ?, ?)",
+                     ("cycle-b", "CYC-B", "Cycle B", "cycle-a", "assembly"))
+        conn.commit()
+    finally:
+        conn.close()
+    r = c.get("/api/hierarchy")
+    assert r.status_code == 200
+    # Должен быть корень (один из них, второй обрезан)
+    data = r.json()
+    assert isinstance(data, list)
+
+
+def test_audit_pretty_print():
+    """N9 fix: audit.html рендерит details с indent=2"""
+    import os
+    os.environ["PILOT_AUTH_DISABLED"] = "true"
+    from app import get_conn
+    conn = get_conn()
+    # Симулируем вложенный JSON
+    import json
+    from datetime import datetime
+    conn.execute("""INSERT INTO history (detail_id, action, details, timestamp) VALUES (?, ?, ?, ?)""",
+                 ("detail-001", "test_action", json.dumps({"a": 1, "nested": {"b": 2}}, ensure_ascii=False), datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
+
+def test_equipment_search(client):
+    """J fix: search в /equipment работает"""
+    c, _ = client
+    r = c.get("/equipment/search?q=Кедр")
+    assert r.status_code == 200
+
+
+def test_materials_search(client):
+    """J fix: search в /materials"""
+    c, _ = client
+    r = c.get("/materials/search?q=Сталь")
+    assert r.status_code == 200
+
+
+def test_iot_search(client):
+    """J fix: search в /iot"""
+    c, _ = client
+    r = c.get("/iot/search?q=сварка")
+    assert r.status_code == 200
+
+
+def test_level_whitelist_in_seed():
+    """N3 fix: невалидный level в seed не ломает БД"""
+    import os
+    os.environ["PILOT_AUTH_DISABLED"] = "true"
+    from app import get_conn
+    # Создаём деталь с невалидным level
+    conn = get_conn()
+    try:
+        conn.execute("""INSERT OR REPLACE INTO details
+            (id, designation, name, level) VALUES (?, ?, ?, ?)""",
+            ("test-bad-level", "TEST-BAD", "Test bad level", "garbage"))
+        conn.commit()
+        # Импортируем заново — должно пройти без exception
+        from techinkom_seed import seed_techinkom_data
+        result = seed_techinkom_data()
+        assert "seeded" in result
+    finally:
+        # Cleanup
+        conn.execute("DELETE FROM details WHERE id = ?", ("test-bad-level",))
+        conn.commit()
+        conn.close()

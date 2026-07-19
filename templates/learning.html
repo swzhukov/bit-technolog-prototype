@@ -122,7 +122,19 @@ document.querySelectorAll('.tab').forEach(tab => {
         document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
         tab.classList.add('active');
         document.getElementById('tab-' + target).style.display = 'block';
+        // I fix: сохраняем выбор в localStorage
+        try { localStorage.setItem('bit_learning_tab', target); } catch (e) {}
     });
 });
+// I fix: восстанавливаем выбор при загрузке
+(function() {
+    try {
+        const saved = localStorage.getItem('bit_learning_tab');
+        if (saved) {
+            const tab = document.querySelector(`.tab[data-tab="${saved}"]`);
+            if (tab) tab.click();
+        }
+    } catch (e) {}
+})();
 </script>
 {% endblock %}

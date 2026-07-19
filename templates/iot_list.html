@@ -17,6 +17,11 @@
     </form>
 </details>
 
+<form hx-get="/iot/search" hx-target="#iot-list" hx-trigger="keyup changed delay:300ms from:input[name='q']" hx-swap="innerHTML" hx-push-url="true" class="form" style="display:flex; gap:8px; align-items:center;">
+    <input type="search" name="q" value="{{ q or '' }}" placeholder="🔍 Поиск ИОТ (номер, описание)..." style="flex:1; min-width:280px;" autocomplete="off">
+    <a href="/iot" class="btn">Сбросить</a>
+</form>
+<div id="iot-list">
 <table class="data-table">
     <thead><tr><th>Номер</th><th>Описание</th><th>Применяется к</th></tr></thead>
     <tbody>
@@ -26,7 +31,10 @@
             <td>{{ i.description }}</td>
             <td>{{ i.applies_to }}</td>
         </tr>
+        {% else %}
+        <tr><td colspan="3" style="text-align:center; padding:32px; color:var(--text-light);">Ничего не найдено</td></tr>
         {% endfor %}
     </tbody>
 </table>
+</div>
 {% endblock %}

@@ -18,6 +18,11 @@
     </form>
 </details>
 
+<form hx-get="/materials/search" hx-target="#materials-list" hx-trigger="keyup changed delay:300ms from:input[name='q']" hx-swap="innerHTML" hx-push-url="true" class="form" style="display:flex; gap:8px; align-items:center;">
+    <input type="search" name="q" value="{{ q or '' }}" placeholder="🔍 Поиск материалов (название, марка, ГОСТ)..." style="flex:1; min-width:280px;" autocomplete="off">
+    <a href="/materials" class="btn">Сбросить</a>
+</form>
+<div id="materials-list">
 <table class="data-table">
     <thead><tr><th>ID</th><th>Название</th><th>Марка</th><th>ГОСТ</th><th>Примечания</th></tr></thead>
     <tbody>
@@ -29,7 +34,10 @@
             <td>{{ m.gost or "—" }}</td>
             <td>{{ m.notes }}</td>
         </tr>
+        {% else %}
+        <tr><td colspan="5" style="text-align:center; padding:32px; color:var(--text-light);">Ничего не найдено</td></tr>
         {% endfor %}
     </tbody>
 </table>
+</div>
 {% endblock %}
