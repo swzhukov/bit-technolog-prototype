@@ -260,22 +260,29 @@ async def auth_middleware(request: Request, call_next):
             headers={"WWW-Authenticate": 'Basic realm="BIT-Technolog"'},
             media_type="text/html; charset=utf-8"
         )
-    # CSRF check (opt-in для prod): требует X-Requested-With (htmx) или same-origin Referer.
-    # По умолчанию ВЫКЛЮЧЕН — pilot 3-5 доверенных человек, CSRF overkill.
-    # Включается через PILOT_CSRF_ENABLED=true для prod / внешних сетей.
-    if request.method in ("POST", "PUT", "DELETE", "PATCH") and os.getenv("PILOT_CSRF_ENABLED", "").lower() == "true":
-        xrw = request.headers.get("x-requested-with", "")
-        referer = request.headers.get("referer", "")
-        # Разрешаем если htmx ИЛИ same-origin
-        if xrw.lower() == "xmlhttprequest":
-            pass  # htmx, fetch, etc.
-        elif referer and path in referer:
-            pass  # same-origin form submit
+    # CSRF check (F16.4: по умолчанию ВКЛЮЧЕН).
+    # Раньше был opt-in (PILOT_CSRF_ENABLED=true). Теперь по умолчанию защита.
+    # Opt-out через PILOT_CSRF_DISABLED=true (для тестов и локальной разработки).
+    if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+        if os.getenv("PILOT_CSRF_DISABLED", "").lower() == "true":
+            pass  # отключено явно (тесты)
         else:
-            return JSONResponse(
-                {"error": "CSRF check failed: need X-Requested-With or same-origin Referer"},
-                status_code=403
-            )
+            xrw = request.headers.get("x-requested-with", "")
+            referer = request.headers.get("referer", "")
+            origin = request.headers.get("origin", "")
+            host = request.headers.get("host", "")
+            # Разрешаем если htmx ИЛИ same-origin
+            if xrw.lower() == "xmlhttprequest":
+                pass  # htmx, fetch, etc.
+            elif referer and path in referer:
+                pass  # same-origin form submit
+            elif origin and host and origin.endswith(host):
+                pass  # CORS: origin matches host
+            else:
+                return JSONResponse(
+                    {"error": "CSRF check failed: need X-Requested-With, same-origin Referer or matching Origin"},
+                    status_code=403
+                )
     return await call_next(request)
 
 

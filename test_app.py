@@ -21,6 +21,7 @@ def client():
     os.environ["DB_PATH"] = path
     os.environ["DEMO_MODE"] = "true"
     os.environ["LLM_DAILY_LIMIT_RUB"] = "10"
+    os.environ["PILOT_CSRF_DISABLED"] = "true"  # F16.4: CSRF opt-out для тестов
 
     sys.path.insert(0, os.path.dirname(__file__))
     import app as app_module
@@ -884,9 +885,10 @@ def test_csrf_opt_in_not_default(client):
 
 
 def test_csrf_enabled_blocks_without_header(client, monkeypatch):
-    """При PILOT_CSRF_ENABLED=true POST без X-Requested-With = 403"""
-    # Создаём новое приложение с включённым CSRF
-    monkeypatch.setenv("PILOT_CSRF_ENABLED", "true")
+    """F16.4: по умолчанию CSRF ВКЛЮЧЕН. POST без X-Requested-With = 403.
+    Opt-out через PILOT_CSRF_DISABLED=true (для тестов / локальной разработки)."""
+    # Создаём новое приложение с включённым CSRF (opt-out явно отключён)
+    monkeypatch.setenv("PILOT_CSRF_DISABLED", "false")
     monkeypatch.setenv("PILOT_AUTH_DISABLED", "true")
     # Перезагружаем app
     import importlib
@@ -897,6 +899,21 @@ def test_csrf_enabled_blocks_without_header(client, monkeypatch):
     r = c.post("/api/generate", data={"detail_id": "detail-001"})
     assert r.status_code == 403
     assert "CSRF" in r.json()["error"]
+
+
+def test_csrf_disabled_allows_without_header(client, monkeypatch):
+    """F16.4: при PILOT_CSRF_DISABLED=true POST без headers проходит"""
+    monkeypatch.setenv("PILOT_CSRF_DISABLED", "true")
+    monkeypatch.setenv("PILOT_AUTH_DISABLED", "true")
+    import importlib
+    import app as app_module
+    importlib.reload(app_module)
+    from fastapi.testclient import TestClient
+    c = TestClient(app_module.app)
+    # Просто проверяем что middleware не блокирует (может быть другой код ошибки, не 403 CSRF)
+    r = c.post("/api/generate", data={"detail_id": "detail-001"})
+    if r.status_code == 403:
+        assert "CSRF" not in r.json().get("error", "")
 
 
 def test_print_qr_local_no_cdn(client):

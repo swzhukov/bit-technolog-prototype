@@ -1,9 +1,19 @@
-# БИТ.Технолог — Архитектура MVP v0.1
+# БИТ.Технолог — Архитектура MVP v0.4.9 (actual state)
 
-> **Дата:** 2026-07-16
+> **Дата обновления:** 2026-07-19
 > **Назначение:** детальная техническая архитектура для разработки.
-> **Контекст:** `bit-technolog-context-v6.md`, `bit-technolog-requirements.md`, `bit-technolog-nsi-architecture.md`, `bit-technolog-goals.md` v2.
-> **Стек:** Python 3.11+, FastAPI, SQLite, HTMX, Docker Compose. On-premise.
+> **Контекст:** docs/01-product-design.md, docs/05-techinkom-context.md, docs/03-training-architecture.md, docs/04-pilot-roadmap.md.
+> **Стек:** Python 3.12, FastAPI, Jinja2+HTMX, SQLite (WAL), scikit-learn TF-IDF + pymorphy2, cryptography (Fernet), bcrypt. On-premise.
+
+> **v0.4.9 actual state** (отличается от v0.1):
+> - ✅ SQLite вместо PostgreSQL (для пилота; можно перенести в PostgreSQL в enterprise-режиме)
+> - ✅ TF-IDF + cosine вместо ChromaDB (on-prem, бесплатно; baseline)
+> - ✅ pymorphy2 лемматизация + маппинг синонимов (F16.2)
+> - ❌ Watcher КОМПАС-3D — отложен (F12, post-pilot)
+> - ❌ 1C OData — отложен (F14, post-pilot; пока CSV/XML экспорт)
+> - ❌ Redis Queue — не нужен (FastAPI sync, monolithic)
+> - ❌ Docker Compose — отложен (Sprint 5 enterprise; пока systemd на Beget VPS)
+> - ❌ NGINX — не используется (80/443 на Beget заняты docker-proxy, поэтому uvicorn напрямую на 8081)
 
 ---
 
@@ -15,14 +25,14 @@
 │                                                                              │
 │  ┌────────────────────┐    ┌────────────────────┐    ┌────────────────────┐  │
 │  │  1С:ERP 2.5         │    │  КОМПАС-3D         │    │  LLM API            │  │
-│  │  (мастер НСИ)       │    │  (конструктор)     │    │  (Claude Sonnet 4.5)│  │
+│  │  (мастер НСИ)       │    │  (конструктор)     │    │  (YandexGPT Lite)   │  │
 │  │                     │    │                    │    │                     │  │
-│  │  - Справочники      │    │  - .m3d / .cdw     │    │  - Anthropic API    │  │
-│  │  - РС               │    │  - Watch-папка     │    │  - YandexGPT (опц.) │  │
-│  │  - OData / HTTP     │    │                    │    │                     │  │
+│  │  - Экспорт CSV/XML  │    │  - .m3d / .cdw     │    │  - OpenAI API       │  │
+│  │  - Импорт РС (XML)  │    │  - Watch-папка     │    │  - YandexGPT        │  │
+│  │                     │    │  (отложен F12)     │    │  - BYOK             │  │
 │  └─────────┬───────────┘    └─────────┬──────────┘    └─────────┬───────────┘  │
-│            │ OData / HTTP              │ watch folder              │ HTTPS     │
-└────────────┼───────────────────────────┼────────────────────────────┼──────────┘
+│            │ CSV/XML                  │ (post-pilot)             │ HTTPS        │
+└────────────┼───────────────────────────┼───────────────────────────┼──────────┘
              │                           │                            │
              ▼                           ▼                            ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
