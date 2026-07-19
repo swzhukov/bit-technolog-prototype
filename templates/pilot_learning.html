@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Обучение RAG — БИТ.Технолог</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+.chart-container { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+.chart-title { font-size: 1.1rem; font-weight: 600; margin: 0 0 1rem 0; color: #2c3e50; }
+.week-selector { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; align-items: center; }
+.week-selector a { padding: 0.4rem 0.8rem; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #2c3e50; }
+.week-selector a.active { background: #3498db; color: white; border-color: #3498db; }
+.week-selector a:hover:not(.active) { background: #f8f9fa; }
+.week-card { background: white; padding: 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); min-width: 180px; }
+.week-label { color: #7f8c8d; font-size: 0.85rem; }
+.week-value { font-size: 1.5rem; font-weight: 700; color: #2c3e50; margin: 0.25rem 0; }
+.week-delta { font-size: 0.85rem; }
+.week-delta.positive { color: #27ae60; }
+.week-delta.negative { color: #e74c3c; }
+.week-delta.neutral { color: #7f8c8d; }
+.weeks-row { display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 0.5rem; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 0.5rem; text-align: left; border-bottom: 1px solid #ecf0f1; }
+th { background: #f8f9fa; font-weight: 600; color: #2c3e50; }
+tr:hover { background: #f8f9fa; }
+.empty { text-align: center; padding: 3rem; color: #7f8c8d; }
+</style>
+</head>
+<body>
+{% set cur_role = current_role or "technologist" %}
+{% include "base.html" %}
+
+<main style="max-width: 1200px; margin: 0 auto; padding: 1.5rem;">
+<h1>📈 Обучение RAG — динамика по неделям</h1>
+<p style="color: #7f8c8d;">
+Показывает как AI учится на обратной связи технолога. Чем больше acceptance rate
+и меньше правок — тем точнее модель. Целевой acceptance: <strong>30%+</strong>.
+</p>
+
+<div class="week-selector">
+    <span>Период:</span>
+    <a href="?weeks=2" class="{% if weeks == 2 %}active{% endif %}">2 недели</a>
+    <a href="?weeks=4" class="{% if weeks == 4 %}active{% endif %}">4 недели</a>
+    <a href="?weeks=8" class="{% if weeks == 8 %}active{% endif %}">8 недель</a>
+    <a href="?weeks=12" class="{% if weeks == 12 %}active{% endif %}">12 недель</a>
+</div>
+
+{% set has_data = metrics|selectattr('total_generations', '>', 0)|list|length > 0 %}
+{% if not has_data %}
+<div class="empty">
+    <h2>📊 Нет данных за выбранный период</h2>
+    <p>Метрики появятся после первой недели пилота.</p>
+    <p style="font-size: 0.9rem; margin-top: 1rem;">
+        Чтобы данные собирались: после каждой правки нажимайте 💾 Сохранить в карточке детали.<br>
+        При финальном утверждении отмечайте: «Без правок» (accepted) или «С правками» (edits).
+    </p>
+</div>
+{% else %}
+
+<div class="chart-container">
+    <h3 class="chart-title">📊 Метрики по неделям</h3>
+    <div class="weeks-row">
+    {% for m in metrics %}
+    <div class="week-card">
+        <div class="week-label">Неделя {{ m.week_num }} ({{ m.week_start[5:] }})</div>
+        <div class="week-value">{{ m.total_generations }}</div>
+        <div class="week-label">генераций</div>
+        <hr style="margin: 0.5rem 0; border: 0; border-top: 1px solid #ecf0f1;">
+        <div class="week-label">Acceptance</div>
+        <div class="week-value" style="color: {% if m.accepted_pct >= 30 %}#27ae60{% else %}#e67e22{% endif %};">
+            {{ m.accepted_pct }}%
+        </div>
+        <div class="week-label">Время на ТК</div>
+        <div class="week-value">{{ m.avg_time_min }} мин</div>
+        <div class="week-label">Правок на карточку</div>
+        <div class="week-value">{{ m.edits_per_card }}</div>
+    </div>
+    {% endfor %}
+    </div>
+</div>
+
+<div class="chart-container">
+    <h3 class="chart-title">📋 Детальная таблица</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Неделя</th>
+                <th>Период</th>
+                <th>Генераций</th>
+                <th>Карточек</th>
+                <th>Acceptance %</th>
+                <th>Время/ТК (мин)</th>
+                <th>Правок/карточку</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for m in metrics %}
+            <tr>
+                <td><strong>Неделя {{ m.week_num }}</strong></td>
+                <td>{{ m.week_start }} → {{ m.week_end }}</td>
+                <td>{{ m.total_generations }}</td>
+                <td>{{ m.distinct_cards }}</td>
+                <td>
+                    <span style="color: {% if m.accepted_pct >= 30 %}#27ae60{% else %}#e67e22{% endif %};">
+                        {{ m.accepted_pct }}%
+                    </span>
+                </td>
+                <td>{{ m.avg_time_min }}</td>
+                <td>{{ m.edits_per_card }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="chart-container">
+    <h3 class="chart-title">🎯 Что означают метрики</h3>
+    <ul>
+        <li><strong>Acceptance %</strong> — доля операций, принятых без правок. Цель 30%+ (GitHub Copilot, NIO benchmark).</li>
+        <li><strong>Время/ТК</strong> — среднее время от открытия карточки до утверждения. Цель &lt; 60 мин (vs 240-480 сейчас вручную).</li>
+        <li><strong>Правок/карточку</strong> — сколько раз технолог менял AI-генерацию. Падает = AI точнее.</li>
+        <li><strong>Генераций</strong> — всего LLM-вызовов за неделю (для оценки нагрузки и расходов).</li>
+    </ul>
+</div>
+
+{% endif %}
+
+<div style="margin-top: 2rem;">
+    <a href="/pilot" class="btn btn-secondary">← К основному дашборду</a>
+</div>
+
+</main>
+</body>
+</html>

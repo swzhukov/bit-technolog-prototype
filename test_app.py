@@ -1261,6 +1261,52 @@ def test_role_switch(client):
     assert "bit_role" in r.cookies
 
 
+def test_pilot_learning_page(client):
+    """RAG-learning dashboard renders, даже если данных нет"""
+    c, _ = client
+    r = c.get("/pilot/learning?weeks=4")
+    assert r.status_code == 200
+    assert "Обучение RAG" in r.text
+    # period selector
+    assert "?weeks=8" in r.text
+
+
+def test_pilot_learning_api(client):
+    """JSON endpoint возвращает список по неделям"""
+    c, _ = client
+    r = c.get("/api/pilot/learning?weeks=4")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["weeks"] == 4
+    assert "metrics" in data
+    assert len(data["metrics"]) == 4
+    # каждая неделя имеет обязательные поля
+    m = data["metrics"][0]
+    assert "week_num" in m
+    assert "total_generations" in m
+    assert "accepted_pct" in m
+    assert "avg_time_min" in m
+    assert "edits_per_card" in m
+
+
+def test_pilot_learning_weeks_validation(client):
+    """weeks clamped to 1..12"""
+    c, _ = client
+    r = c.get("/api/pilot/learning?weeks=99")
+    assert r.status_code == 200
+    assert r.json()["weeks"] == 12
+    r = c.get("/api/pilot/learning?weeks=0")
+    assert r.json()["weeks"] == 1
+
+
+def test_learning_metrics_by_week_db_integration():
+    """Прямой вызов функции (без HTTP) с реальной БД"""
+    from learning import get_learning_metrics_by_week
+    metrics = get_learning_metrics_by_week(weeks=2)
+    assert len(metrics) == 2
+    assert all("week_num" in m for m in metrics)
+
+
 def test_role_switch_invalid(client):
     c, _ = client
     r = c.post("/api/role/switch", data={"role": "invalid_role"})

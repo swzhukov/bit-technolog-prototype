@@ -319,7 +319,7 @@ with open("structure.json", "r", encoding="utf-8") as f:
 DB_PATH = os.getenv("DB_PATH", "bit_technolog.db")
 
 
-# ========== Импорты из db.py (F15 — выделено из app.py) ==========
+# ========== Импорты из db.py и auth.py (F15) ==========
 from db import (
     DB_PATH, get_conn, get_table_columns, init_db,
     get_detail, get_all_details, get_distinct_models,
@@ -329,6 +329,23 @@ from db import (
     add_history, get_history,
     get_daily_cost, get_pilot_metrics
 )
+from auth import (
+    ROLES, get_current_role, is_admin,
+    hash_password, verify_password, authenticate_pilot_user, log_login
+)
+from settings import (
+    _fernet, SETTING_REGISTRY, _mask_value, _encrypt, _decrypt,
+    get_setting, set_setting, delete_setting, get_all_settings
+)
+from notify import (
+    send_email, send_telegram, notify_workflow
+)
+from llm import (
+    LLM_API_KEY, LLM_API_URL, LLM_MODEL, LLM_TIMEOUT, DEMO_MODE,
+    get_llm_client, parse_llm_json, log_llm_call, estimate_cost
+)
+from economics import calc_cost_estimate
+from learning import get_learning_metrics_by_week
 
 
 def get_conn():
@@ -4095,6 +4112,30 @@ async def llm_debug_page(request: Request, detail_id: str = None, call_id: int =
 # ============================================
 # ПИЛОТ: дашборд KPI + ввод метрик
 # ============================================
+@app.get("/pilot/learning", response_class=HTMLResponse)
+async def pilot_learning_dashboard(request: Request, weeks: int = 4):
+    """Дашборд обучения RAG: метрики по неделям + график тренда"""
+    weeks = max(1, min(12, int(weeks)))
+    metrics = get_learning_metrics_by_week(weeks=weeks)
+    return templates.TemplateResponse("pilot_learning.html", {
+        "request": request,
+        "metrics": metrics,
+        "weeks": weeks,
+        "current_role": get_current_role(request),
+        "roles": ROLES
+    })
+
+
+@app.get("/api/pilot/learning")
+async def api_pilot_learning(weeks: int = 4):
+    """JSON-метрики по неделям для построения графика на клиенте"""
+    weeks = max(1, min(12, int(weeks)))
+    return JSONResponse({
+        "weeks": weeks,
+        "metrics": get_learning_metrics_by_week(weeks=weeks)
+    })
+
+
 @app.get("/pilot", response_class=HTMLResponse)
 async def pilot_dashboard(request: Request):
     metrics = get_pilot_metrics()
