@@ -1,0 +1,46 @@
+<table class="details-table">
+    <thead>
+        <tr>
+            <th>Статус</th>
+            <th>Деталь</th>
+            <th>Модель</th>
+            <th>Шасси</th>
+            <th>Материал</th>
+            <th>Масса</th>
+            <th>Действие</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for d in details %}
+        <tr>
+            <td>
+                {% if d.status == "new" %}<span class="badge red">🔴 Новый</span>
+                {% elif d.status == "draft" %}<span class="badge yellow">🟡 Черновик</span>
+                {% elif d.status == "approved" %}<span class="badge green">🟢 Утверждён</span>
+                {% else %}<span class="badge gray">⚪ {{ d.status }}</span>{% endif %}
+            </td>
+            <td>
+                <a href="/detail/{{ d.id }}" class="detail-link"><strong>{{ d.designation }}</strong></a><br>
+                <small>{{ d.name }}</small>
+            </td>
+            <td>{{ d.model }}</td>
+            <td>{{ d.chassis }}</td>
+            <td>{{ d.material }}</td>
+            <td>{{ d.mass_kg }} кг</td>
+            <td>
+                <a href="/detail/{{ d.id }}" class="btn">Открыть</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" style="text-align:center; padding:32px; color:var(--text-light);">Ничего не найдено. Попробуй сбросить фильтры.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if total_pages > 1 %}
+<div style="display:flex; gap:8px; align-items:center; justify-content:center; margin:16px 0;">
+    {% if page > 1 %}<a href="?q={{ q }}&status={{ status }}&page={{ page-1 }}&per_page={{ per_page }}" class="btn">‹ Назад</a>{% endif %}
+    <span class="hint">Страница {{ page }} из {{ total_pages }}</span>
+    {% if page < total_pages %}<a href="?q={{ q }}&status={{ status }}&page={{ page+1 }}&per_page={{ per_page }}" class="btn">Вперёд ›</a>{% endif %}
+</div>
+{% endif %}

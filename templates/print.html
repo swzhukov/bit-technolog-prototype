@@ -38,27 +38,26 @@
         <div style="text-align:right;"><small>Дата: {{ draft.created_at[:10] if draft and draft.created_at else '—' }}<br>ID: {{ detail.id }}</small></div>
     </div>
     <div style="text-align:right; margin-bottom:8pt;">
-        <svg id="qr-code" width="60" height="60" style="border:1px solid #ccc;"></svg>
+        <div id="qr-code" style="display:inline-block; padding:4pt; border:1px solid #ccc; background:white;"></div>
         <br><small style="font-size:8pt;">QR для проверки</small>
     </div>
+    <script src="/static/qrcode.min.js"></script>
     <script>
-    // UX3: QR-код ссылки на digital версию ТК
+    // QR-код локально через qrcode-generator (без CDN, on-prem)
     (function() {
         var url = window.location.origin + '/detail/{{ detail.id }}';
-        // Простой QR через Google Chart API (внешка, но работает)
-        var img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = function() {
-            var c = document.createElement('canvas');
-            c.width = 60; c.height = 60;
-            c.getContext('2d').drawImage(img, 0, 0, 60, 60);
-            document.getElementById('qr-code').innerHTML = '';
-            document.getElementById('qr-code').appendChild(c);
-        };
-        img.onerror = function() {
-            document.getElementById('qr-code').innerHTML = '<text x="5" y="20" font-size="6">{{ detail.id }}</text>';
-        };
-        img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' + encodeURIComponent(url);
+        try {
+            // qrcode-generator API: typeNumber=0 (auto), errorCorrectionLevel='M'
+            var qr = qrcode(0, 'M');
+            qr.addData(url);
+            qr.make();
+            // Используем createSvgTag (поддерживается в qrcode-generator >= 1.4)
+            var svg = qr.createSvgTag({cellSize: 4, margin: 1, scalable: true});
+            document.getElementById('qr-code').innerHTML = svg;
+        } catch (e) {
+            // Fallback: показать ID текстом
+            document.getElementById('qr-code').innerHTML = '<small>{{ detail.id }}</small>';
+        }
     })();
     </script>
 

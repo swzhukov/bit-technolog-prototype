@@ -21,7 +21,7 @@
             <td><small>{{ e.created_at[:19] if e.created_at else '' }}</small></td>
             <td><a href="/detail/{{ e.detail_id }}">{{ e.detail_id }}</a></td>
             <td><span class="badge">{{ e.action }}</span></td>
-            <td><small><code>{{ e.details or '{}' }}</code></small></td>
+            <td><small><pre style="margin:0; font-size:11px; max-width:400px; white-space:pre-wrap; word-break:break-all;">{{ e.details or '{}' }}</pre></small></td>
         </tr>
     {% endfor %}
     </tbody>

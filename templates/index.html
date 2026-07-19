@@ -32,8 +32,8 @@
     </div>
 </div>
 
-<form method="get" class="form" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-    <input type="text" name="q" value="{{ q or '' }}" placeholder="🔍 Поиск: обозначение, название, модель, материал..." style="flex:2; min-width:280px;">
+<form hx-get="/index/table" hx-target="#details-table" hx-trigger="keyup changed delay:300ms from:input[name='q'], change from:select[name='status']" hx-swap="innerHTML" hx-push-url="true" class="form" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <input type="search" name="q" value="{{ q or '' }}" placeholder="🔍 Поиск: обозначение, название, модель, материал, шасси..." style="flex:2; min-width:280px;" autocomplete="off">
     <select name="status" style="flex:0; min-width:160px;">
         <option value="">Все статусы</option>
         <option value="new" {% if status == 'new' %}selected{% endif %}>🔴 Новые</option>
@@ -50,8 +50,8 @@
 </form>
 <span id="batch-result" class="hint"></span>
 
+<div id="details-table">
 <table class="details-table">
-    <thead>
         <tr>
             <th>Статус</th>
             <th>Деталь</th>
@@ -96,6 +96,7 @@
     {% if page < total_pages %}<a href="?q={{ q }}&status={{ status }}&page={{ page+1 }}&per_page={{ per_page }}" class="btn">Вперёд ›</a>{% endif %}
 </div>
 {% endif %}
+</div>
 
 <div class="info-block">
     <h3>Что это?</h3>

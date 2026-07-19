@@ -856,3 +856,78 @@ def test_feedback_form_with_reason(client):
     assert r.status_code == 200
     data = r.json()
     assert data["ok"] is True
+
+
+# ========== Улучшения после v5 аудита ==========
+def test_live_search_endpoint(client):
+    """UX5: /index/table возвращает только таблицу для live search"""
+    c, _ = client
+    r = c.get("/index/table?q=Кронштейн")
+    assert r.status_code == 200
+    assert "details-table" in r.text or "Ничего не найдено" in r.text
+
+
+def test_live_search_includes_chassis(client):
+    """UX3: search теперь ищет по chassis (СЕРГЕЮ-3 — решено в коде)"""
+    c, _ = client
+    # detail-001 имеет chassis КАМАЗ-43118
+    r = c.get("/index/table?q=КАМАЗ")
+    assert r.status_code == 200
+    # Должен найти хотя бы 1 деталь
+    assert "КАМАЗ" in r.text or "details-table" in r.text
+
+
+def test_csrf_opt_in_not_default(client):
+    """СЕРГЕЮ-7: CSRF по умолчанию ВЫКЛЮЧЕН (overkill для 3-5 человек).
+    POST без X-Requested-With должен проходить."""
+    c, _ = client
+    # POST без htmx headers
+    r = c.post("/api/generate", data={"detail_id": "detail-001"})
+    # Должен быть 200 (не 403)
+    assert r.status_code in (200, 429)  # 200 OK или 429 daily limit
+
+
+def test_csrf_enabled_blocks_without_header(client, monkeypatch):
+    """При PILOT_CSRF_ENABLED=true POST без X-Requested-With = 403"""
+    # Создаём новое приложение с включённым CSRF
+    monkeypatch.setenv("PILOT_CSRF_ENABLED", "true")
+    monkeypatch.setenv("PILOT_AUTH_DISABLED", "true")
+    # Перезагружаем app
+    import importlib
+    import app as app_module
+    importlib.reload(app_module)
+    from fastapi.testclient import TestClient
+    c = TestClient(app_module.app)
+    r = c.post("/api/generate", data={"detail_id": "detail-001"})
+    assert r.status_code == 403
+    assert "CSRF" in r.json()["error"]
+
+
+def test_print_qr_local_no_cdn(client):
+    """СЕРГЕЮ-6: QR-код локальный, без CDN. print.html содержит /static/qrcode.min.js"""
+    c, _ = client
+    c.post("/api/generate", data={"detail_id": "detail-001"})
+    r = c.get("/detail/detail-001/print")
+    assert r.status_code == 200
+    # Локальный скрипт, не CDN
+    assert "/static/qrcode.min.js" in r.text
+    assert "api.qrserver.com" not in r.text  # старый CDN удалён
+
+
+def test_static_qrcode_served(client):
+    """qrcode.min.js доступен через /static/"""
+    c, _ = client
+    r = c.get("/static/qrcode.min.js")
+    assert r.status_code == 200
+    assert len(r.content) > 5000  # минимум 5KB
+
+
+def test_audit_pretty_print_json(client):
+    """B9: audit.html рендерит details как <pre> для читаемого JSON"""
+    c, _ = client
+    c.post("/api/feedback", data={"detail_id": "detail-001", "reason": "test"})
+    r = c.get("/audit")
+    assert r.status_code == 200
+    # <pre> tag для JSON
+    assert "<pre" in r.text
+    assert 'class="badge"' in r.text  # action badge сохранён

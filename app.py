@@ -171,8 +171,10 @@ async def auth_middleware(request: Request, call_next):
             headers={"WWW-Authenticate": 'Basic realm="BIT-Technolog"'},
             media_type="text/html; charset=utf-8"
         )
-    # CSRF check: POST/PUT/DELETE должны иметь X-Requested-With (htmx) или быть form с _token
-    if request.method in ("POST", "PUT", "DELETE", "PATCH") and not os.getenv("PILOT_CSRF_DISABLED", "").lower() == "true":
+    # CSRF check (opt-in для prod): требует X-Requested-With (htmx) или same-origin Referer.
+    # По умолчанию ВЫКЛЮЧЕН — pilot 3-5 доверенных человек, CSRF overkill.
+    # Включается через PILOT_CSRF_ENABLED=true для prod / внешних сетей.
+    if request.method in ("POST", "PUT", "DELETE", "PATCH") and os.getenv("PILOT_CSRF_ENABLED", "").lower() == "true":
         xrw = request.headers.get("x-requested-with", "")
         referer = request.headers.get("referer", "")
         # Разрешаем если htmx ИЛИ same-origin
@@ -968,9 +970,10 @@ async def index(request: Request, q: str = "", page: int = 1, per_page: int = 25
     where_clauses = []
     params = []
     if q:
-        where_clauses.append("(designation LIKE ? OR name LIKE ? OR model LIKE ? OR material LIKE ?)")
+        # UX5: search расширен на chassis
+        where_clauses.append("(designation LIKE ? OR name LIKE ? OR model LIKE ? OR material LIKE ? OR chassis LIKE ?)")
         like_q = f"%{q}%"
-        params.extend([like_q, like_q, like_q, like_q])
+        params.extend([like_q, like_q, like_q, like_q, like_q])
     if status:
         where_clauses.append("status = ?")
         params.append(status)
@@ -1001,6 +1004,50 @@ async def index(request: Request, q: str = "", page: int = 1, per_page: int = 25
         "details": details,
         "demo_mode": DEMO_MODE,
         "llm_model": LLM_MODEL,
+        "q": q,
+        "status": status,
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "total_pages": total_pages
+    })
+
+
+@app.get("/index/table", response_class=HTMLResponse)
+async def index_table(request: Request, q: str = "", page: int = 1, per_page: int = 25, status: str = ""):
+    """UX5: live search возвращает только таблицу + пагинацию (без layout)"""
+    conn = get_conn()
+    where_clauses = []
+    params = []
+    if q:
+        where_clauses.append("(designation LIKE ? OR name LIKE ? OR model LIKE ? OR material LIKE ? OR chassis LIKE ?)")
+        like_q = f"%{q}%"
+        params.extend([like_q, like_q, like_q, like_q, like_q])
+    if status:
+        where_clauses.append("status = ?")
+        params.append(status)
+    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+    count_row = conn.execute(f"SELECT COUNT(*) FROM details {where_sql}", params).fetchone()
+    total = count_row[0] if count_row else 0
+    per_page = max(1, min(100, per_page))
+    page = max(1, page)
+    total_pages = (total + per_page - 1) // per_page
+    offset = (page - 1) * per_page
+    rows = conn.execute(f"""
+        SELECT d.id, d.designation, d.name, d.model, d.chassis, d.material, d.mass_kg, d.surface_treatment, d.created_at,
+               COALESCE(dr.status, 'new') as draft_status
+        FROM details d
+        LEFT JOIN drafts dr ON d.id = dr.detail_id
+        {where_sql}
+        ORDER BY d.created_at DESC
+        LIMIT ? OFFSET ?
+    """, params + [per_page, offset]).fetchall()
+    cols = ["id", "designation", "name", "model", "chassis", "material", "mass_kg", "surface_treatment", "created_at", "status"]
+    details = [dict(zip(cols, r)) for r in rows]
+    conn.close()
+    return templates.TemplateResponse("_index_table.html", {
+        "request": request,
+        "details": details,
         "q": q,
         "status": status,
         "page": page,
@@ -1045,10 +1092,10 @@ async def api_analyze(request: Request):
     """Sprint 1: AI задаёт 3-5 уточняющих вопросов перед генерацией (blueprint.io pattern)"""
     detail_id = await _get_param(request, "detail_id", log_name="/api/analyze")
     if not detail_id:
-        return JSONResponse({"error": "detail_id required"}, status_code=422)
+        return err("detail_id required", 422)
     detail_obj = get_detail(detail_id)
     if not detail_obj:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return err("not found", 404)
 
     daily = get_daily_cost()
     if daily["exceeded"]:
@@ -1098,7 +1145,7 @@ async def api_analyze(request: Request):
         return JSONResponse(result)
     except Exception as e:
         log.error(f"/api/analyze error: {e}")
-        return JSONResponse({"error": str(e)[:200]}, status_code=500)
+        return err(str(e)[:200], 500)
 
 
 @app.post("/api/draft-fast")
@@ -1106,13 +1153,13 @@ async def api_draft_fast(request: Request):
     """Sprint 1: быстрый дешёвый draft (короткий промт, 3 операции, ~30 сек, ~1₽)"""
     detail_id = await _get_param(request, "detail_id", log_name="/api/draft-fast")
     if not detail_id:
-        return JSONResponse({"error": "detail_id required"}, status_code=422)
+        return err("detail_id required", 422)
     detail_obj = get_detail(detail_id)
     if not detail_obj:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return err("not found", 404)
     daily = get_daily_cost()
     if daily["exceeded"]:
-        return JSONResponse({"error": "daily_limit_exceeded"}, status_code=429)
+        return err("daily_limit_exceeded", 429)
     if DEMO_MODE:
         return JSONResponse({"draft": {"summary": {"total_operations": 3, "total_hours": 1.5, "complexity": "средняя", "closest_analog": "4c85941a (упор продольный)"},
                               "route": [{"step": 1, "operation": "010 Подготовительная", "duration_hours": 0.2},
@@ -1157,7 +1204,7 @@ async def api_draft_fast(request: Request):
         return JSONResponse({"draft": result, "mode": "live", "cost_estimate": f"{cost:.2f}₽"})
     except Exception as e:
         log.error(f"/api/draft-fast error: {e}")
-        return JSONResponse({"error": str(e)[:200]}, status_code=500)
+        return err(str(e)[:200], 500)
 
 
 @app.post("/api/refine")
@@ -1165,13 +1212,13 @@ async def api_refine(request: Request):
     """Sprint 1: уточнение draft'а до полного маршрута (с учётом ответов на уточнения)"""
     detail_id = await _get_param(request, "detail_id", log_name="/api/refine")
     if not detail_id:
-        return JSONResponse({"error": "detail_id required"}, status_code=422)
+        return err("detail_id required", 422)
     detail_obj = get_detail(detail_id)
     if not detail_obj:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return err("not found", 404)
     daily = get_daily_cost()
     if daily["exceeded"]:
-        return JSONResponse({"error": "daily_limit_exceeded"}, status_code=429)
+        return err("daily_limit_exceeded", 429)
     draft_json = await _get_param(request, "draft")
     answers = await _get_param(request, "answers")
     if draft_json:
@@ -1245,13 +1292,13 @@ async def api_refine(request: Request):
                 conn.close()
             except json.JSONDecodeError as je:
                 log_llm_call(detail_id, LLM_MODEL, system_msg, prompt, text, False, duration_ms=duration_ms, error=f"JSON parse: {je}")
-                return JSONResponse({"error": "JSON parse"}, status_code=500)
+                return err("JSON parse", 500)
             add_history(detail_id, "refined", {"model": LLM_MODEL,
                                               "tokens_in": response.usage.prompt_tokens if response.usage else None,
                                               "tokens_out": response.usage.completion_tokens if response.usage else None})
         except Exception as e:
             log.error(f"/api/refine LLM error: {e}")
-            return JSONResponse({"error": str(e)[:200]}, status_code=500)
+            return err(str(e)[:200], 500)
     save_draft(detail_id, llm_output, "draft")
     total_ops = len(llm_output.get("operations", []))
     record_metric(detail_id, "total_ops", total_ops, {"source": "refine"})
@@ -1267,7 +1314,7 @@ async def api_feedback(request: Request):
     detail_id = await _get_param(request, "detail_id", log_name="/api/feedback")
     reason = await _get_param(request, "reason") or ""
     if not detail_id or not reason:
-        return JSONResponse({"error": "detail_id and reason required"}, status_code=422)
+        return err("detail_id and reason required", 422)
     add_history(detail_id, "ai_feedback", {"reason": reason[:500]})
     return {"ok": True}
 
@@ -1562,7 +1609,7 @@ async def approve(request: Request):
     """Approve draft + Sprint 2: auto-index in RAG"""
     detail_id = await _get_param(request, "detail_id")
     if not detail_id:
-        return JSONResponse({"error": "detail_id required"}, status_code=422)
+        return err("detail_id required", 422)
     conn = get_conn()
     conn.execute(
         "UPDATE drafts SET status = 'approved', updated_at = ? WHERE detail_id = ?",
@@ -1597,7 +1644,7 @@ async def api_rag_rebuild():
             warning = f"Только {n} техкарт — similarity может быть ненадёжной. Нужно минимум 5-10."
         return JSONResponse({"ok": True, "indexed": n, "warning": warning})
     except Exception as e:
-        return JSONResponse({"error": str(e)[:200]}, status_code=500)
+        return err(str(e)[:200], 500)
 
 
 @app.get("/api/rag/similar/{detail_id}")
@@ -1605,13 +1652,13 @@ async def api_rag_similar(detail_id: str, top_k: int = 3):
     """Sprint 2: top-K похожих техкарт по RAG"""
     detail_obj = get_detail(detail_id)
     if not detail_obj:
-        return JSONResponse({"error": "not_found"}, status_code=404)
+        return err("not_found", 404)
     try:
         from rag import rag_search
         results = rag_search(detail_obj, top_k=min(top_k, 10))
         return JSONResponse({"detail_id": detail_id, "similar": results})
     except Exception as e:
-        return JSONResponse({"error": str(e)[:200]}, status_code=500)
+        return err(str(e)[:200], 500)
 
 
 @app.get("/api/rag/status")
@@ -1625,7 +1672,7 @@ async def api_rag_status():
             "vocabulary_size": len(rag.vectorizer.vocabulary_) if rag.loaded and rag.vectorizer else 0
         })
     except Exception as e:
-        return JSONResponse({"error": str(e)[:200]}, status_code=500)
+        return err(str(e)[:200], 500)
 
 
 # ========== Sprint 3: Альтернативные маршруты + Apply similar + Batch ==========
@@ -1633,13 +1680,13 @@ async def api_rag_status():
 async def api_alternatives(request: Request):
     detail_id = await _get_param(request, "detail_id", log_name="/api/alternatives")
     if not detail_id:
-        return JSONResponse({"error": "detail_id required"}, status_code=422)
+        return err("detail_id required", 422)
     detail_obj = get_detail(detail_id)
     if not detail_obj:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return err("not found", 404)
     daily = get_daily_cost()
     if daily["exceeded"]:
-        return JSONResponse({"error": "daily_limit_exceeded"}, status_code=429)
+        return err("daily_limit_exceeded", 429)
     if DEMO_MODE:
         alts = [
             {"variant": "A", "approach": "Сварка Кедр-300 + отпуск", "total_hours": 2.5, "n_ops": 5,
@@ -1667,19 +1714,19 @@ async def api_apply_similar(request: Request):
     detail_id = await _get_param(request, "detail_id", log_name="/api/apply-similar")
     source_id = await _get_param(request, "source_id")
     if not detail_id or not source_id:
-        return JSONResponse({"error": "detail_id and source_id required"}, status_code=422)
+        return err("detail_id and source_id required", 422)
     if detail_id == source_id:
-        return JSONResponse({"error": "cannot apply to self"}, status_code=400)
+        return err("cannot apply to self", 400)
     conn = get_conn()
     source_draft = conn.execute("SELECT * FROM drafts WHERE detail_id=?", (source_id,)).fetchone()
     if not source_draft:
         conn.close()
-        return JSONResponse({"error": "source has no draft"}, status_code=404)
+        return err("source has no draft", 404)
     try:
         source_output = json.loads(source_draft[1])
     except Exception:
         conn.close()
-        return JSONResponse({"error": "source draft corrupt"}, status_code=500)
+        return err("source draft corrupt", 500)
     target_draft = conn.execute("SELECT * FROM drafts WHERE detail_id=?", (detail_id,)).fetchone()
     if target_draft:
         try:
@@ -1713,15 +1760,15 @@ async def api_apply_similar(request: Request):
 async def api_batch_generate(request: Request):
     detail_ids_raw = await _get_param(request, "detail_ids", log_name="/api/batch-generate")
     if not detail_ids_raw:
-        return JSONResponse({"error": "detail_ids required (JSON array)"}, status_code=422)
+        return err("detail_ids required (JSON array)", 422)
     try:
         detail_ids = json.loads(detail_ids_raw)
     except Exception:
-        return JSONResponse({"error": "detail_ids must be JSON array"}, status_code=422)
+        return err("detail_ids must be JSON array", 422)
     if not isinstance(detail_ids, list) or len(detail_ids) == 0:
-        return JSONResponse({"error": "detail_ids must be non-empty array"}, status_code=422)
+        return err("detail_ids must be non-empty array", 422)
     if len(detail_ids) > 20:
-        return JSONResponse({"error": "max 20 details per batch"}, status_code=400)
+        return err("max 20 details per batch", 400)
     results = []
     for did in detail_ids:
         did = str(did).strip()
@@ -1844,20 +1891,20 @@ async def api_edit_inline(request: Request):
     try:
         op_idx = int(op_index)
     except ValueError:
-        return JSONResponse({"error": "op_index must be int"}, status_code=422)
+        return err("op_index must be int", 422)
     conn = get_conn()
     row = conn.execute("SELECT llm_output FROM drafts WHERE detail_id=?", (detail_id,)).fetchone()
     if not row:
         conn.close()
-        return JSONResponse({"error": "no draft"}, status_code=404)
+        return err("no draft", 404)
     try:
         output = json.loads(row[0])
     except Exception:
         conn.close()
-        return JSONResponse({"error": "draft corrupt"}, status_code=500)
+        return err("draft corrupt", 500)
     if op_idx < 0 or op_idx >= len(output.get("operations", [])):
         conn.close()
-        return JSONResponse({"error": "op_index out of range"}, status_code=400)
+        return err("op_index out of range", 400)
     op = output["operations"][op_idx]
     # cast
     if field == "duration_hours":
@@ -1865,7 +1912,7 @@ async def api_edit_inline(request: Request):
             value = float(value)
         except (TypeError, ValueError):
             conn.close()
-            return JSONResponse({"error": "duration_hours must be float"}, status_code=422)
+            return err("duration_hours must be float", 422)
     if field in ("materials", "gosts", "control_points"):
         # list-поля — парсим как JSON array или comma-separated
         if value.startswith("["):
@@ -1902,7 +1949,7 @@ async def api_feedback_positive(request: Request):
     """Положительный feedback (большой палец вверх) — для ML будущего"""
     detail_id = await _get_param(request, "detail_id", log_name="/api/ai/feedback-positive")
     if not detail_id:
-        return JSONResponse({"error": "detail_id required"}, status_code=422)
+        return err("detail_id required", 422)
     add_history(detail_id, "ai_feedback_positive", {})
     return JSONResponse({"ok": True, "saved": "positive"})
 
@@ -1912,7 +1959,7 @@ async def api_batch_generate_new():
     """UX1: сгенерировать все детали со статусом new (массовое действие)"""
     daily = get_daily_cost()
     if daily["exceeded"]:
-        return JSONResponse({"error": "daily_limit_exceeded"}, status_code=429)
+        return err("daily_limit_exceeded", 429)
     if DEMO_MODE:
         # Mock: возвращаем список new-деталей
         ids = []
@@ -1948,10 +1995,10 @@ async def api_export_onec_csv(detail_id: str):
     """Экспорт в CSV формате, понятном 1С:ERP (для ручного импорта на пилоте)"""
     detail_obj = get_detail(detail_id)
     if not detail_obj:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return err("not found", 404)
     draft_data = get_draft(detail_id)
     if not draft_data:
-        return JSONResponse({"error": "no draft"}, status_code=404)
+        return err("no draft", 404)
     output = draft_data["output"]
     ops = output.get("operations", [])
     # CSV с BOM для Excel/1С кириллицы
@@ -1982,7 +2029,7 @@ async def send_to_1c(request: Request):
     """MOCK: write RS to 1C:ERP"""
     detail_id = await _get_param(request, "detail_id")
     if not detail_id:
-        return JSONResponse({"error": "detail_id required"}, status_code=422)
+        return err("detail_id required", 422)
     add_history(detail_id, "sent_to_1c_mock", {
         "message": "РС записана в 1С:ERP (mock)",
         "timestamp": datetime.now().isoformat()
@@ -2725,7 +2772,7 @@ def calc_cost_estimate(detail_id: str) -> dict:
 async def api_submit_for_review(request: Request):
     detail_id = await _get_param(request, "detail_id")
     if not detail_id:
-        return JSONResponse({"error": "detail_id required"}, status_code=422)
+        return err("detail_id required", 422)
     conn = get_conn()
     conn.execute("""UPDATE drafts SET status_ext='review', submitted_at=?
                     WHERE detail_id=?""", (datetime.now().isoformat(), detail_id))
@@ -2741,7 +2788,7 @@ async def api_approve_chief(request: Request):
     detail_id = await _get_param(request, "detail_id")
     chief = await _get_param(request, "chief") or "chief"
     if not detail_id:
-        return JSONResponse({"error": "detail_id required"}, status_code=422)
+        return err("detail_id required", 422)
     conn = get_conn()
     conn.execute("""UPDATE drafts SET status_ext='approved_chief', approver=?
                     WHERE detail_id=?""", (chief, detail_id))
