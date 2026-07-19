@@ -509,6 +509,27 @@ async def csp_middleware(request: Request, call_next):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # V5-12: gzip только для HTML ответов (не ломаем CSV/JSON/bytes)
+    if "text/html" in content_type:
+        accept_encoding = request.headers.get("accept-encoding", "")
+        if "gzip" in accept_encoding:
+            body = b""
+            async for chunk in response.body_iterator:
+                body += chunk if isinstance(chunk, bytes) else chunk.encode("utf-8")
+            if len(body) > 1024:
+                import gzip
+                compressed = gzip.compress(body)
+                if len(compressed) < len(body):
+                    from starlette.responses import Response as StarletteResponse
+                    new_response = StarletteResponse(
+                        content=compressed,
+                        status_code=response.status_code,
+                        headers=dict(response.headers),
+                        media_type=content_type
+                    )
+                    new_response.headers["Content-Encoding"] = "gzip"
+                    new_response.headers["Content-Length"] = str(len(compressed))
+                    response = new_response
     return response
 
 
@@ -3941,6 +3962,40 @@ async def favicon():
     return Response(content=pixel, media_type="image/png")
 
 
+# V5-9: cost anomaly detection — alert если слишком быстро сжигают лимит
+COST_ANOMALY_THRESHOLD = 50.0  # ₽ за час — если больше, alert
+
+
+def check_cost_anomaly(window_hours: int = 1) -> dict:
+    """V5-9: проверка расхода LLM за последний час.
+    Если > 50₽/час — anomaly. Если > 80% дневного лимита за первые 6 часов — тоже anomaly."""
+    from db import get_conn
+    from settings import get_setting
+    conn = get_conn()
+    try:
+        row = conn.execute(f"""SELECT COALESCE(SUM(cost_rub), 0) FROM llm_calls
+            WHERE created_at > datetime('now', '-{int(window_hours)} hour')""").fetchone()
+        recent_cost = row[0] or 0
+        day_row = conn.execute("""SELECT COALESCE(SUM(cost_rub), 0) FROM llm_calls
+            WHERE date(created_at) = date('now')""").fetchone()
+        day_cost = day_row[0] or 0
+        limit = float(get_setting("LLM_DAILY_COST_LIMIT_RUB", "200") or 200)
+        anomalies = []
+        if recent_cost > COST_ANOMALY_THRESHOLD:
+            anomalies.append(f"high_hourly_cost: {recent_cost:.2f}₽/час > {COST_ANOMALY_THRESHOLD}₽")
+        if day_cost > limit * 0.8 and window_hours <= 6:
+            anomalies.append(f"high_daily_cost_early: {day_cost:.2f}₽ ({day_cost/limit*100:.0f}% лимита) за {window_hours}ч")
+        return {
+            "ok": len(anomalies) == 0,
+            "recent_cost_rub": round(recent_cost, 2),
+            "day_cost_rub": round(day_cost, 2),
+            "limit_rub": limit,
+            "anomalies": anomalies
+        }
+    finally:
+        conn.close()
+
+
 @app.get("/health")
 async def health():
     # OB3 fix: проверяем БД (SELECT 1)
@@ -3973,8 +4028,50 @@ async def health():
         # V4-11: version + uptime + build date
         "version": "0.4.9",
         "build_date": "2026-07-19",
-        "uptime_sec": int(time.time() - _APP_START_TS) if '_APP_START_TS' in dir() else 0
+        "uptime_sec": int(time.time() - _APP_START_TS) if '_APP_START_TS' in dir() else 0,
+        # V5-4: проверка внешних зависимостей
+        "dependencies": _check_dependencies(),
+        # V5-9: cost anomaly detection
+        "cost_anomaly": check_cost_anomaly()
     }
+
+
+def _check_dependencies() -> dict:
+    """V5-4: проверка доступности LLM API, Telegram, SMTP."""
+    deps = {"llm": "unknown", "telegram": "unknown", "smtp": "unknown"}
+    # LLM
+    try:
+        from settings import get_setting
+        api_key = get_setting("LLM_API_KEY", LLM_API_KEY)
+        api_url = get_setting("LLM_API_URL", LLM_API_URL)
+        if DEMO_MODE or not api_key:
+            deps["llm"] = "demo_mode" if DEMO_MODE else "not_configured"
+        else:
+            # HEAD запрос к API
+            import urllib.request
+            req = urllib.request.Request(api_url, method="HEAD")
+            try:
+                with urllib.request.urlopen(req, timeout=3) as resp:
+                    deps["llm"] = "ok" if resp.status < 500 else "degraded"
+            except Exception as e:
+                deps["llm"] = f"unreachable: {str(e)[:50]}"
+    except Exception as e:
+        deps["llm"] = f"check_failed: {str(e)[:50]}"
+    # Telegram
+    try:
+        token = get_setting("TELEGRAM_BOT_TOKEN", "")
+        chat = get_setting("TELEGRAM_CHAT_ID", "")
+        deps["telegram"] = "configured" if (token and chat) else "not_configured"
+    except Exception:
+        deps["telegram"] = "check_failed"
+    # SMTP
+    try:
+        host = get_setting("SMTP_HOST", "")
+        user = get_setting("SMTP_USER", "")
+        deps["smtp"] = "configured" if (host and user) else "not_configured"
+    except Exception:
+        deps["smtp"] = "check_failed"
+    return deps
 
 
 @app.get("/history/{detail_id}")
@@ -4275,6 +4372,11 @@ async def api_edit_operation(request: Request):
                          notes=f"{field}: {old_value} → {value}")
     record_edit(detail_id, new_v, f"op{op_index}.{field}", old_value, value, reason, author)
     add_history(detail_id, "operation_edited", {"op": op_index, "field": field, "old": old_value, "new": value})
+    # V5-8: security audit log
+    add_history(detail_id, "security_audit_edit", {
+        "actor": author, "op": op_index, "field": field,
+        "old": str(old_value)[:200], "new": str(value)[:200], "reason": reason[:200]
+    })
 
     return HTMLResponse(f'<span style="color:green">✅ Операция {op_index+1} обновлена (v{new_v})</span>')
 

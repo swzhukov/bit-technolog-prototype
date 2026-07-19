@@ -33,6 +33,11 @@ def init_db():
     """Инициализация SQLite-схемы. Идемпотентна (CREATE IF NOT EXISTS)."""
     conn = get_conn()
     conn.executescript("""
+        -- V5-3: indexes для быстрого поиска (создаются ДО таблиц — SQLite OK)
+        CREATE INDEX IF NOT EXISTS idx_details_model ON details(model);
+        CREATE INDEX IF NOT EXISTS idx_details_chassis ON details(chassis);
+        CREATE INDEX IF NOT EXISTS idx_details_status ON details(status);
+        CREATE INDEX IF NOT EXISTS idx_details_level ON details(level);
         CREATE TABLE IF NOT EXISTS details (
             id TEXT PRIMARY KEY,
             designation TEXT NOT NULL,
