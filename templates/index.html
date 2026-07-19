@@ -9,13 +9,13 @@
 {% if demo_mode %}
 <div class="alert alert-demo">
     <strong>⚠ Демо-режим:</strong> реальные вызовы LLM отключены. Используются эвристические mock-ответы для демонстрации UX.
-    Чтобы включить LLM, укажите <code>ANTHROPIC_API_KEY</code> в <code>.env</code>.
+    Чтобы включить LLM, укажите <code>LLM_API_KEY</code> в <code>.env</code>.
 </div>
 {% endif %}
 
 <div class="stats">
     <div class="stat">
-        <div class="stat-value">{{ details | length }}</div>
+        <div class="stat-value">{{ total }}</div>
         <div class="stat-label">всего деталей</div>
     </div>
     <div class="stat">
@@ -31,6 +31,20 @@
         <div class="stat-label">🟢 утверждено</div>
     </div>
 </div>
+
+<form method="get" class="form" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <input type="text" name="q" value="{{ q or '' }}" placeholder="🔍 Поиск: обозначение, название, модель, материал..." style="flex:2; min-width:280px;">
+    <select name="status" style="flex:0; min-width:160px;">
+        <option value="">Все статусы</option>
+        <option value="new" {% if status == 'new' %}selected{% endif %}>🔴 Новые</option>
+        <option value="draft" {% if status == 'draft' %}selected{% endif %}>🟡 Черновики</option>
+        <option value="approved" {% if status == 'approved' %}selected{% endif %}>🟢 Утверждённые</option>
+    </select>
+    <input type="hidden" name="per_page" value="{{ per_page }}">
+    <button type="submit" class="btn btn-primary">Применить</button>
+    {% if q or status %}<a href="/" class="btn">Сбросить</a>{% endif %}
+    <span class="hint">Показано {{ details | length }} из {{ total }}</span>
+</form>
 
 <table class="details-table">
     <thead>
@@ -65,9 +79,19 @@
                 <a href="/detail/{{ d.id }}" class="btn">Открыть</a>
             </td>
         </tr>
+        {% else %}
+        <tr><td colspan="7" style="text-align:center; padding:32px; color:var(--text-light);">Ничего не найдено. Попробуй сбросить фильтры.</td></tr>
         {% endfor %}
     </tbody>
 </table>
+
+{% if total_pages > 1 %}
+<div style="display:flex; gap:8px; align-items:center; justify-content:center; margin:16px 0;">
+    {% if page > 1 %}<a href="?q={{ q }}&status={{ status }}&page={{ page-1 }}&per_page={{ per_page }}" class="btn">‹ Назад</a>{% endif %}
+    <span class="hint">Страница {{ page }} из {{ total_pages }}</span>
+    {% if page < total_pages %}<a href="?q={{ q }}&status={{ status }}&page={{ page+1 }}&per_page={{ per_page }}" class="btn">Вперёд ›</a>{% endif %}
+</div>
+{% endif %}
 
 <div class="info-block">
     <h3>Что это?</h3>

@@ -41,6 +41,31 @@ if not LLM_API_KEY and not DEMO_MODE:
     print(f"[WARN] {log_msg}")
     DEMO_MODE = True
 
+# Auth (C1 fix): HTTP Basic с переменной PILOT_USERS=user:pass,admin:pass
+PILOT_USERS_RAW = os.getenv("PILOT_USERS", "")
+PILOT_USERS = {}
+if PILOT_USERS_RAW:
+    for pair in PILOT_USERS_RAW.split(","):
+        if ":" in pair:
+            u, p = pair.split(":", 1)
+            PILOT_USERS[u.strip()] = p.strip()
+PILOT_AUTH_ENABLED = bool(PILOT_USERS) and not os.getenv("PILOT_AUTH_DISABLED", "").lower() == "true"
+
+# LLM client singleton (C4 fix)
+_LLM_CLIENT = None
+
+def get_llm_client():
+    """Lazy-init singleton OpenAI client"""
+    global _LLM_CLIENT
+    if _LLM_CLIENT is None and not DEMO_MODE:
+        from openai import OpenAI
+        _LLM_CLIENT = OpenAI(
+            base_url=LLM_API_URL,
+            api_key=LLM_API_KEY,
+            timeout=LLM_TIMEOUT
+        )
+    return _LLM_CLIENT
+
 # Logging
 logging.basicConfig(
     level=logging.INFO,
@@ -52,6 +77,57 @@ log = logging.getLogger("bit-technolog")
 app = FastAPI(title="БИТ.Технолог — Прототип", version="0.2.1")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+
+# ========== C1 fix: HTTP Basic Auth middleware ==========
+from fastapi import status as http_status
+from fastapi.responses import Response
+
+def check_auth(request: Request) -> bool:
+    """Проверяет HTTP Basic Auth. False = пускать без auth (для тестов/DEMO)."""
+    if not PILOT_AUTH_ENABLED:
+        return True
+    auth = request.headers.get("authorization", "")
+    if not auth.startswith("Basic "):
+        return False
+    import base64
+    try:
+        decoded = base64.b64decode(auth[6:]).decode("utf-8")
+        if ":" in decoded:
+            u, p = decoded.split(":", 1)
+            return PILOT_USERS.get(u) == p
+    except Exception:
+        return False
+    return False
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    """Middleware: требует auth для всех кроме /static, /health, /login, /docs"""
+    path = request.url.path
+    # Публичные пути
+    public = ("/static", "/health", "/login", "/docs", "/openapi.json", "/favicon.ico")
+    if any(path.startswith(p) for p in public):
+        return await call_next(request)
+    if PILOT_AUTH_ENABLED and not check_auth(request):
+        return Response(
+            content="<h1>401 Unauthorized</h1><p>Нужен логин/пароль из PILOT_USERS в .env</p>",
+            status_code=http_status.HTTP_401_UNAUTHORIZED,
+            headers={"WWW-Authenticate": 'Basic realm="BIT-Technolog"'},
+            media_type="text/html; charset=utf-8"
+        )
+    return await call_next(request)
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page():
+    """Показывает форму логина если браузер не Basic Auth"""
+    return HTMLResponse(
+        '<h1>BIT-Technolog</h1><p>Откройте в браузере с логином/паролем или введите в URL: '
+        '<code>http://user:pass@host:8000/</code></p>',
+        status_code=401,
+        headers={"WWW-Authenticate": 'Basic realm="BIT-Technolog"'}
+    )
 
 
 # Jinja globals: daily_cost() вызывается в каждом шаблоне автоматически
@@ -84,7 +160,20 @@ DB_PATH = "bit_technolog.db"
 
 
 def get_conn():
-    return sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH)
+    # C5 fix: WAL mode для concurrent writes (3+ пользователей)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.row_factory = sqlite3.Row  # доступ по имени колонки
+    return conn
+
+
+def get_table_columns(table: str) -> list:
+    """C3 fix: helper для PRAGMA, без утечки соединений"""
+    conn = get_conn()
+    cols = [d[1] for d in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+    conn.close()
+    return cols
 
 
 def init_db():
@@ -374,10 +463,11 @@ def get_all_details() -> list:
 def get_detail(detail_id: str) -> Optional[dict]:
     conn = get_conn()
     row = conn.execute("SELECT * FROM details WHERE id = ?", (detail_id,)).fetchone()
-    conn.close()
     if not row:
+        conn.close()
         return None
-    cols = [d[1] for d in sqlite3.connect(DB_PATH).execute("PRAGMA table_info(details)").fetchall()]
+    cols = [d[1] for d in conn.execute("PRAGMA table_info(details)").fetchall()]
+    conn.close()
     return dict(zip(cols, row))
 
 
@@ -801,21 +891,51 @@ async def _get_param(request: Request, name: str, log_name: str = "") -> Optiona
 
 # Routes
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    details = get_all_details()
-    # Добавим статус черновика
+async def index(request: Request, q: str = "", page: int = 1, per_page: int = 25, status: str = ""):
+    # N+1 fix: один запрос со всеми статусами
     conn = get_conn()
-    for d in details:
-        d["status"] = conn.execute(
-            "SELECT status FROM drafts WHERE detail_id=?", (d["id"],)
-        ).fetchone()
-        d["status"] = d["status"][0] if d["status"] else "new"
+    where_clauses = []
+    params = []
+    if q:
+        where_clauses.append("(designation LIKE ? OR name LIKE ? OR model LIKE ? OR material LIKE ?)")
+        like_q = f"%{q}%"
+        params.extend([like_q, like_q, like_q, like_q])
+    if status:
+        where_clauses.append("status = ?")
+        params.append(status)
+    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+    # Всего
+    count_row = conn.execute(f"SELECT COUNT(*) FROM details {where_sql}", params).fetchone()
+    total = count_row[0] if count_row else 0
+    # Пагинация
+    per_page = max(1, min(100, per_page))
+    page = max(1, page)
+    total_pages = (total + per_page - 1) // per_page
+    offset = (page - 1) * per_page
+    # Детали + статус через LEFT JOIN
+    rows = conn.execute(f"""
+        SELECT d.id, d.designation, d.name, d.model, d.chassis, d.material, d.mass_kg, d.surface_treatment, d.created_at,
+               COALESCE(dr.status, 'new') as draft_status
+        FROM details d
+        LEFT JOIN drafts dr ON d.id = dr.detail_id
+        {where_sql}
+        ORDER BY d.created_at DESC
+        LIMIT ? OFFSET ?
+    """, params + [per_page, offset]).fetchall()
+    cols = ["id", "designation", "name", "model", "chassis", "material", "mass_kg", "surface_treatment", "created_at", "status"]
+    details = [dict(zip(cols, r)) for r in rows]
     conn.close()
     return templates.TemplateResponse("index.html", {
         "request": request,
         "details": details,
         "demo_mode": DEMO_MODE,
-        "llm_model": LLM_MODEL
+        "llm_model": LLM_MODEL,
+        "q": q,
+        "status": status,
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "total_pages": total_pages
     })
 
 
@@ -879,7 +999,7 @@ async def api_analyze(request: Request):
         from openai import OpenAI
         from string import Template
         from prompts import CLARIFICATION_PROMPT
-        client = OpenAI(base_url=LLM_API_URL, api_key=LLM_API_KEY, timeout=LLM_TIMEOUT)
+        client = get_llm_client()
         prompt = Template(CLARIFICATION_PROMPT).substitute(
             properties_json=json.dumps(detail_obj, indent=2, ensure_ascii=False),
             material=detail_obj.get("material", ""),
@@ -939,7 +1059,7 @@ async def api_draft_fast(request: Request):
         from openai import OpenAI
         from string import Template
         from prompts import DRAFT_FAST_PROMPT
-        client = OpenAI(base_url=LLM_API_URL, api_key=LLM_API_KEY, timeout=LLM_TIMEOUT)
+        client = get_llm_client()
         answers = await _get_param(request, "answers") or "{}"
         try:
             answers_dict = json.loads(answers) if answers else {}
@@ -1014,7 +1134,7 @@ async def api_refine(request: Request):
             from openai import OpenAI
             from string import Template
             from prompts import REFINE_PROMPT
-            client = OpenAI(base_url=LLM_API_URL, api_key=LLM_API_KEY, timeout=LLM_TIMEOUT)
+            client = get_llm_client()
             tech_rules_text = detail_obj.get("tech_rules") or ""
             rules_block = f"\nВАЖНО: Технолог указал следующие правила и нюансы — ОБЯЗАТЕЛЬНО учти их:\n{tech_rules_text}\n" if tech_rules_text.strip() else ""
             # Sprint 2: добавляем top-K похожих техкарт из RAG
@@ -1128,15 +1248,12 @@ async def generate(request: Request):
         log.info(f"Demo mode: generating mock draft for {detail_id}")
         llm_output = generate_mock_draft(detail_obj)
         add_history(detail_id, "generated_mock", {"mode": "demo"})
+        # M5 fix: log mock generation in llm_calls for dashboard
+        log_llm_call(detail_id, "demo-mock", "", "", json.dumps(llm_output, ensure_ascii=False), True, 0, 0, 50)
     else:
         # Real LLM call via OpenAI-compatible API
         try:
-            from openai import OpenAI
-            client = OpenAI(
-                base_url=LLM_API_URL,
-                api_key=LLM_API_KEY,
-                timeout=LLM_TIMEOUT
-            )
+            client = get_llm_client()
 
             from string import Template
             tech_rules_text = detail_obj.get("tech_rules") or ""
@@ -1420,7 +1537,12 @@ async def api_rag_rebuild():
         from rag import get_rag
         rag = get_rag()
         n = rag.rebuild_from_db()
-        return JSONResponse({"ok": True, "indexed": n})
+        warning = None
+        if n == 0:
+            warning = "Нет утверждённых техкарт. Сначала утвердите несколько черновиков."
+        elif n < 5:
+            warning = f"Только {n} техкарт — similarity может быть ненадёжной. Нужно минимум 5-10."
+        return JSONResponse({"ok": True, "indexed": n, "warning": warning})
     except Exception as e:
         return JSONResponse({"error": str(e)[:200]}, status_code=500)
 
@@ -1566,7 +1688,7 @@ async def api_batch_generate(request: Request):
             try:
                 from openai import OpenAI
                 from string import Template
-                client = OpenAI(base_url=LLM_API_URL, api_key=LLM_API_KEY, timeout=LLM_TIMEOUT)
+                client = get_llm_client()
                 prompt = Template(TECH_CARD_PROMPT).substitute(
                     properties_json=json.dumps(detail_obj, indent=2, ensure_ascii=False),
                     equipment_json=json.dumps(EQUIPMENT, indent=2, ensure_ascii=False),
@@ -1591,6 +1713,9 @@ async def api_batch_generate(request: Request):
                 results.append({"detail_id": did, "status": "llm_error", "error": str(e)[:100]})
                 continue
         save_draft(did, llm_output, "draft", author="batch")
+        # M5 fix: log batch generation
+        log_llm_call(did, "demo-batch" if DEMO_MODE else LLM_MODEL, "", "",
+                     json.dumps(llm_output, ensure_ascii=False), True, 0, 0, 80)
         results.append({"detail_id": did, "status": "generated", "ops": len(llm_output.get("operations", []))})
     return JSONResponse({"ok": True, "processed": len(results), "results": results})
 
@@ -1637,6 +1762,125 @@ async def api_export_all():
             dump["tables"][t] = {"error": str(e)}
     conn.close()
     return JSONResponse(dump)
+
+
+# ========== Печатная форма ТК (P0: для подписи в бумажный журнал) ==========
+@app.get("/detail/{detail_id}/print", response_class=HTMLResponse)
+async def detail_print(request: Request, detail_id: str):
+    """Печатная форма ТК — без кнопок, только данные + место для подписи"""
+    detail_obj = get_detail(detail_id)
+    if not detail_obj:
+        raise HTTPException(404, "Detail not found")
+    draft_data = get_draft(detail_id)
+    return templates.TemplateResponse("print.html", {
+        "request": request,
+        "detail": detail_obj,
+        "draft": draft_data["output"] if draft_data else None,
+        "status": draft_data["status"] if draft_data else "new"
+    })
+
+
+# ========== U6 fix: click-to-edit (inline edit) ==========
+@app.post("/api/edit/inline")
+async def api_edit_inline(request: Request):
+    """Inline-edit одной операции: один POST меняет одно поле одной операции"""
+    detail_id = await _get_param(request, "detail_id", log_name="/api/edit/inline")
+    op_index = await _get_param(request, "op_index")
+    field = await _get_param(request, "field")
+    value = await _get_param(request, "value")
+    if not all([detail_id, op_index, field]):
+        return JSONResponse({"error": "detail_id, op_index, field required"}, status_code=422)
+    # Whitelist полей для inline-edit
+    if field not in ("name", "equipment", "duration_hours", "department", "workplace"):
+        return JSONResponse({"error": f"field '{field}' not editable inline"}, status_code=400)
+    try:
+        op_idx = int(op_index)
+    except ValueError:
+        return JSONResponse({"error": "op_index must be int"}, status_code=422)
+    conn = get_conn()
+    row = conn.execute("SELECT llm_output FROM drafts WHERE detail_id=?", (detail_id,)).fetchone()
+    if not row:
+        conn.close()
+        return JSONResponse({"error": "no draft"}, status_code=404)
+    try:
+        output = json.loads(row[0])
+    except Exception:
+        conn.close()
+        return JSONResponse({"error": "draft corrupt"}, status_code=500)
+    if op_idx < 0 or op_idx >= len(output.get("operations", [])):
+        conn.close()
+        return JSONResponse({"error": "op_index out of range"}, status_code=400)
+    op = output["operations"][op_idx]
+    # cast
+    if field == "duration_hours":
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            conn.close()
+            return JSONResponse({"error": "duration_hours must be float"}, status_code=422)
+    old_value = op.get(field)
+    op[field] = value
+    # Пересчёт summary
+    if field == "duration_hours" and "operations" in output:
+        total = sum(float(o.get("duration_hours", 0)) for o in output["operations"])
+        output["summary"]["total_hours"] = round(total, 2)
+    # Update
+    conn.execute("UPDATE drafts SET llm_output=?, updated_at=? WHERE detail_id=?",
+                 (json.dumps(output, ensure_ascii=False), datetime.now().isoformat(), detail_id))
+    conn.commit()  # C5 fix: release write lock before record_edit opens new conn
+    # version берём из draft_versions
+    v_row = conn.execute("SELECT MAX(version) FROM draft_versions WHERE detail_id=?", (detail_id,)).fetchone()
+    version = v_row[0] if v_row and v_row[0] else 1
+    conn.close()
+    record_edit(detail_id, version, field, str(old_value), str(value), author="inline")
+    add_history(detail_id, "inline_edit", {"op_index": op_idx, "field": field, "old": str(old_value), "new": str(value)})
+    return JSONResponse({"ok": True, "field": field, "value": value, "total_hours": output.get("summary", {}).get("total_hours")})
+
+
+# ========== U7 fix: warning с action — указывает куда кликать ==========
+@app.post("/api/ai/feedback-positive")
+async def api_feedback_positive(request: Request):
+    """Положительный feedback (большой палец вверх) — для ML будущего"""
+    detail_id = await _get_param(request, "detail_id", log_name="/api/ai/feedback-positive")
+    if not detail_id:
+        return JSONResponse({"error": "detail_id required"}, status_code=422)
+    add_history(detail_id, "ai_feedback_positive", {})
+    return JSONResponse({"ok": True, "saved": "positive"})
+
+
+# ========== B2: Ручная выгрузка техкарт в 1С-формате (Sprint 5) ==========
+@app.get("/api/export/onec-csv")
+async def api_export_onec_csv(detail_id: str):
+    """Экспорт в CSV формате, понятном 1С:ERP (для ручного импорта на пилоте)"""
+    detail_obj = get_detail(detail_id)
+    if not detail_obj:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    draft_data = get_draft(detail_id)
+    if not draft_data:
+        return JSONResponse({"error": "no draft"}, status_code=404)
+    output = draft_data["output"]
+    ops = output.get("operations", [])
+    # CSV с BOM для Excel/1С кириллицы
+    lines = ["\ufeffНомер;Операция;Оборудование;Время_ч;Цех;Участок;РМ;Уверенность;Материалы;ГОСТы"]
+    for i, op in enumerate(ops, 1):
+        lines.append(";".join([
+            f"{i:03d}",
+            (op.get("name") or "").replace(";", ","),
+            (op.get("equipment") or "").replace(";", ","),
+            str(op.get("duration_hours", 0)),
+            (op.get("department") or "").replace(";", ","),
+            (op.get("workplace") or "").replace(";", ","),
+            str(op.get("workstation") or ""),
+            str(op.get("confidence", 0)),
+            "; ".join(op.get("materials", [])).replace(";", ","),
+            "; ".join(op.get("gosts", [])).replace(";", ",")
+        ]))
+    csv_text = "\n".join(lines)
+    return Response(
+        content=csv_text,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="techcard_{detail_id}.csv"'}
+    )
 
 
 @app.post("/api/send-to-1c")

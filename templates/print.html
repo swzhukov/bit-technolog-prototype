@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Техкарта {{ detail.designation }} — Печатная форма</title>
+    <style>
+        @page { size: A4; margin: 15mm; }
+        body { font-family: "Times New Roman", serif; font-size: 12pt; color: #000; max-width: 180mm; margin: 0 auto; padding: 10mm; }
+        h1 { font-size: 16pt; text-align: center; margin: 0 0 4pt; }
+        h2 { font-size: 13pt; margin: 12pt 0 4pt; border-bottom: 1px solid #000; padding-bottom: 2pt; }
+        .meta { display: flex; flex-wrap: wrap; gap: 4pt 16pt; margin: 4pt 0 12pt; font-size: 11pt; }
+        .meta-item { padding: 0; }
+        .meta-label { color: #555; font-size: 9pt; }
+        table { width: 100%; border-collapse: collapse; margin: 8pt 0; }
+        th, td { border: 1px solid #000; padding: 4pt 6pt; font-size: 11pt; text-align: left; vertical-align: top; }
+        th { background: #f0f0f0; font-weight: bold; }
+        .signature { margin-top: 32pt; display: flex; gap: 24pt; }
+        .signature-block { flex: 1; }
+        .signature-line { border-bottom: 1px solid #000; height: 24pt; }
+        .signature-label { font-size: 10pt; color: #555; margin-top: 2pt; }
+        .header-print { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8pt; font-size: 10pt; }
+        .print-only { display: block; }
+        .no-print { display: none; }
+        @media print {
+            .no-print { display: none; }
+            body { padding: 0; }
+        }
+        .footer-print { margin-top: 24pt; font-size: 9pt; color: #555; text-align: center; border-top: 1px solid #ccc; padding-top: 8pt; }
+    </style>
+</head>
+<body>
+    <div class="no-print" style="background:#fef3c7; padding:8pt 12pt; border-radius:4pt; margin-bottom:8pt; font-size:11pt;">
+        💡 Это печатная форма ТК. Нажми <strong>Ctrl+P</strong> для печати или сохранения в PDF. Всё лишнее (кнопки, цвета) скрыто.
+    </div>
+
+    <div class="header-print">
+        <div><strong>ПК «Техинком-Центр»</strong><br><small>Технологическая карта</small></div>
+        <div style="text-align:right;"><small>Дата: {{ draft.created_at[:10] if draft and draft.created_at else '—' }}<br>ID: {{ detail.id }}</small></div>
+    </div>
+
+    <h1>Техкарта № {{ detail.designation }}</h1>
+    <div style="text-align:center; font-size:13pt; margin-bottom:8pt;">{{ detail.name }}</div>
+
+    <h2>1. Свойства детали</h2>
+    <div class="meta">
+        <div class="meta-item"><span class="meta-label">Модель:</span> {{ detail.model or '—' }}</div>
+        <div class="meta-item"><span class="meta-label">Шасси:</span> {{ detail.chassis or '—' }}</div>
+        <div class="meta-item"><span class="meta-label">Материал:</span> {{ detail.material or '—' }}</div>
+        <div class="meta-item"><span class="meta-label">Масса:</span> {{ detail.mass_kg or '—' }} кг</div>
+        <div class="meta-item"><span class="meta-label">Обработка поверхности:</span> {{ detail.surface_treatment or '—' }}</div>
+    </div>
+
+    {% if draft and draft.operations %}
+    <h2>2. Маршрут обработки</h2>
+    <table>
+        <thead>
+            <tr>
+                <th style="width:8%;">№</th>
+                <th style="width:32%;">Операция</th>
+                <th style="width:18%;">Оборудование</th>
+                <th style="width:8%;">Время, ч</th>
+                <th style="width:10%;">Цех / РМ</th>
+                <th style="width:8%;">Уверен-ность</th>
+                <th style="width:16%;">Материалы / ГОСТы</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for op in draft.operations %}
+            <tr>
+                <td style="text-align:center;">{{ loop.index }}</td>
+                <td>{{ op.name }}</td>
+                <td>{{ op.equipment or '—' }}</td>
+                <td style="text-align:center;">{{ op.duration_hours }}</td>
+                <td>{{ op.department or '—' }}{% if op.workplace %} / {{ op.workplace }}{% endif %}</td>
+                <td style="text-align:center;">
+                    {% if op.confidence >= 80 %}высокая
+                    {% elif op.confidence >= 60 %}средняя
+                    {% else %}низкая{% endif %}
+                </td>
+                <td>
+                    {% if op.materials %}{{ op.materials | join(', ') }}{% endif %}
+                    {% if op.gosts %}<br><small>ГОСТ: {{ op.gosts | join(', ') }}</small>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>3. Сводка</h2>
+    <table style="width:auto;">
+        <tr><th>Всего операций</th><td>{{ draft.summary.total_operations }}</td></tr>
+        <tr><th>Общее время</th><td>{{ draft.summary.total_hours }} ч</td></tr>
+        <tr><th>Время подготовки</th><td>{{ draft.summary.prep_hours }} ч</td></tr>
+        <tr><th>Сложность</th><td>{{ draft.summary.complexity }}</td></tr>
+        {% if draft.summary.closest_analog %}
+        <tr><th>Ближайший аналог</th><td>{{ draft.summary.closest_analog }}</td></tr>
+        {% endif %}
+    </table>
+
+    {% if draft.warnings %}
+    <h2>4. Предупреждения</h2>
+    {% for w in draft.warnings %}
+    <div style="border-left: 3px solid #000; padding: 4pt 8pt; margin: 4pt 0; background: #f9f9f9;">
+        <strong>{{ w.type | upper }}:</strong> {{ w.concern }}<br>
+        <em>Цитата из свойств:</em> «{{ w.quote }}»<br>
+        <em>Вопрос:</em> {{ w.question }}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if detail.tech_rules %}
+    <h2>5. Правила технолога</h2>
+    <div style="border: 1px solid #000; padding: 6pt 8pt; white-space: pre-wrap; font-size: 11pt;">{{ detail.tech_rules }}</div>
+    {% endif %}
+    {% else %}
+    <h2>Черновик отсутствует</h2>
+    <p>Сначала сгенерируйте черновик техкарты (кнопка «Сгенерировать черновик ТК» на странице детали).</p>
+    {% endif %}
+
+    <div class="signature">
+        <div class="signature-block">
+            <div class="signature-line"></div>
+            <div class="signature-label">Технолог (ФИО, подпись, дата)</div>
+        </div>
+        <div class="signature-block">
+            <div class="signature-line"></div>
+            <div class="signature-label">Начальник техотдела (Баранов М.А.)</div>
+        </div>
+    </div>
+
+    <div class="footer-print">
+        БИТ.Технолог v0.4 · {{ draft.created_at[:19] if draft and draft.created_at else 'черновик' }} ·
+        Источник: AI-генерация, требует верификации
+    </div>
+</body>
+</html>
