@@ -307,7 +307,7 @@ async def add_daily_cost(request: Request, call_next):
 # Local imports
 from prompts import TECH_CARD_PROMPT
 from mock_data import MOCK_DETAILS
-from few_shot import FEW_SHOT_4C85941A
+from few_shot import FEW_SHOT_4C85941A, get_relevant_few_shot
 
 with open("equipment.json", "r", encoding="utf-8") as f:
     EQUIPMENT = json.load(f)
@@ -346,6 +346,9 @@ from llm import (
 )
 from economics import calc_cost_estimate
 from learning import get_learning_metrics_by_week
+from metrics_auto import (
+    compute_acceptance_from_versions, record_session_start, compute_time_to_card
+)
 
 
 def get_conn():
@@ -3034,7 +3037,7 @@ def generate_mock_draft(detail_obj: dict, op_type: str = "general") -> dict:
 
 @app.post("/api/approve")
 async def approve(request: Request):
-    """Approve draft + Sprint 2: auto-index in RAG"""
+    """Approve draft + Sprint 2: auto-index in RAG + F16.1: auto metrics"""
     detail_id = await _get_param(request, "detail_id")
     if not detail_id:
         return err("detail_id required", 422)
@@ -3049,13 +3052,41 @@ async def approve(request: Request):
     edits = get_edits(detail_id)
     record_metric(detail_id, "approved", 1, {"edits_count": len(edits)})
     record_metric(detail_id, "edits_count", len(edits))
+    # F16.1: auto-compute acceptance rate via diff llm_output vs final
+    try:
+        acc = compute_acceptance_from_versions(detail_id)
+        if acc["total_ops"] > 0:
+            record_metric(detail_id, "total_ops", acc["total_ops"])
+            record_metric(detail_id, "accepted_op", acc["accepted_ops"])
+            record_metric(detail_id, "edits_auto", acc["edits_count"])
+    except Exception as e:
+        log.warning(f"auto-metrics acceptance failed: {e}")
+    # F16.1: auto time-to-card (delta от session_start)
+    try:
+        minutes = compute_time_to_card(detail_id)
+        if minutes is not None:
+            record_metric(detail_id, "time_to_card_min", minutes)
+    except Exception as e:
+        log.warning(f"auto-metrics time failed: {e}")
     # Sprint 2: автоиндексация в RAG
     try:
         from rag import rag_index_detail
         rag_index_detail(detail_id)
     except Exception as e:
         log.warning(f"RAG auto-index failed: {e}")
-    return {"status": "approved"}
+    return {"status": "approved", "detail_id": detail_id}
+
+
+# ========== F16.1: Авто-старт таймера при открытии карточки ==========
+@app.post("/api/pilot/session-start")
+async def api_pilot_session_start(request: Request):
+    """Записать момент открытия карточки для time-to-card."""
+    detail_id = await _get_param(request, "detail_id")
+    if not detail_id:
+        return err("detail_id required", 422)
+    role = get_current_role(request)
+    record_session_start(detail_id, author=role)
+    return {"ok": True, "detail_id": detail_id, "ts": datetime.now().isoformat()}
 
 
 @app.post("/api/rag/rebuild")

@@ -1,4 +1,9 @@
-"""Few-shot пример: упор продольный (из реальной техкарты 4c85941a)"""
+"""Few-shot примеры: 3 примера для разных типов деталей (F16.3).
+
+Изначально был 1 пример (сварочно-сборочный). Добавлены 2:
+- FEW_SHOT_HYDRAULIC: гидравлический узел (типично для пожарной машины)
+- FEW_SHOT_ELECTRICAL: электрический жгут
+"""
 
 FEW_SHOT_4C85941A = {
     "input": {
@@ -154,3 +159,103 @@ FEW_SHOT_4C85941A = {
         ]
     }
 }
+
+
+# ========== F16.3: Few-shot 2 — гидравлический узел ==========
+FEW_SHOT_HYDRAULIC = {
+    "input": {
+        "name": "Клапан предохранительный",
+        "designation": "ГБШ.634.21.014",
+        "material": "Сталь 40Х",
+        "gost_material": "ГОСТ 4543-71",
+        "mass_kg": 1.8,
+        "dimensions_mm": {"x": 90, "y": 70, "z": 120},
+        "surface_treatment": "цинковое",
+        "chassis": "АЦ-6,0-40"
+    },
+    "output": {
+        "summary": {
+            "total_operations": 9,
+            "total_hours": 3.5,
+            "prep_hours": 0.4,
+            "complexity": "средняя",
+            "closest_analog": "ГБШ.634.21.013"
+        },
+        "operations": [
+            {"name": "010 Заготовительная", "equipment": "Ленточнопильный станок Bomar", "duration_hours": 0.15, "confidence": 90, "department": "Заготовительный"},
+            {"name": "020 Токарная", "equipment": "Токарный 16К20", "duration_hours": 0.6, "confidence": 85, "department": "Механический"},
+            {"name": "025 Токарная (чистовая)", "equipment": "Токарный 16К20", "duration_hours": 0.4, "confidence": 80, "department": "Механический"},
+            {"name": "030 Фрезерная", "equipment": "Вертикально-фрезерный 6Р82", "duration_hours": 0.5, "confidence": 80, "department": "Механический"},
+            {"name": "040 Сверлильная", "equipment": "Вертикально-сверлильный 2Н135", "duration_hours": 0.3, "confidence": 85, "department": "Механический"},
+            {"name": "050 Термообработка", "equipment": "Печь СШО 8.16/10", "duration_hours": 0.4, "confidence": 75, "department": "Термический"},
+            {"name": "060 Шлифовальная", "equipment": "Круглошлифовальный 3М151", "duration_hours": 0.4, "confidence": 80, "department": "Механический"},
+            {"name": "070 Промывка", "equipment": "Установка промывки", "duration_hours": 0.15, "confidence": 95, "department": "Слесарный"},
+            {"name": "080 Испытания на стенде", "equipment": "Стенд гидроиспытаний", "duration_hours": 0.6, "confidence": 90, "department": "Испытательный"}
+        ],
+        "warnings": [
+            {"type": "missing_data", "quote": "mass_kg: 1.8", "concern": "Не указаны допуски на резьбовые соединения", "question": "Какой класс точности резьбы?"}
+        ],
+        "questions": [
+            {"id": "Q1", "topic": "термообработка", "question": "Твёрдость после закалки?", "options": ["HRC 45-50", "HRC 50-55", "HRC 55-60"], "default": "HRC 50-55", "impact_if_changed": "Влияет на выбор режима термообработки"}
+        ]
+    }
+}
+
+
+# ========== F16.3: Few-shot 3 — электрический жгут ==========
+FEW_SHOT_ELECTRICAL = {
+    "input": {
+        "name": "Жгут электрический приборной панели",
+        "designation": "ЭЛ.468.91.005",
+        "material": "Провод ПВ3 0,75",
+        "mass_kg": 0.6,
+        "dimensions_mm": {"x": 1500, "y": 80, "z": 40},
+        "surface_treatment": "без покрытия",
+        "chassis": "КАМАЗ-43118"
+    },
+    "output": {
+        "summary": {
+            "total_operations": 6,
+            "total_hours": 2.2,
+            "prep_hours": 0.3,
+            "complexity": "низкая",
+            "closest_analog": "ЭЛ.468.91.003"
+        },
+        "operations": [
+            {"name": "010 Заготовка проводов", "equipment": "Станок зачистки/резки ZDBX-1", "duration_hours": 0.4, "confidence": 90, "department": "Электромонтажный"},
+            {"name": "020 Обжимка наконечников", "equipment": "Пресс-клещи ПК-6", "duration_hours": 0.5, "confidence": 85, "department": "Электромонтажный"},
+            {"name": "030 Сборка жгута на шаблоне", "equipment": "Шаблон сборочный", "duration_hours": 0.6, "confidence": 80, "department": "Электромонтажный"},
+            {"name": "040 Изоляция (термоусадка, стяжки)", "equipment": "Термофен", "duration_hours": 0.3, "confidence": 85, "department": "Электромонтажный"},
+            {"name": "050 Проверка целостности цепей", "equipment": "Мультиметр + тестер жгутов", "duration_hours": 0.25, "confidence": 95, "department": "Электромонтажный"},
+            {"name": "060 Маркировка", "equipment": "Принтер Brady", "duration_hours": 0.15, "confidence": 90, "department": "Электромонтажный"}
+        ],
+        "warnings": [
+            {"type": "missing_data", "quote": "material: 'Провод ПВ3 0,75'", "concern": "Не указана длина каждого провода", "question": "Есть ли таблица длин по схеме Э3?"}
+        ],
+        "questions": [
+            {"id": "Q1", "topic": "разъем", "question": "Какой тип разъёмов на концах?", "options": ["AMP", "KET", "отечественные (2РМ, СНЦ)", "смешанные"], "default": "смешанные", "impact_if_changed": "Влияет на материалы и трудоёмкость"}
+        ]
+    }
+}
+
+
+# ========== F16.3: Удобный список всех few-shot примеров ==========
+FEW_SHOT_EXAMPLES = [
+    ("Сварочно-сборочный (упор)", FEW_SHOT_4C85941A),
+    ("Гидравлика (клапан)", FEW_SHOT_HYDRAULIC),
+    ("Электрика (жгут)", FEW_SHOT_ELECTRICAL),
+]
+
+
+def get_relevant_few_shot(detail: dict) -> dict:
+    """F16.3: выбирает few-shot по типу детали (по названию/материалу).
+    Возвращает один из FEW_SHOT_EXAMPLES."""
+    name = (detail.get("name") or "").lower()
+    material = (detail.get("material") or "").lower()
+    if any(w in name for w in ("жгут", "провод", "кабель", "электр")):
+        return FEW_SHOT_ELECTRICAL
+    if any(w in name for w in ("клапан", "насос", "гидро", "цилиндр", "шток", "поршень")):
+        return FEW_SHOT_HYDRAULIC
+    if any(w in material for w in ("провод", "пв3", "пв1")):
+        return FEW_SHOT_ELECTRICAL
+    return FEW_SHOT_4C85941A  # default: сварочно-сборочный

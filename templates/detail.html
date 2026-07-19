@@ -813,4 +813,25 @@ function submitApprove() {
     });
 })();
 </script>
+
+{# F16.1: авто-старт таймера при открытии карточки #}
+<script>
+(function() {
+    const detailId = '{{ detail.id }}';
+    if (detailId) {
+        // Используем sendBeacon чтобы не блокировать закрытие
+        if (navigator.sendBeacon) {
+            const fd = new FormData();
+            fd.append('detail_id', detailId);
+            navigator.sendBeacon('/api/pilot/session-start', fd);
+        } else {
+            fetch('/api/pilot/session-start', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({detail_id: detailId})
+            }).catch(() => {});
+        }
+    }
+})();
+</script>
 {% endblock %}

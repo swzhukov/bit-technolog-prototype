@@ -1307,6 +1307,142 @@ def test_learning_metrics_by_week_db_integration():
     assert all("week_num" in m for m in metrics)
 
 
+# ========== F16.1: Авто-метрики ==========
+def test_pilot_session_start_endpoint(client):
+    """F16.1: при открытии карточки записывается session_start"""
+    c, _ = client
+    r = c.post("/api/pilot/session-start", data={"detail_id": "test-detail-1"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["ok"] is True
+    assert data["detail_id"] == "test-detail-1"
+
+
+def test_compute_acceptance_from_versions_empty():
+    """F16.1: пустой случай (нет llm_generate версии)"""
+    from metrics_auto import compute_acceptance_from_versions
+    result = compute_acceptance_from_versions("nonexistent-detail")
+    assert result == {"total_ops": 0, "accepted_ops": 0, "edited_ops": 0,
+                      "added_ops": 0, "deleted_ops": 0, "edits_count": 0}
+
+
+def test_compute_acceptance_no_changes():
+    """F16.1: все операции приняты без правок"""
+    from metrics_auto import compute_acceptance_from_versions
+    from db import get_conn, save_draft
+    import json
+    # Создаём тестовую деталь
+    conn = get_conn()
+    conn.execute("""INSERT OR REPLACE INTO details (id, designation, name)
+        VALUES ('test-acc-1', 'TEST.001', 'Test detail')""")
+    conn.commit()
+    conn.close()
+    # Создаём draft
+    ops = [{"name": "010 Заготовительная", "duration_hours": 1.0, "department": "Заготовительный"},
+           {"name": "020 Сварочная", "duration_hours": 2.0, "department": "Сварочный"}]
+    save_draft("test-acc-1", {"operations": ops}, status="draft")
+    # Создаём llm_generate версию (та же operations)
+    conn = get_conn()
+    conn.execute("""INSERT INTO draft_versions (detail_id, version, operations_json, source)
+        VALUES (?, 1, ?, 'llm_generate')""", ("test-acc-1", json.dumps(ops)))
+    conn.commit()
+    conn.close()
+    # Считаем acceptance
+    result = compute_acceptance_from_versions("test-acc-1")
+    assert result["total_ops"] == 2
+    assert result["accepted_ops"] == 2
+    assert result["edits_count"] == 0
+
+
+def test_compute_acceptance_with_edits():
+    """F16.1: одна операция отредактирована (изменён equipment)"""
+    from metrics_auto import compute_acceptance_from_versions
+    from db import get_conn, save_draft
+    import json
+    conn = get_conn()
+    conn.execute("""INSERT OR REPLACE INTO details (id, designation, name)
+        VALUES ('test-acc-2', 'TEST.002', 'Test detail 2')""")
+    conn.commit()
+    conn.close()
+    # Оригинал AI
+    orig_ops = [
+        {"name": "010 Заготовительная", "duration_hours": 1.0, "department": "Заготовительный",
+         "equipment": "Кедр-300", "notes": ""},
+        {"name": "020 Сварочная", "duration_hours": 2.0, "department": "Сварочный",
+         "equipment": "TPS-400", "notes": ""}
+    ]
+    # Финал (technology отредактировал equipment у одной)
+    final_ops = [
+        {"name": "010 Заготовительная", "duration_hours": 1.0, "department": "Заготовительный",
+         "equipment": "Кедр-500", "notes": "обновлено"},  # отредактировано
+        {"name": "020 Сварочная", "duration_hours": 2.0, "department": "Сварочный",
+         "equipment": "TPS-400", "notes": ""}  # без изменений
+    ]
+    save_draft("test-acc-2", {"operations": final_ops}, status="draft")
+    conn = get_conn()
+    conn.execute("""INSERT INTO draft_versions (detail_id, version, operations_json, source)
+        VALUES (?, 1, ?, 'llm_generate')""", ("test-acc-2", json.dumps(orig_ops)))
+    conn.commit()
+    conn.close()
+    result = compute_acceptance_from_versions("test-acc-2")
+    assert result["total_ops"] == 2
+    assert result["accepted_ops"] == 1, f"expected 1 accepted, got {result}"
+    assert result["edits_count"] >= 1
+
+
+def test_approve_writes_auto_metrics(client):
+    """F16.1: approve endpoint записывает авто-метрики (acceptance + time)"""
+    c, _ = client
+    # Создаём деталь с draft + llm_generate версией
+    c.post("/api/details", data={
+        "id": "test-auto-1", "designation": "AUTO.001", "name": "Auto metrics test"
+    })
+    # Генерируем draft
+    r = c.post("/api/analyze", data={"detail_id": "test-auto-1"})
+    # Прямо записываем draft + version
+    from db import get_conn, save_draft
+    import json
+    save_draft("test-auto-1", {"operations": [
+        {"name": "010 Op1", "duration_hours": 1.0, "department": "Цех 1"}
+    ]}, status="draft")
+    conn = get_conn()
+    conn.execute("""INSERT INTO draft_versions (detail_id, version, operations_json, source)
+        VALUES (?, 1, ?, 'llm_generate')""", ("test-auto-1", json.dumps([
+            {"name": "010 Op1", "duration_hours": 1.0, "department": "Цех 1"}
+        ])))
+    conn.commit()
+    conn.close()
+    # Approve
+    r = c.post("/api/approve", data={"detail_id": "test-auto-1"})
+    assert r.status_code == 200
+    # Проверяем pilot_metrics
+    conn = get_conn()
+    total = conn.execute("""SELECT value FROM pilot_metrics
+        WHERE detail_id='test-auto-1' AND metric='total_ops'""").fetchone()
+    accepted = conn.execute("""SELECT value FROM pilot_metrics
+        WHERE detail_id='test-auto-1' AND metric='accepted_op'""").fetchone()
+    assert total is not None, "total_ops not written"
+    assert accepted is not None, "accepted_op not written"
+    assert total[0] == 1
+    assert accepted[0] == 1
+
+
+def test_session_start_recorded_directly():
+    """F16.1: record_session_start пишет в pilot_metrics"""
+    from metrics_auto import record_session_start
+    record_session_start("test-session-1", author="technologist")
+    from db import get_conn
+    conn = get_conn()
+    row = conn.execute("""SELECT value, extra FROM pilot_metrics
+        WHERE detail_id='test-session-1' AND metric='session_start'
+        ORDER BY created_at DESC LIMIT 1""").fetchone()
+    conn.close()
+    assert row is not None
+    import time
+    # value должен быть близок к текущему timestamp
+    assert abs(row[0] - time.time()) < 5
+
+
 def test_role_switch_invalid(client):
     c, _ = client
     r = c.post("/api/role/switch", data={"role": "invalid_role"})

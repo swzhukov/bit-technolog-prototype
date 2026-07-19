@@ -18,6 +18,7 @@ import os
 import json
 import pickle
 import logging
+import re
 from typing import List, Dict, Optional, Tuple
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -30,6 +31,88 @@ VECTORIZER_PATH = os.path.join(INDEX_DIR, "vectorizer.pkl")
 MATRIX_PATH = os.path.join(INDEX_DIR, "tfidf_matrix.pkl")
 IDS_PATH = os.path.join(INDEX_DIR, "ids.pkl")
 METADATA_PATH = os.path.join(INDEX_DIR, "metadata.pkl")
+
+# ========== F16.2: Лемматизация (pymorphy2) и маппинг синонимов ==========
+_MORPH = None
+_MORPH_ERROR = None
+
+def _get_morph():
+    """Lazy-init pymorphy2. Если недоступен — fallback без лемматизации."""
+    global _MORPH, _MORPH_ERROR
+    if _MORPH is not None or _MORPH_ERROR:
+        return _MORPH
+    try:
+        import pymorphy2
+        _MORPH = pymorphy2.MorphAnalyzer()
+        log.info("pymorphy2 loaded — лемматизация включена")
+    except Exception as e:
+        _MORPH_ERROR = str(e)
+        log.warning(f"pymorphy2 недоступен ({e}) — лемматизация отключена")
+    return _MORPH
+
+
+# Маппинг синонимов для машиностроения (F16.2)
+_SYNONYMS = {
+    # Марки сталей (часто взаимозаменяемые)
+    "ст3": "сталь3", "ст 3": "сталь3", "сталь3": "сталь3", "сталь 3": "сталь3",
+    "ст3сп": "сталь3", "ст3пс": "сталь3", "ст3кп": "сталь3",
+    "09г2с": "низколегир", "09г2с-15": "низколегир", "09г2с-12": "низколегир",
+    # Термообработка
+    "закалка": "термообработка", "отпуск": "термообработка", "отжиг": "термообработка",
+    "ц": "цементация", "твч": "поверхностнаязакалка",
+    # Сварка
+    "mig": "полуавтсварка", "mag": "полуавтсварка", "tig": "аргонодуг",
+    "рдс": "ручнаядуг", "mma": "ручнаядуг",
+    # Оборудование (синонимы)
+    "кедр": "инверторсварка", "тдф": "трансформаторсварка",
+    "верстак": "слесарныйверстак", "тиски": "слесарныйверстак",
+    # Покрытия
+    "грунт": "грунтовка", "гф-021": "грунтовка", "гф021": "грунтовка",
+    "пф-115": "эмаль", "пф115": "эмаль",
+    "оцинковка": "цинковое", "горячийцинк": "цинковое",
+    # Конструктивные элементы
+    "кронштейн": "кронштейн", "упор": "кронштейн", "опора": "кронштейн",
+    "косынка": "косынка", "ребро": "косынка",
+    # Заготовки
+    "лист": "листовой", "плита": "листовой", "полоса": "листовой",
+    "труба": "трубный", "профиль": "трубный",
+    "пруток": "сортовой", "круг": "сортовой", "квадрат": "сортовой",
+}
+
+
+def _apply_synonyms(text: str) -> str:
+    """Заменяет синонимы на канонические термины."""
+    t = " " + text.lower() + " "
+    for syn, canon in _SYNONYMS.items():
+        # word boundary
+        t = re.sub(rf"\b{re.escape(syn)}\b", canon, t)
+    return t.strip()
+
+
+def _lemmatize_text(text: str) -> str:
+    """F16.2: лемматизация + синонимы для русского технического текста.
+    Возвращает нормализованный текст для лучшего TF-IDF matching."""
+    morph = _get_morph()
+    t = _apply_synonyms(text.lower())
+    if not morph:
+        return t
+    words = re.findall(r"[а-яёa-z0-9\-]+", t)
+    lemmas = []
+    for w in words:
+        # Пропускаем числа и короткие слова
+        if w.replace("-", "").isdigit() or len(w) < 3:
+            lemmas.append(w)
+            continue
+        try:
+            # Первое нормальное значение (NOUN, ADJF, INFN etc.)
+            parses = morph.parse(w)
+            if parses and parses[0].score > 0.3:
+                lemmas.append(parses[0].normal_form)
+            else:
+                lemmas.append(w)
+        except Exception:
+            lemmas.append(w)
+    return " ".join(lemmas)
 
 
 def _ensure_index_dir():
@@ -66,6 +149,13 @@ def _build_text(detail: dict, draft_output: Optional[dict] = None) -> str:
         for w in draft_output.get("warnings", []):
             parts.append(str(w.get("concern", "")))
     return " ".join(p for p in parts if p).strip()
+
+
+def _build_indexed_text(detail: dict, draft_output: Optional[dict] = None) -> str:
+    """F16.2: возвращает лемматизированный + синонимы-нормализованный текст.
+    Используется для TF-IDF индексации. Для оригинального текста (search) — _build_text."""
+    raw = _build_text(detail, draft_output)
+    return _lemmatize_text(raw)
 
 
 def _build_metadata(detail: dict) -> dict:
@@ -148,9 +238,12 @@ class RAGIndex:
         log.info(f"RAG index saved: {len(self.ids)} documents")
 
     def add_document(self, detail_id: str, text: str, metadata: dict):
-        """Добавляет документ. Если уже есть — переиндексирует."""
+        """Добавляет документ. Если уже есть — переиндексирует.
+        F16.2: применяет лемматизацию к тексту."""
         if not text:
             return
+        # F16.2: лемматизация + синонимы для индексации
+        text = _lemmatize_text(text)
         if detail_id in self.metadata:
             self.remove_document(detail_id)
         # Добавляем в список
@@ -250,7 +343,7 @@ class RAGIndex:
         for row in details:
             detail = dict(zip(cols, row))
             draft = drafts.get(detail["id"])
-            text = _build_text(detail, draft)
+            text = _build_indexed_text(detail, draft)
             if text:
                 texts.append(text)
                 self.ids.append(detail["id"])
