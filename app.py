@@ -568,6 +568,51 @@ async def rate_limit_middleware(request: Request, call_next):
     return await call_next(request)
 
 
+# V8-18: глобальный error handler с debugging ID
+import traceback
+import uuid
+
+# Хранилище последних 50 ошибок (для /admin/errors)
+_ERRORS = []
+_MAX_ERRORS = 50
+
+
+@app.exception_handler(500)
+async def server_error_handler(request: Request, exc):
+    """V8-18: 500 с debugging ID.
+    Пользователь видит короткий ID, в логах полный traceback,
+    в /admin/errors — последние 50 ошибок."""
+    err_id = str(uuid.uuid4())[:8]
+    tb = traceback.format_exc()
+    _ERRORS.append({
+        "id": err_id,
+        "ts": datetime.now().isoformat(),
+        "path": request.url.path,
+        "method": request.method,
+        "exception": str(exc)[:500],
+        "traceback": tb[-2000:]
+    })
+    if len(_ERRORS) > _MAX_ERRORS:
+        _ERRORS.pop(0)
+    log.exception(f"[{err_id}] {request.method} {request.url.path}: {exc}")
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept:
+        html = f"""<h1>500 — Внутренняя ошибка</h1><p>Debugging ID: <code>{err_id}</code></p><p>Сообщите этот ID администратору.</p><p><a href="javascript:history.back()">← Назад</a></p>"""
+        return HTMLResponse(html, status_code=500)
+    return JSONResponse({"ok": False, "error": "internal_server_error", "debug_id": err_id}, status_code=500)
+
+
+@app.get("/admin/errors", response_class=HTMLResponse)
+async def admin_errors(request: Request):
+    """V8-18: UI для просмотра последних ошибок (только admin)."""
+    if get_current_role(request) != "admin":
+        return HTMLResponse("<h1>403</h1>", status_code=403)
+    return templates.TemplateResponse("admin_errors.html", {
+        "request": request,
+        "errors": list(reversed(_ERRORS))
+    })
+
+
 # F16.10 (v3): CSP middleware — защита от XSS
 @app.middleware("http")
 async def csp_middleware(request: Request, call_next):
@@ -674,25 +719,10 @@ from metrics_auto import (
 )
 
 
-def get_conn():
-    conn = sqlite3.connect(DB_PATH)
-    # C5 fix: WAL mode для concurrent writes (3+ пользователей)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    conn.row_factory = sqlite3.Row  # доступ по имени колонки
-    return conn
-
-
-def get_table_columns(table: str) -> list:
-    """C3 fix: helper для PRAGMA, без утечки соединений"""
-    conn = get_conn()
-    cols = [d[1] for d in conn.execute(f"PRAGMA table_info({table})").fetchall()]
-    conn.close()
-    return cols
-
-
 def init_db():
-    """Initialize SQLite database with full schema"""
+    """Initialize SQLite database with full schema.
+    F15.8: дубликат с db.py — db.py-версия используется (импорт в начале файла).
+    Оставлено для reference и обратной совместимости."""
     conn = get_conn()
     conn.executescript("""
         -- 1. Детали от конструкторов (вместо mock_data.py)

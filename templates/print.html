@@ -34,7 +34,14 @@
     </div>
 
     <div class="header-print">
-        <div><strong>ПК «Техинком-Центр»</strong><br><small>Технологическая карта</small></div>
+        {# V8-17: логотип placeholder (Техинком заменит на свой) #}
+        <div style="display:flex; align-items:center; gap:8pt;">
+            <div style="width:36pt; height:36pt; background:#1a4789; color:white; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:18pt; border-radius:4pt;">ПК</div>
+            <div>
+                <strong>ПК «Техинком-Центр»</strong><br>
+                <small>Технологическая карта</small>
+            </div>
+        </div>
         <div style="text-align:right;"><small>Дата: {{ draft.created_at[:10] if draft and draft.created_at else '—' }}<br>ID: {{ detail.id }}</small></div>
     </div>
     <div style="text-align:right; margin-bottom:8pt;">

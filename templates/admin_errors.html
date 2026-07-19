@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Ошибки — БИТ.Технолог{% endblock %}
+{% block content %}
+<div class="breadcrumb"><a href="/admin">← Админ</a></div>
+<h1>🚨 Последние ошибки (500)</h1>
+<p class="lead">Debugging ID помогает быстро найти соответствующую запись в логах сервера.</p>
+
+{% if not errors %}
+<div class="info-block">
+    <strong>✅ Ошибок нет.</strong> Сервер работает стабильно.
+</div>
+{% else %}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Debug ID</th>
+            <th>Когда</th>
+            <th>Метод / URL</th>
+            <th>Exception</th>
+            <th>Действия</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for e in errors %}
+        <tr>
+            <td><code>{{ e.id }}</code></td>
+            <td><small>{{ e.ts[:19] }}</small></td>
+            <td><code>{{ e.method }} {{ e.path }}</code></td>
+            <td>
+                <details>
+                    <summary style="cursor:pointer;">{{ e.exception[:80] }}{% if e.exception|length > 80 %}…{% endif %}</summary>
+                    <pre style="background:#1e1e1e;color:#d4d4d4;padding:8px;border-radius:4px;font-size:11px;overflow:auto;max-height:300px;">{{ e.traceback }}</pre>
+                </details>
+            </td>
+            <td>
+                <small>grep "{{ e.id }}" /var/log/bit-technolog.err.log</small>
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<div style="margin-top:24px;">
+    <h3>📖 Как использовать Debug ID</h3>
+    <ol>
+        <li>Пользователь сообщает Debug ID (например, <code>a3f2e1b4</code>)</li>
+        <li>Админ ищет в логах: <code>grep "a3f2e1b4" /var/log/bit-technolog.err.log</code></li>
+        <li>Полный traceback + контекст запроса</li>
+    </ol>
+</div>
+{% endblock %}
