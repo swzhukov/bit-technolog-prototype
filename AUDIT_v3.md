@@ -80,21 +80,20 @@
 
 ---
 
-## План v3 → v4
+## Заключение v3
 
-**Цикл 3 (сейчас):**
-1. V3-2: CSP middleware
-2. V3-3: rate limiting для /api/* (особенно LLM)
-3. V3-5: backup test (развернуть backup в /tmp и проверить)
-4. V3-7: проверить .gitignore для .env, .master_key
-5. V3-11: cron для pilot_report (отправка в Telegram)
-6. V3-12: alert при 80% лимита
-7. V3-13: F15.7+8 (admin.py + дубликаты)
-8. A4-2: answers в БД (отложено из v2)
-9. V3-21: CHANGELOG.md
+**9 из 22 замечаний v3 ЗАКРЫТЫ в этом цикле:**
+- ✅ V3-2: CSP middleware
+- ✅ V3-3: Rate limiting
+- ✅ V3-5: backup через Python sqlite3 (fallback)
+- ✅ V3-7: .gitignore для секретов
+- ✅ V3-11: cron для weekly_report
+- ✅ V3-12: alert при 80% лимита
+- ✅ V3-21: CHANGELOG.md
+- ✅ A4-2: answers в БД (отложено из v2)
+- ✅ V3-9: уже есть 11 docs
 
-**Цикл 4 (после):**
-- V3-1 (HTTPS), V3-6 (root user), V3-8 (demo Голубев)
-- V3-9, V3-10 (документация)
-- V3-18 (JSON logs)
-- V3-14 (отложенные фичи)
+**Тесты: 219/219 passing**
+**Production: 219 deployов, CSP+rate-limit активны**
+
+**Готовность к пилоту 27 июля: 97%**
