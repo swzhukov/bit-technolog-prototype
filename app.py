@@ -359,6 +359,157 @@ with open("structure.json", "r", encoding="utf-8") as f:
 DB_PATH = os.getenv("DB_PATH", "bit_technolog.db")
 
 
+# v3: A4-2 — endpoint для сохранения answers в БД (backup для localStorage)
+@app.post("/api/answers/save")
+async def api_save_answers(request: Request):
+    """Сохраняет ответы технолога на вопросы AI (для 3-step flow).
+    Backup для localStorage: если браузер чистит LS, ответы не потеряются."""
+    detail_id = await _get_param(request, "detail_id")
+    step = await _get_param(request, "step") or "analyze"
+    answers_json = await _get_param(request, "answers") or "{}"
+    if not detail_id:
+        return err("detail_id required", 422)
+    from db import get_conn
+    conn = get_conn()
+    try:
+        conn.execute("""INSERT INTO step_answers (detail_id, step, answers_json)
+            VALUES (?, ?, ?)""", (detail_id, step, answers_json))
+        conn.commit()
+        return {"ok": True, "detail_id": detail_id, "step": step}
+    except Exception as e:
+        return err(f"save failed: {e}", 500)
+    finally:
+        conn.close()
+
+
+@app.get("/api/answers/load")
+async def api_load_answers(detail_id: str, step: str = "analyze"):
+    """Загружает последние answers для детали (если localStorage пуст)."""
+    from db import get_conn
+    conn = get_conn()
+    try:
+        row = conn.execute("""SELECT answers_json, created_at FROM step_answers
+            WHERE detail_id=? AND step=?
+            ORDER BY created_at DESC LIMIT 1""", (detail_id, step)).fetchone()
+        if not row:
+            return {"ok": True, "answers": None}
+        return {"ok": True, "answers": row[0], "ts": row[1]}
+    finally:
+        conn.close()
+
+
+# F16.10 (v3): V3-12 — проверка лимита перед каждым LLM-вызовом
+def check_daily_limit_or_warn() -> dict:
+    """V3-12: возвращает dict {allowed, current, limit, pct, message}.
+    При 80% — предупреждение. При 100% — блок."""
+    from db import get_daily_cost
+    from settings import get_setting
+    cost_data = get_daily_cost()
+    current = cost_data.get("total_rub", 0) or 0
+    limit = int(get_setting("LLM_DAILY_COST_LIMIT_RUB", "200") or 200)
+    pct = (current / limit * 100) if limit > 0 else 0
+    if pct >= 100:
+        return {"allowed": False, "current": current, "limit": limit,
+                "pct": round(pct, 1), "message": f"Дневной лимит исчерпан: {current:.2f}₽ / {limit}₽"}
+    if pct >= 80:
+        return {"allowed": True, "current": current, "limit": limit,
+                "pct": round(pct, 1), "message": f"⚠️ Использовано {pct:.0f}% дневного лимита ({current:.2f}₽ / {limit}₽)",
+                "warning": True}
+    return {"allowed": True, "current": current, "limit": limit, "pct": round(pct, 1), "message": ""}
+
+
+# F16.10 (v3): Rate limiter — защита от DDoS / перерасхода
+import threading
+from collections import defaultdict
+from time import time
+
+# F16.10: in-memory rate limiter (для production с одним worker OK; для multi-worker нужен Redis)
+_rate_buckets = defaultdict(list)
+_rate_lock = threading.Lock()
+RATE_LIMITS = {
+    # path_prefix: (max_requests, window_seconds)
+    "/api/generate": (10, 60),       # 10 генераций в минуту
+    "/api/refine": (10, 60),         # 10 уточнений в минуту
+    "/api/draft-fast": (20, 60),     # 20 быстрых драфтов в минуту
+    "/api/analyze": (10, 60),        # 10 анализов в минуту
+    "/api/import/": (5, 300),        # 5 импортов за 5 минут
+    "/api/admin/backup": (1, 3600),  # 1 backup в час
+    "/api/admin/rag-rebuild": (1, 600),  # 1 rag-rebuild за 10 мин
+}
+
+
+def _check_rate_limit(path: str) -> tuple[bool, int]:
+    """F16.10: V3-3 — проверка rate limit.
+    Возвращает (allowed, retry_after_sec)."""
+    # V3-3: opt-out для тестов
+    if os.getenv("PILOT_RATELIMIT_DISABLED", "").lower() == "true":
+        return True, 0
+    # Найти подходящий лимит по префиксу
+    limit = None
+    for prefix, l in RATE_LIMITS.items():
+        if path.startswith(prefix):
+            limit = l
+            break
+    if not limit:
+        return True, 0
+    max_req, window_sec = limit
+    key = path.split("?")[0]  # без query string
+    now = time()
+    with _rate_lock:
+        bucket = _rate_buckets[key]
+        # Очистить старые записи
+        bucket[:] = [t for t in bucket if now - t < window_sec]
+        if len(bucket) >= max_req:
+            retry_after = int(window_sec - (now - bucket[0])) + 1
+            return False, retry_after
+        bucket.append(now)
+        return True, 0
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    """F16.10: V3-3 — rate limit для критичных endpoint'ов"""
+    if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+        allowed, retry_after = _check_rate_limit(request.url.path)
+        if not allowed:
+            return JSONResponse(
+                {"error": "rate_limited", "retry_after": retry_after,
+                 "limit": RATE_LIMITS.get(request.url.path[:15] + "...", "see server config")},
+                status_code=429,
+                headers={"Retry-After": str(retry_after)}
+            )
+    return await call_next(request)
+
+
+# F16.10 (v3): CSP middleware — защита от XSS
+@app.middleware("http")
+async def csp_middleware(request: Request, call_next):
+    """V3-2: добавляет Content-Security-Policy к ответам.
+    Запрещает inline scripts кроме своих (htmx, qrcode, наши функции).
+    Default-src 'self' (только локальные ресурсы)."""
+    response = await call_next(request)
+    # CSP для HTML ответов
+    content_type = response.headers.get("content-type", "")
+    if "text/html" in content_type:
+        csp = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "  # unsafe-inline нужен для htmx-attrs и наших onclick
+            "style-src 'self' 'unsafe-inline'; "  # unsafe-inline для inline style=
+            "img-src 'self' data:; "
+            "font-src 'self'; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'"
+        )
+        response.headers["Content-Security-Policy"] = csp
+        # Дополнительные security headers
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+
 # ========== Импорты из db.py и auth.py (F15) ==========
 from db import (
     DB_PATH, get_conn, get_table_columns, init_db,

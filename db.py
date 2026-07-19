@@ -164,6 +164,15 @@ def init_db():
             restored_by TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_deleted_ops_detail ON deleted_operations(detail_id);
+        -- v3: A4-2 — answers для 3-step flow (backup для localStorage)
+        CREATE TABLE IF NOT EXISTS step_answers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            detail_id TEXT NOT NULL,
+            step TEXT,  -- 'analyze' / 'draft' / 'refine'
+            answers_json TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_step_answers_detail ON step_answers(detail_id);
         CREATE TABLE IF NOT EXISTS pilot_metrics (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             detail_id TEXT,

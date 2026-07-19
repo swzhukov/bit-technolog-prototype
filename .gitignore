@@ -22,12 +22,20 @@ Thumbs.db
 
 # Secrets — никогда не коммитим
 .env
+.master_key
+# Fernet encryption key for global settings (v0.4.3+)
 
 # Runtime
 server.log
 *.db
 *.sqlite
 *.sqlite3
+
+# RAG index (regenerable from DB)
+.rag/
+
+# User uploads
+drawings/
 
 # Misc
 *.tar.gz
