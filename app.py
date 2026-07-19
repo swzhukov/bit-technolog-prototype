@@ -319,6 +319,18 @@ with open("structure.json", "r", encoding="utf-8") as f:
 DB_PATH = os.getenv("DB_PATH", "bit_technolog.db")
 
 
+# ========== Импорты из db.py (F15 — выделено из app.py) ==========
+from db import (
+    DB_PATH, get_conn, get_table_columns, init_db,
+    get_detail, get_all_details, get_distinct_models,
+    get_draft, save_draft, update_draft_status,
+    get_versions, get_edits,
+    get_all_equipment, get_all_materials, get_all_iot,
+    add_history, get_history,
+    get_daily_cost, get_pilot_metrics
+)
+
+
 def get_conn():
     conn = sqlite3.connect(DB_PATH)
     # C5 fix: WAL mode для concurrent writes (3+ пользователей)
