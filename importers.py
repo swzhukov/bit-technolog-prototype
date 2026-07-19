@@ -229,9 +229,34 @@ def _normalize_detail(d: dict) -> dict:
 
 def save_imported_details(details: list[dict], default_author: str = "import") -> dict:
     """Сохраняет распарсенные детали в БД. Возвращает статистику.
-    C8 fix: дедупликация по designation (если повтор — обновляем, а не дублируем)."""
+    C8 fix: дедупликация по designation (если повтор — обновляем, а не дублируем).
+    V7-8: валидация обязательных полей (designation, name)."""
     from app import get_conn
     conn = get_conn()
+    # V7-8: валидация
+    valid_details = []
+    validation_errors = []
+    for d in details:
+        des = (d.get("designation") or "").strip()
+        if not des:
+            validation_errors.append({"detail": d.get("id", "?"), "error": "designation is empty"})
+            continue
+        if len(des) > 200:
+            validation_errors.append({"detail": d.get("id", "?"), "error": "designation too long (max 200)"})
+            continue
+        # Нормализуем
+        d["designation"] = des
+        if d.get("name"):
+            d["name"] = str(d["name"]).strip()[:500]
+        # mass_kg: должен быть числом или None
+        if "mass_kg" in d and d["mass_kg"] is not None:
+            try:
+                d["mass_kg"] = float(d["mass_kg"])
+            except (TypeError, ValueError):
+                validation_errors.append({"detail": d.get("id", "?"), "error": f"mass_kg not a number: {d['mass_kg']}"})
+                continue
+        valid_details.append(d)
+    details = valid_details
     # Дедупликация по designation
     seen_designations = set()
     deduped = []
@@ -246,6 +271,7 @@ def save_imported_details(details: list[dict], default_author: str = "import") -
     updated = 0
     ops_saved = 0
     seeded_ids = []
+    validation_count = len(validation_errors)
     for d in details:
         if not d.get("id"):
             continue
@@ -324,7 +350,8 @@ def save_imported_details(details: list[dict], default_author: str = "import") -
             add_history(did, "imported", {"author": default_author})
         except Exception:
             pass
-    return {"created": created, "updated": updated, "operations_saved": ops_saved, "total": len(details)}
+    return {"created": created, "updated": updated, "operations_saved": ops_saved, "total": len(details),
+            "validation_count": validation_count, "validation_errors": validation_errors[:10]}
 
 
 # F-12 fix: проверка magic bytes для предотвращения загрузки .exe переименованных в .pdf

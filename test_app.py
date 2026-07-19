@@ -1849,6 +1849,121 @@ def test_backup_script_supports_gpg():
     assert "BACKUP_GPG_RECIPIENT" in content
 
 
+# ========== V7: audit v7 ==========
+def test_git_commit_in_health(client):
+    """V7-2: /health показывает git_commit"""
+    c, _ = client
+    r = c.get("/health")
+    data = r.json()
+    assert "git_commit" in data
+    # В тестах git может быть или нет
+    assert data["git_commit"] in ("no_git", "unknown") or len(data["git_commit"]) <= 12
+
+
+def test_health_check_script_exists():
+    """V7-7: health_check.sh для cron существует"""
+    import os
+    path = "/workspace/bit-technolog-deploy/health_check.sh"
+    if not os.path.exists(path):
+        path = os.path.join(os.path.dirname(__file__), "..", "bit-technolog-deploy", "health_check.sh")
+    assert os.path.exists(path)
+    with open(path) as f:
+        content = f.read()
+    assert "/health" in content
+    assert "telegram" in content.lower()
+
+
+def test_logrotate_config_exists():
+    """V7-4: logrotate конфиг существует"""
+    import os
+    path = "/workspace/bit-technolog-deploy/logrotate-bit-technolog"
+    if not os.path.exists(path):
+        path = os.path.join(os.path.dirname(__file__), "..", "bit-technolog-deploy", "logrotate-bit-technolog")
+    assert os.path.exists(path)
+    with open(path) as f:
+        content = f.read()
+    assert "/var/log/bit-technolog" in content
+    assert "rotate" in content
+
+
+def test_license_exists():
+    """V7-5: LICENSE файл существует (MIT)"""
+    import os
+    path = os.path.join(os.path.dirname(__file__), "LICENSE")
+    assert os.path.exists(path)
+    with open(path) as f:
+        content = f.read()
+    assert "MIT" in content
+    assert "Permission is hereby granted" in content
+
+
+def test_issue_templates_exist():
+    """V7-6: GitHub issue templates существуют"""
+    import os
+    base = os.path.join(os.path.dirname(__file__), ".github", "ISSUE_TEMPLATE")
+    assert os.path.exists(base)
+    assert os.path.exists(os.path.join(base, "bug_report.md"))
+    assert os.path.exists(os.path.join(base, "feature_request.md"))
+
+
+def test_performance_search_at_scale():
+    """V7-12: производительность поиска при 1000 деталей.
+    Без indexes — должно быть < 1 сек на полный скан."""
+    import time
+    from db import get_conn
+    conn = get_conn()
+    # Создаём 1000 тестовых деталей
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS perf_test (
+            id TEXT PRIMARY KEY,
+            designation TEXT,
+            model TEXT
+        );
+    """)
+    conn.execute("DELETE FROM perf_test")
+    for i in range(1000):
+        conn.execute("INSERT INTO perf_test VALUES (?, ?, ?)",
+                     (f"perf-{i:04d}", f"DES-{i:04d}", f"Model-{i % 10}"))
+    conn.commit()
+    # Запрос
+    start = time.time()
+    rows = conn.execute("SELECT COUNT(*) FROM perf_test WHERE model='Model-5'").fetchone()
+    duration = time.time() - start
+    # 1000 строк без индекса на model — полный скан, но < 1 сек
+    assert rows[0] == 100, f"expected 100, got {rows[0]}"
+    assert duration < 1.0, f"query took {duration:.3f}s, too slow"
+    # Cleanup
+    conn.execute("DROP TABLE perf_test")
+    conn.commit()
+    conn.close()
+
+
+def test_print_form_has_ntk_signature():
+    """V7-9: печатная форма имеет подпись НТК (утверждение комиссией)"""
+    import os
+    template_path = os.path.join(os.path.dirname(__file__), "templates", "print.html")
+    with open(template_path, encoding="utf-8") as f:
+        content = f.read()
+    assert "НТК" in content or "Утвердил" in content
+    assert "Технолог" in content
+    assert "Начальник" in content
+
+
+def test_data_import_validates_required_fields():
+    """V7-8: импорт валидирует обязательные поля (designation не пустой)"""
+    from importers import save_imported_details
+    base = {"name": "Test", "model": "X", "chassis": "Y", "material": "Z",
+            "mass_kg": 1.0, "size_mm": 100.0, "surface_treatment": "None", "extra_props": "",
+            "parent_id": "", "level": "detail", "drawing_path": "", "drawing_format": ""}
+    result = save_imported_details([
+        {**base, "id": "no-des-1", "designation": ""},  # пустой → отброшен
+        {**base, "id": "valid-1", "designation": "VALID.001"},
+    ])
+    assert "created" in result
+    assert result.get("created", 0) >= 1, f"expected at least 1 created, got {result}"
+    assert result.get("validation_count", 0) >= 1, f"expected validation_count >= 1, got {result}"
+
+
 def test_role_switch_invalid(client):
     c, _ = client
     r = c.post("/api/role/switch", data={"role": "invalid_role"})

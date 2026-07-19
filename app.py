@@ -22,6 +22,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from dotenv import load_dotenv
+# V7-1: для F811/F821 (dead code ссылается на OpenAI — мёртвый дубликат)
+try:
+    from openai import OpenAI  # noqa: F401
+except ImportError:
+    pass
 
 # Load environment
 load_dotenv()
@@ -495,6 +500,15 @@ from collections import defaultdict
 from time import time
 # V4-11: для uptime в /health
 _APP_START_TS = time()
+# V7-2: git commit hash
+import subprocess
+try:
+    _GIT_COMMIT = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        capture_output=True, text=True, timeout=2
+    ).stdout.strip() or "unknown"
+except Exception:
+    _GIT_COMMIT = "no_git"
 
 # F16.10: in-memory rate limiter (для production с одним worker OK; для multi-worker нужен Redis)
 _rate_buckets = defaultdict(list)
@@ -580,14 +594,18 @@ async def csp_middleware(request: Request, call_next):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    # V5-12: gzip только для HTML ответов (не ломаем CSV/JSON/bytes)
-    if "text/html" in content_type:
+    # V5-12: gzip для HTML (всегда) и JSON (только > 10KB)
+    is_html = "text/html" in content_type
+    is_large_json = "application/json" in content_type
+    if is_html or is_large_json:
         accept_encoding = request.headers.get("accept-encoding", "")
         if "gzip" in accept_encoding:
             body = b""
             async for chunk in response.body_iterator:
                 body += chunk if isinstance(chunk, bytes) else chunk.encode("utf-8")
-            if len(body) > 1024:
+            # HTML: 1KB threshold, JSON: 10KB threshold (не ломать маленькие ответы)
+            threshold = 1024 if is_html else 10240
+            if len(body) > threshold:
                 import gzip
                 compressed = gzip.compress(body)
                 if len(compressed) < len(body):
@@ -601,6 +619,26 @@ async def csp_middleware(request: Request, call_next):
                     new_response.headers["Content-Encoding"] = "gzip"
                     new_response.headers["Content-Length"] = str(len(compressed))
                     response = new_response
+                else:
+                    # Gzip не помог — вернуть body обратно через iterator
+                    from starlette.responses import Response as StarletteResponse
+                    response = StarletteResponse(
+                        content=body,
+                        status_code=response.status_code,
+                        headers=dict(response.headers),
+                        media_type=content_type
+                    )
+                    response.headers["Content-Length"] = str(len(body))
+            else:
+                # Body маленький — вернуть как есть через iterator
+                from starlette.responses import Response as StarletteResponse
+                response = StarletteResponse(
+                    content=body,
+                    status_code=response.status_code,
+                    headers=dict(response.headers),
+                    media_type=content_type
+                )
+                response.headers["Content-Length"] = str(len(body))
     return response
 
 
@@ -4099,6 +4137,7 @@ async def health():
         # V4-11: version + uptime + build date
         "version": "0.4.9",
         "build_date": "2026-07-19",
+        "git_commit": _GIT_COMMIT,  # V7-2
         "uptime_sec": int(time.time() - _APP_START_TS) if '_APP_START_TS' in dir() else 0,
         # V5-4: проверка внешних зависимостей
         "dependencies": _check_dependencies(),

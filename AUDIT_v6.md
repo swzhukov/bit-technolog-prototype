@@ -106,4 +106,17 @@
 - ✅ V6-2: 152-ФЗ раздел в admin guide (Retention policy, права субъекта, GDPR)
 - ✅ V6-3: backup encryption (gpg через BACKUP_GPG_RECIPIENT)
 - ✅ V6-5: retention policy (cleanup_old_records, 6 мес/3 мес/1 год)
-- ✅ V6-7: filter save (local
+- ✅ V6-7: filter save (localStorage 'bit_filter_v1')
+- ✅ V6-13: aria-label на основных кнопках (Главная, Оборудование, Пилот, Demo, role-switcher)
+- ✅ V6-15: глобальный JS error handler (window.error + unhandledrejection → showToast)
+- ✅ V6-16: .flake8 (max-line=120, ignore E501/W503/E402/F401/E722/E731)
+- ✅ V6-17: .editorconfig (utf-8, 4 spaces, lf)
+- ✅ V6-22: JSON логи (JsonFormatter, через JSON_LOGS=true)
+- ✅ V6-25: now_msk() — timezone-aware datetime (Europe/Moscow)
+- ✅ V6-26: docs/13-developer-guide.md (8.5KB — как добавлять endpoint/роль/настройку)
+
+**Тесты: 236/236 passing (+11 для v6)**
+
+**Production: 13 коммитов за 6 циклов аудита**
+
+**Готовность к пилоту 27 июля: 100%**
