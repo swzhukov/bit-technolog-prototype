@@ -147,6 +147,25 @@ async def _lifespan(app):
     # Startup
     try:
         init_db()
+        # F16.9: A4-11 — миграция deleted_operations (если старая БД)
+        try:
+            from db import get_conn
+            conn = get_conn()
+            conn.execute("""CREATE TABLE IF NOT EXISTS deleted_operations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                detail_id TEXT NOT NULL,
+                op_index INTEGER,
+                op_name TEXT,
+                op_json TEXT,
+                deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                deleted_by TEXT,
+                reason TEXT,
+                restored_at TIMESTAMP,
+                restored_by TEXT)""")
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            log.debug(f"lifespan: deleted_operations migration: {e}")
         log.info("DB initialized on lifespan startup")
     except Exception as e:
         log.error(f"DB init failed on startup: {e}")
@@ -169,13 +188,27 @@ from starlette.requests import Request as StarletteRequest
 
 
 class RoleStateMiddleware(BaseHTTPMiddleware):
-    """Добавляет request.state.current_role = 'admin' / 'technologist' / etc"""
+    """Добавляет request.state.current_role = 'admin' / 'technologist' / etc
+    + F16.9: A4-18 — request.state.unread_llm_errors (счётчик для badge в nav)."""
 
     async def dispatch(self, request, call_next):
         role = request.cookies.get("bit_role", "technologist")
         if role not in ROLES:
             role = "technologist"
         request.state.current_role = role
+        # A4-18: только для админа считаем ошибки (иначе лишний query на каждой странице)
+        if role == "admin":
+            try:
+                from db import get_conn
+                conn = get_conn()
+                n = conn.execute("""SELECT COUNT(*) FROM llm_calls
+                    WHERE (error IS NOT NULL AND error != '') OR response_parsed_ok = 0""").fetchone()[0] or 0
+                conn.close()
+                request.state.unread_llm_errors = n
+            except Exception:
+                request.state.unread_llm_errors = 0
+        else:
+            request.state.unread_llm_errors = 0
         response = await call_next(request)
         return response
 

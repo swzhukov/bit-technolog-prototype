@@ -28,6 +28,25 @@ window.showToast = function(message, type) {
     toast.style.display = 'block';
     setTimeout(() => { toast.style.display = 'none'; }, 3500);
 };
+
+// F16.9: A4-16 — глобальные keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    if (!e.ctrlKey && !e.metaKey) return;
+    // Ctrl+N — новая деталь
+    if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault();
+        window.location.href = '/details/new';
+    }
+    // Ctrl+P — печать (если на странице детали)
+    if (e.key === 'p' || e.key === 'P') {
+        // Не перехватываем — браузер сам откроет диалог
+    }
+    // Ctrl+L — список
+    if (e.key === 'l' || e.key === 'L') {
+        e.preventDefault();
+        window.location.href = '/';
+    }
+});
 </script>
     <header>
         <nav>
@@ -40,6 +59,9 @@ window.showToast = function(message, type) {
             <a href="/learning" class="navlink">🎓 Обучение</a>
             {% if is_admin_from_request(request) %}
             <a href="/admin" class="navlink" style="color:#dc2626;">🛡 Админ</a>
+            {# F16.9: A4-18 — badge непрочитанных LLM-ошибок #}
+            {% set n_errors = request.state.unread_llm_errors if request.state.unread_llm_errors is defined else 0 %}
+            <a href="/admin/llm-calls" class="navlink" style="color:#dc2626;">⚠️ LLM-ошибки {% if n_errors > 0 %}<span style="background:#dc2626;color:white;padding:2px 6px;border-radius:10px;font-size:10px;">{{ n_errors }}</span>{% endif %}</a>
             <a href="/admin/settings" class="navlink" style="color:#dc2626;">⚙ Настройки</a>
             {% endif %}
             <a href="/pilot" class="navlink">📊 Пилот</a>
@@ -79,7 +101,16 @@ window.showToast = function(message, type) {
         <small>БИТ.Технолог · 2026 · Сергей Жуков, Первый БИТ</small>
     </footer>
 <script>
-// Role switcher
+// Role switcher (F16.9: A4-17 — тост при смене роли)
+const ROLE_NAMES = {
+    technologist: 'Технолог',
+    main_technologist: 'Гл. технолог',
+    normirovshchik: 'Нормировщик',
+    constructor: 'Конструктор',
+    workshop_chief: 'Нач. цеха',
+    quality: 'Контролёр ОТК',
+    admin: 'Администратор'
+};
 document.getElementById('role-switcher')?.addEventListener('change', async (e) => {
     const role = e.target.value;
     await fetch('/api/role/switch', {
@@ -87,7 +118,8 @@ document.getElementById('role-switcher')?.addEventListener('change', async (e) =
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({role: role})
     });
-    location.reload();
+    showToast('Роль: ' + (ROLE_NAMES[role] || role), 'info');
+    setTimeout(() => location.reload(), 600);
 });
 // Load current role
 (function() {

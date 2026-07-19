@@ -1,8 +1,12 @@
 {% extends "base.html" %}
 {% block title %}{{ detail.designation }} — БИТ.Технолог{% endblock %}
 {% block content %}
+{# F16.9: A4-12 — breadcrumbs с уровнем в иерархии #}
 <div class="breadcrumb">
-    <a href="/">← К списку деталей</a>
+    <a href="/">Главная</a> ›
+    <a href="/?status={{ status }}">Список деталей</a> ›
+    <span>{{ detail.designation }}</span>
+    {% if detail.parent_id %} › <a href="/detail/{{ detail.parent_id }}">↑ {{ detail.parent_id }}</a>{% endif %}
 </div>
 
 <div class="detail-header">
@@ -184,7 +188,24 @@ function step3_refine(did) {
     const status = document.getElementById(`step3-status-${did}`);
     const area = document.getElementById(`refine-status-${did}`);
     const answers = getAnswers(did);
-    status.textContent = '⏳ Генерация полной ТК...';
+    // F16.9: A4-3 — прогресс-бар с ETA
+    let elapsed = 0;
+    status.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px;">
+            <div style="flex:1; height:6px; background:#e5e7eb; border-radius:3px; overflow:hidden;">
+                <div id="gen-progress-${did}" style="height:100%; background:linear-gradient(90deg, #3b82f6, #10b981); width:0%; transition:width 0.5s;"></div>
+            </div>
+            <span id="gen-elapsed-${did}" style="font-size:12px; color:#6b7280; min-width:50px;">0с</span>
+        </div>
+        <small style="color:#6b7280;">⏳ AI думает... обычно 15-30 сек</small>
+    `;
+    const timer = setInterval(() => {
+        elapsed += 1;
+        const el = document.getElementById(`gen-elapsed-${did}`);
+        const bar = document.getElementById(`gen-progress-${did}`);
+        if (el) el.textContent = elapsed + 'с';
+        if (bar) bar.style.width = Math.min(95, elapsed * 3) + '%';  // ~30сек до 95%
+    }, 1000);
     fetch('/api/refine', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -192,11 +213,26 @@ function step3_refine(did) {
     })
     .then(r => r.json())
     .then(data => {
-        if (data.error) { status.textContent = '❌ ' + data.error; return; }
+        clearInterval(timer);
+        if (data.error) {
+            // F16.9: A4-4 — retry при ошибке
+            status.innerHTML = `
+                <span style="color:#ef4444;">❌ ${data.error}</span>
+                <button class="btn btn-small" onclick="step3_refine('${did}')">🔄 Повторить</button>
+            `;
+            return;
+        }
         status.textContent = '✅ Полная ТК готова. Перезагрузка...';
         setTimeout(() => location.reload(), 1500);
     })
-    .catch(err => { status.textContent = '❌ ' + err; });
+    .catch(err => {
+        clearInterval(timer);
+        // F16.9: A4-4 — retry при сетевой ошибке
+        status.innerHTML = `
+            <span style="color:#ef4444;">❌ ${err}</span>
+            <button class="btn btn-small" onclick="step3_refine('${did}')">🔄 Повторить</button>
+        `;
+    });
 }
 </script>
 
@@ -248,6 +284,26 @@ function step3_refine(did) {
     <p class="hint">Файл сохраняется в /drawings/, регистрируется в БД, привязывается к детали.</p>
 </details>
 {% endif %}
+{% endif %}
+
+{# F16.9: A4-10 — UI для сравнения версий (diff) #}
+{% if draft_versions and draft_versions|length > 1 %}
+<div class="action-bar" style="background:#eff6ff; padding:12px; border-radius:6px; margin-bottom:16px;">
+    <strong>🔄 Сравнить версии:</strong>
+    <form method="get" action="/detail/{{ detail.id }}/diff" class="inline-form" style="display:inline-flex; gap:4px; align-items:center;">
+        <label>v от: <select name="v_from">
+            {% for v in draft_versions %}
+            <option value="{{ v.version }}">v{{ v.version }}</option>
+            {% endfor %}
+        </select></label>
+        <label>v до: <select name="v_to">
+            {% for v in draft_versions %}
+            <option value="{{ v.version }}" {% if loop.first %}selected{% endif %}>v{{ v.version }}</option>
+            {% endfor %}
+        </select></label>
+        <button type="submit" class="btn btn-small" title="Показать различия между версиями">Показать diff</button>
+    </form>
+</div>
 {% endif %}
 
 {# F16.8: A4-11 — список удалённых операций с кнопкой restore #}
@@ -347,13 +403,15 @@ function step3_refine(did) {
     {% if status != "approved" %}
     {% if cur_role in ('technologist', 'main_technologist', 'admin') %}
     <button onclick="showApprovePreview()"
-            class="btn btn-primary">
+            class="btn btn-primary"
+            title="Утвердить проект ТК (после проверки чеклиста)">
         ✅ Утвердить
     </button>
     <button hx-post="/api/submit-for-review"
             hx-vals='{"detail_id": "{{ detail.id }}"}'
             hx-on::after-request="location.reload()"
-            class="btn">
+            class="btn"
+            title="Отправить на проверку гл. технологу или нач. цеха">
         👀 Отправить на проверку
     </button>
     {% endif %}
@@ -372,7 +430,8 @@ function step3_refine(did) {
     <button hx-post="/api/approve-chief"
             hx-vals='{"detail_id": "{{ detail.id }}", "chief": "Баранов"}'
             hx-on::after-request="location.reload()"
-            class="btn">
+            class="btn"
+            title="Утверждение начальником цеха (для final-approve в 1С)">
         👑 Утвердить как начальник
     </button>
     {% endif %}
@@ -381,7 +440,8 @@ function step3_refine(did) {
             hx-vals='{"detail_id": "{{ detail.id }}"}'
             hx-confirm="Записать РС в 1С:ERP?"
             hx-target="#action-result"
-            class="btn">
+            class="btn"
+            title="Записать ресурсную спецификацию в 1С:ERP (XML-экспорт)">
         📤 Записать в 1С
     </button>
     {% endif %}

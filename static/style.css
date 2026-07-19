@@ -294,3 +294,16 @@ code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px; back
     h1 { font-size: 18px; }
     .role-select { font-size: 11px; }
 }
+
+/* F16.9: A4-13 — print styles */
+@media print {
+    nav, .action-bar, .breadcrumb, button, .btn, form, .navlink { display: none !important; }
+    body { font-size: 11pt; color: black !important; background: white !important; }
+    .tab-content { display: block !important; }
+    .tabs .tab { display: none !important; }
+    h1, h2, h3 { color: black !important; page-break-after: avoid; }
+    table { page-break-inside: avoid; }
+    a { color: black !important; text-decoration: none !important; }
+    .badge { border: 1px solid #333 !important; background: white !important; color: black !important; }
+    mark { background: #fef3c7 !important; }
+}
