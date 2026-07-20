@@ -1,0 +1,28 @@
+{# M24: визуальные карточки альтернатив маршрута #}
+{% if alternatives and alternatives|length > 0 %}
+<div class="alts-list">
+    {% for a in alternatives %}
+    <div class="alt-card">
+        <div class="alt-card-head">
+            <span class="alt-card-variant">Вариант {{ a.variant }}</span>
+            <span class="alt-card-meta">{{ a.n_ops }} операций · {{ a.total_hours }} ч</span>
+        </div>
+        <div class="alt-card-approach">{{ a.approach }}</div>
+        <ol class="alt-route">
+            {% for op in a.route %}
+            <li>
+                <code>{{ op.operation }}</code>
+                <span class="alt-route-hrs">{{ op.duration_hours }} ч</span>
+            </li>
+            {% endfor %}
+        </ol>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty">
+    <div class="empty-icon">🔀</div>
+    <div class="empty-title">{{ message or 'Альтернативы пока недоступны' }}</div>
+    <div class="empty-desc">AI предложит 2-3 варианта маршрута, чтобы сравнить по трудоёмкости и подходу</div>
+</div>
+{% endif %}

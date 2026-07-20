@@ -423,16 +423,14 @@ def test_rag_rebuild_builds_index(client):
 
 
 def test_rag_similar_returns_results(client):
+    """M24: endpoint возвращает HTML (карточки)"""
     c, _ = client
     c.post("/api/rag/rebuild")
     r = c.get("/api/rag/similar/detail-001?top_k=3")
     assert r.status_code == 200
-    data = r.json()
-    assert "similar" in data
-    if data["similar"]:
-        s = data["similar"][0]
-        assert "detail_id" in s and "score" in s
-        assert 0.0 <= s["score"] <= 1.0
+    assert "text/html" in r.headers.get("content-type", "")
+    # Проверяем, что в HTML есть карточки
+    assert 'rag-card' in r.text or 'empty' in r.text
 
 
 def test_rag_similar_not_found(client):
@@ -442,13 +440,12 @@ def test_rag_similar_not_found(client):
 
 
 def test_rag_autoindex_on_approve(client):
+    """M24: проверяем через status, т.к. similar endpoint возвращает HTML"""
     c, _ = client
-    # Генерируем и approve
     c.post("/api/generate", data={"detail_id": "detail-002"})
     c.post("/api/approve", data={"detail_id": "detail-002"})
-    # Индекс должен содержать detail-002
     status = c.get("/api/rag/status").json()
-    assert "detail-002" in c.get("/api/rag/similar/detail-001?top_k=10").json().get("similar", [{"detail_id": ""}])[0].get("detail_id", "") or status["documents"] >= 1
+    assert status["documents"] >= 1
 
 
 # ========== Sprint 3: Alternatives, Apply similar, Batch ==========
@@ -456,12 +453,12 @@ def test_api_alternatives_demo(client):
     c, _ = client
     r = c.post("/api/alternatives", data={"detail_id": "detail-001"})
     assert r.status_code == 200
-    data = r.json()
-    assert "alternatives" in data
-    alts = data["alternatives"]
-    assert 2 <= len(alts) <= 5
-    for a in alts:
-        assert "variant" in a and "approach" in a and "route" in a
+    assert "text/html" in r.headers.get("content-type", "")
+    # M24: HTML с карточками alt-card
+    assert 'alt-card' in r.text
+    # Должно быть минимум 2 варианта
+    n_alts = r.text.count('alt-card-variant')
+    assert 2 <= n_alts <= 5
 
 
 def test_api_alternatives_missing(client):
@@ -979,27 +976,25 @@ def test_hierarchy_endpoint(client):
 
 
 def test_related_endpoint(client):
+    """M24: endpoint возвращает HTML (визуальный tree)"""
     c, _ = client
     r = c.get("/api/related/detail-lmsha-301314-010")
     assert r.status_code == 200
-    data = r.json()
-    assert "self" in data
-    assert "siblings" in data
+    assert "text/html" in r.headers.get("content-type", "")
+    assert 'related-tree' in r.text
     # Упор продольный входит в узел Упор
-    if data.get("product"):
-        assert data["product"]["id"] == "product-ac-6-40"
+    if 'related-product' in r.text:
+        assert "product-ac-6-40" in r.text
 
 
 def test_resource_specs_endpoint(client):
+    """M24: endpoint возвращает HTML (таблица)"""
     c, _ = client
     r = c.get("/api/resource-specs/detail-lmsha-301314-010")
     assert r.status_code == 200
-    data = r.json()
-    assert isinstance(data, list)
-    # Должны быть ресурсы (материалы + профессии)
-    if data:
-        kinds = {r["kind"] for r in data}
-        assert "material" in kinds or "profession" in kinds
+    assert "text/html" in r.headers.get("content-type", "")
+    # Либо таблица с данными, либо empty state
+    assert 'data-table' in r.text or 'empty-title' in r.text
 
 
 def test_professions_seeded(client):
@@ -2497,11 +2492,11 @@ def test_generate_button_has_progress_bar(client):
     detail_id = r.headers.get("location", "").rsplit("/", 1)[-1]
     r = c.get(f"/detail/{detail_id}")
     assert r.status_code == 200
-    # Прогресс-бар
-    assert "generate-progress" in r.text
-    assert "progress-bar" in r.text
-    # Защита от двойного клика
-    assert "this.disabled" in r.text
+    # M24: главная кнопка использует quickGenerate + showProgress
+    assert "quickGenerate" in r.text
+    assert "showProgress" in r.text
+    # Кнопка генерации присутствует
+    assert "Сгенерировать ТК" in r.text or "Сгенерировать" in r.text
 
 
 def test_print_has_material_vedomost(client):

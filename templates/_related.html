@@ -1,0 +1,51 @@
+{# M24: визуальный tree связей вместо JSON #}
+<div class="related-tree">
+    {# Self — текущая деталь #}
+    <div class="related-node related-self">
+        <span class="related-icon">📍</span>
+        <div>
+            <div class="related-designation">{{ self.designation }}</div>
+            <div class="related-name">{{ self.name or '—' }}</div>
+        </div>
+    </div>
+
+    {% if product %}
+    {# Product — изделие верхнего уровня #}
+    <div class="related-arrow">↑</div>
+    <a href="/detail/{{ product.id }}" class="related-node related-product">
+        <span class="related-icon">📦</span>
+        <div>
+            <div class="related-label">Изделие</div>
+            <div class="related-designation">{{ product.designation }}</div>
+            <div class="related-name">{{ product.name or '—' }}</div>
+        </div>
+    </a>
+    {% endif %}
+
+    {% if siblings and siblings|length > 0 %}
+    <div class="related-arrow">⤵</div>
+    <div class="related-siblings">
+        <div class="related-label">Соседние детали ({{ siblings|length }})</div>
+        <div class="related-siblings-list">
+            {% for s in siblings %}
+            <a href="/detail/{{ s.id }}" class="related-sibling">
+                <span class="related-icon">🔗</span>
+                <div>
+                    <div class="related-designation">{{ s.designation }}</div>
+                    <div class="related-name">{{ s.name or '—' }}</div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not product and not siblings %}
+    <div class="related-arrow">∅</div>
+    <div class="empty" style="padding:16px;">
+        <div class="empty-icon">🗂</div>
+        <div class="empty-title">Изолированная деталь</div>
+        <div class="empty-desc">Эта деталь — не часть изделия. Можно добавить parent_id, чтобы связать с другими</div>
+    </div>
+    {% endif %}
+</div>

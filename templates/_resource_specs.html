@@ -1,0 +1,33 @@
+{# M24: таблица ресурсной спецификации вместо JSON #}
+{% if specs and specs|length > 0 %}
+<table class="data-table" style="font-size: 13px;">
+    <thead>
+        <tr>
+            <th>Операция</th>
+            <th>Тип</th>
+            <th>Наименование</th>
+            <th>Кол-во</th>
+            <th>Ед.</th>
+            <th>Примечание</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for s in specs %}
+        <tr>
+            <td><code>{{ s.op_index or '—' }}</code></td>
+            <td><span class="badge" style="background: var(--c-bg-soft); color: var(--c-text-muted);">{{ s.kind or '—' }}</span></td>
+            <td>{{ s.name or '—' }}</td>
+            <td style="text-align:right;">{{ s.quantity or '—' }}</td>
+            <td>{{ s.unit or '' }}</td>
+            <td style="color: var(--c-text-muted); font-size: 12px;">{{ s.notes or '' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty">
+    <div class="empty-icon">📋</div>
+    <div class="empty-title">Ресурсная спецификация пуста</div>
+    <div class="empty-desc">Сначала сгенерируйте ТК. AI заполнит материалы, оборудование и трудозатраты для каждой операции</div>
+</div>
+{% endif %}

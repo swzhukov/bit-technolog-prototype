@@ -299,8 +299,8 @@ function step3_refine(did) {
     <div class="card-header" style="margin-bottom:0;">
         <h3 class="card-title" style="font-size:14px;">🔍 Похожие ТК (RAG)</h3>
     </div>
-    <div id="rag-similar" hx-get="/api/rag/similar/{{ detail.id }}?top_k=3" hx-trigger="load" hx-swap="innerHTML" style="font-size:13px;">
-        ⏳ Загрузка...
+    <div id="rag-similar" hx-get="/api/rag/similar/{{ detail.id }}?top_k=3" hx-trigger="load" hx-swap="innerHTML" class="rag-container">
+        <div class="empty"><div class="empty-icon">⏳</div><div class="empty-title">Идёт подбор похожих ТК...</div></div>
     </div>
 </div>
 
@@ -309,7 +309,7 @@ function step3_refine(did) {
         <h3 class="card-title" style="font-size:14px;">🔀 Альтернативы маршрута</h3>
         <button hx-post="/api/alternatives" hx-vals='{"detail_id": "{{ detail.id }}"}' hx-target="#alts-area" hx-swap="innerHTML" class="btn btn-sm">Показать</button>
     </div>
-    <div id="alts-area" style="font-size:13px;"></div>
+    <div id="alts-area" class="alts-container"></div>
 </div>
 
 {# M22: Ресурсная спецификация — компактный блок, не свёрнутый #}
@@ -318,8 +318,8 @@ function step3_refine(did) {
         <h3 class="card-title" style="font-size:14px;">📋 Ресурсная спецификация (1С:ERP)</h3>
         <a href="/api/1c/export/rs/{{ detail.id }}" target="_blank" class="btn btn-sm">XML</a>
     </div>
-    <div hx-get="/api/resource-specs/{{ detail.id }}" hx-trigger="load" hx-swap="innerHTML" style="font-size:13px;">
-        ⏳ Загрузка РС...
+    <div hx-get="/api/resource-specs/{{ detail.id }}" hx-trigger="load" hx-swap="innerHTML" class="rs-container">
+        <div class="empty"><div class="empty-icon">⏳</div><div class="empty-title">Загрузка РС...</div></div>
     </div>
 </div>
 
@@ -327,8 +327,8 @@ function step3_refine(did) {
     <div class="card-header" style="margin-bottom:0;">
         <h3 class="card-title" style="font-size:14px;">🔗 Связанные детали (иерархия)</h3>
     </div>
-    <div hx-get="/api/related/{{ detail.id }}" hx-trigger="load" hx-swap="innerHTML" style="font-size:13px;">
-        ⏳ Загрузка...
+    <div hx-get="/api/related/{{ detail.id }}" hx-trigger="load" hx-swap="innerHTML" class="related-container">
+        <div class="empty"><div class="empty-icon">⏳</div><div class="empty-title">Загрузка связей...</div></div>
     </div>
 </div>
 
@@ -432,61 +432,30 @@ function step3_refine(did) {
 {% if not draft %}
 {% set cur_role = current_role_from_request(request) %}
 {% if cur_role in ('technologist', 'main_technologist', 'admin') %}
-<div class="action-bar">
+<div class="card" style="margin-top: var(--sp-3);">
+    <div class="card-header">
+        <h3 class="card-title">🪄 Сгенерировать проект ТК (продвинутый режим)</h3>
+    </div>
+    <p class="hint" style="margin: 4px 0 12px 0;">Главная кнопка <strong>«✨ Сгенерировать ТК»</strong> — в header справа. Это альтернативный вход с выбором типа операции (сварка/электрика/гидравлика/покраска).</p>
     <form id="generate-form" hx-post="/api/generate"
           hx-target="#generate-status"
           hx-swap="innerHTML"
-          hx-indicator="#loading"
-          hx-disabled-elt="find button"
           hx-on::after-request="setTimeout(() => location.reload(), 800);"
-          style="display:inline">
+          style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
         <input type="hidden" name="detail_id" value="{{ detail.id }}">
-        <select name="op_type" style="margin-right:8px; padding:6px;">
-            <option value="">🛠 Общая</option>
+        <select name="op_type" style="padding:8px 10px; border:1px solid var(--c-border); border-radius:6px; font-size:14px;">
+            <option value="">🛠 Общая (смешанная)</option>
             <option value="welding">🔥 Сварка</option>
             <option value="electrical">⚡ Электрика</option>
             <option value="hydraulic">💧 Гидравлика</option>
             <option value="paint">🎨 Покраска</option>
         </select>
-        <button type="submit" class="btn btn-primary btn-large"
-                id="generate-btn"
-                onclick="this.disabled=true; this.textContent='⏳ Генерирую...';">
-            🤖 Сгенерировать проект ТК
+        <button type="submit" class="btn btn-primary"
+                onclick="showProgress('Генерация черновой ТК...');">
+            🪄 Сгенерировать
         </button>
+        <span id="generate-status"></span>
     </form>
-    <div id="generate-progress" style="display:none; margin-top:12px;">
-        <div style="background:#e5e7eb; border-radius:4px; height:8px; overflow:hidden;">
-            <div id="progress-bar" style="background:#3b82f6; height:100%; width:0%; transition: width 0.3s;"></div>
-        </div>
-        <p style="font-size:12px; color:#6b7280; margin-top:4px;">
-            ⏳ Генерация (30-60 сек) — <span id="progress-text">Подготовка запроса</span>
-        </p>
-    </div>
-    <script>
-    // Показываем progress-bar и симулируем прогресс
-    document.getElementById('generate-form')?.addEventListener('submit', function() {
-        document.getElementById('generate-progress').style.display = 'block';
-        let pct = 0;
-        const phases = [
-            'Подготовка запроса',
-            'Отправка в YandexGPT',
-            'Анализ свойств детали',
-            'Подбор операций',
-            'Генерация маршрута',
-            'Расчёт времени и материалов',
-            'Финализация'
-        ];
-        let phaseIdx = 0;
-        const tick = setInterval(() => {
-            pct = Math.min(95, pct + 5);
-            document.getElementById('progress-bar').style.width = pct + '%';
-            const newPhase = phases[Math.min(phaseIdx, phases.length - 1)];
-            document.getElementById('progress-text').textContent = newPhase;
-            if (pct > (phaseIdx + 1) * (100 / phases.length)) phaseIdx++;
-        }, 2000);
-        window.addEventListener('beforeunload', () => clearInterval(tick));
-    });
-    </script>
 </div>
 {% else %}
 {# только для ролей, которые могут генерировать #}

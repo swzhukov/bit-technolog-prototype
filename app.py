@@ -1710,13 +1710,14 @@ async def api_professions_list():
 
 # ========== Ресурсная спецификация (РС) ==========
 @app.get("/api/resource-specs/{detail_id}")
-async def api_resource_specs_list(detail_id: str):
+async def api_resource_specs_list(request: Request, detail_id: str):
+    """M24: возвращает HTML вместо JSON"""
     conn = get_conn()
     rows = conn.execute("""SELECT op_index, kind, name, quantity, unit, notes
         FROM resource_specs WHERE detail_id=? ORDER BY op_index, kind""", (detail_id,)).fetchall()
     conn.close()
-    cols = ["op_index", "kind", "name", "quantity", "unit", "notes"]
-    return JSONResponse([dict(zip(cols, r)) for r in rows])
+    specs = [dict(zip(["op_index", "kind", "name", "quantity", "unit", "notes"], r)) for r in rows]
+    return templates.TemplateResponse(request, "_resource_specs.html", {"specs": specs, "request": request})
 
 
 # ========== Иерархия деталь/узел/изделие ==========
@@ -1755,8 +1756,8 @@ async def api_hierarchy():
 
 
 @app.get("/api/related/{detail_id}")
-async def api_related(detail_id: str):
-    """Связанные детали: siblings (тот же узел) + product (изделие)"""
+async def api_related(request: Request, detail_id: str):
+    """Связанные детали: siblings (тот же узел) + product (изделие). M24: HTML вместо JSON"""
     conn = get_conn()
     row = conn.execute("SELECT id, designation, name, parent_id, level FROM details WHERE id=?", (detail_id,)).fetchone()
     if not row:
@@ -1780,7 +1781,7 @@ async def api_related(detail_id: str):
                 if gp_row:
                     product = {"id": gp_row[0], "designation": gp_row[1], "name": gp_row[2]}
     conn.close()
-    return JSONResponse({"self": my, "siblings": siblings, "product": product})
+    return templates.TemplateResponse(request, "_related.html", {"self": my, "siblings": siblings, "product": product, "request": request})
 
 
 # ========== Экспорт РС в 1С:ERP (XML) ==========
@@ -3142,15 +3143,15 @@ async def api_rag_rebuild():
 
 
 @app.get("/api/rag/similar/{detail_id}")
-async def api_rag_similar(detail_id: str, top_k: int = 3):
-    """Sprint 2: top-K похожих техкарт по RAG"""
+async def api_rag_similar(request: Request, detail_id: str, top_k: int = 3):
+    """Sprint 2: top-K похожих техкарт по RAG. M24: возвращает HTML вместо JSON"""
     detail_obj = get_detail(detail_id)
     if not detail_obj:
         return err("not_found", 404)
     try:
         from rag import rag_search
         results = rag_search(detail_obj, top_k=min(top_k, 10))
-        return JSONResponse({"detail_id": detail_id, "similar": results})
+        return templates.TemplateResponse(request, "_rag_similar.html", {"results": results, "request": request})
     except Exception as e:
         return err(str(e)[:200], 500)
 
@@ -3199,8 +3200,8 @@ async def api_alternatives(request: Request):
                        {"step": 2, "operation": "015 Сварка", "duration_hours": 0.8},
                        {"step": 3, "operation": "020 Контроль", "duration_hours": 0.5}]}
         ]
-        return JSONResponse({"alternatives": alts, "mode": "demo", "cost": "1.50₽"})
-    return JSONResponse({"alternatives": [], "mode": "live-stub", "message": "real LLM for alternatives — в v0.5"})
+        return templates.TemplateResponse(request, "_alternatives.html", {"alternatives": alts, "mode": "demo", "cost": "1.50₽", "request": request})
+    return templates.TemplateResponse(request, "_alternatives.html", {"alternatives": [], "mode": "live-stub", "message": "real LLM for alternatives — в v0.5", "request": request})
 
 
 @app.post("/api/apply-similar")

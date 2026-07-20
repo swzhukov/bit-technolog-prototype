@@ -1,0 +1,27 @@
+{# M24: карточки похожих ТК вместо JSON #}
+{% if results and results|length > 0 %}
+<div class="rag-list">
+    {% for r in results %}
+    <a href="/detail/{{ r.detail_id }}" class="rag-card" data-similarity="{{ r.score }}">
+        <div class="rag-card-head">
+            <span class="rag-card-designation">{{ r.metadata.designation or r.detail_id }}</span>
+            <span class="rag-card-score" title="similarity {{ (r.score * 100) | int }}%">
+                {{ (r.score * 100) | int }}%
+            </span>
+        </div>
+        <div class="rag-card-name">{{ r.metadata.name or '—' }}</div>
+        <div class="rag-card-meta">
+            {% if r.metadata.material %}<span>🔩 {{ r.metadata.material }}</span>{% endif %}
+            {% if r.metadata.chassis %}<span>🛻 {{ r.metadata.chassis }}</span>{% endif %}
+            {% if r.metadata.mass_kg %}<span>⚖️ {{ r.metadata.mass_kg }} кг</span>{% endif %}
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty">
+    <div class="empty-icon">🔍</div>
+    <div class="empty-title">Похожих ТК не найдено</div>
+    <div class="empty-desc">Когда появятся утверждённые ТК, AI автоматически подберёт похожие для этой детали</div>
+</div>
+{% endif %}
