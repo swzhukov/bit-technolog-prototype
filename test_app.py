@@ -2978,13 +2978,16 @@ def test_ai_block_visible_for_new_detail(client):
     did = r.headers.get("location", "").rsplit("/", 1)[-1]
     r = c.get(f"/detail/{did}")
     assert r.status_code == 200
-    # Ключевые элементы AI-блока
-    assert '🤖 AI-помощник' in r.text, "AI-помощник summary отсутствует для новой детали"
+    # M23: AI-блок переименован в "Дополнительные опции генерации"
+    assert 'Дополнительные опции генерации' in r.text, "AI-блок отсутствует для новой детали"
     assert '🤔 Уточнить' in r.text, "Кнопка 🤔 Уточнить отсутствует для новой детали"
     assert '⚡ Draft' in r.text, "Кнопка ⚡ Draft отсутствует для новой детали"
     assert 'step1_analyze' in r.text, "JS step1_analyze отсутствует"
-    # И блок открыт по умолчанию для status=new
-    assert '<details class="add-form" style="margin-bottom: 16px;" open' in r.text
+    # M23: AI-блок свёрнут в <details> (advanced), главная CTA в header
+    assert '<details class="add-form" style="margin-bottom: 16px;">' in r.text
+    # Главная CTA в header
+    assert 'id="gen-cta"' in r.text, "Главная кнопка 'Сгенерировать ТК' отсутствует"
+    assert 'quickGenerate' in r.text, "JS quickGenerate отсутствует"
 
 
 # ========== BUG-2026-07-20-03: CSRF protection в JS role-switch ==========

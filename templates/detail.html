@@ -23,11 +23,14 @@
             {% if detail.mass_kg %}<span class="badge" style="background:#f1f5f9; color:#475569;">{{ detail.mass_kg }} кг</span>{% endif %}
         </div>
     </div>
-    {# M22: Главная CTA — один раз, в зависимости от статуса #}
+    {# M23: Главная CTA — одна большая кнопка, в зависимости от статуса. status=new → Сгенерировать, иначе → Утвердить #}
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
         {% set _cur = current_role_from_request(request) %}
         {% if status == "new" and _cur in ('technologist', 'main_technologist', 'admin') %}
-            <button onclick="showApprovePreview()" class="btn btn-primary btn-lg" style="display:none;" id="gen-cta">🤖 Сгенерировать ТК</button>
+            <button type="button" onclick="quickGenerate('{{ detail.id }}')" class="btn btn-primary btn-lg" id="gen-cta">
+                <span class="gen-icon">✨</span> <span class="gen-label">Сгенерировать ТК</span>
+                <span class="gen-cost" style="font-size:12px;opacity:0.7;margin-left:6px;">~3₽ / 30 сек</span>
+            </button>
         {% elif status != "approved" and _cur in ('technologist', 'main_technologist', 'admin') %}
             <button onclick="showApprovePreview()" class="btn btn-success btn-lg">✅ Утвердить</button>
             {% if status == "approved" and _cur in ('technologist', 'main_technologist', 'admin') %}
@@ -113,6 +116,39 @@
 <script>
 {# M4 fix: 3-step flow использует localStorage для передачи answers между шагами #}
 const STORAGE_KEY = function(did) { return `bit_step_${did}`; };
+
+{# M23: quickGenerate — одна кнопка, сразу вызов /api/draft-fast + перезагрузка через 1.5 сек #}
+function quickGenerate(did) {
+    const btn = document.getElementById('gen-cta');
+    if (!btn) return;
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Генерирую...';
+    fetch('/api/draft-fast', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'  // CSRF bypass
+        },
+        body: JSON.stringify({detail_id: did})
+    })
+    .then(r => r.json().then(d => ({status: r.status, body: d})))
+    .then(({status, body}) => {
+        if (status >= 200 && status < 300) {
+            btn.innerHTML = '✅ Готово! Обновляю...';
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            btn.innerHTML = '❌ Ошибка: ' + (body.error || body.detail || status);
+            btn.disabled = false;
+            setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 4000);
+        }
+    })
+    .catch(e => {
+        btn.innerHTML = '❌ ' + e.message;
+        setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 4000);
+    });
+}
 
 function step1_analyze(did) {
     const status = document.getElementById(`step1-status-${did}`);
@@ -319,13 +355,14 @@ function step3_refine(did) {
 
 {# BUG-2026-07-20-02: AI-блок вынесен наружу из {% if draft %}, виден для ВСЕХ статусов (включая new) #}
 {# BUG-2026-07-19-01: AI-блок виден только технологу/гл.технологу/админу #}
+{# M23: AI-блок свёрнут — главная кнопка уже в header, это advanced-опции #}
 {% if current_role_from_request(request) in ('technologist', 'main_technologist', 'admin') %}
-{# F16.8: A4-6 — AI-блок открыт по умолчанию для status=new #}
-<details class="add-form" style="margin-bottom: 16px;" {% if status == "new" %}open{% endif %}>
-    <summary>🤖 AI-помощник: полная генерация техкарты</summary>
+<details class="add-form" style="margin-bottom: 16px;">
+    <summary>⚙️ Дополнительные опции генерации (для опытных)</summary>
+    <p class="hint" style="margin-top:8px;">Продвинутый режим: 3-шаговый flow с уточнениями. Обычно достаточно одной кнопки «✨ Сгенерировать ТК» в header.</p>
     <div class="step-flow" id="step-flow-{{ detail.id }}">
         <div class="step" id="step-analyze-{{ detail.id }}">
-            <strong>Шаг 1.</strong> AI задаёт 3-5 уточняющих вопросов
+            <strong>Шаг 1.</strong> AI задаёт 3-5 уточняющих вопросов (если нужны)
             <button onclick="step1_analyze('{{ detail.id }}')" class="btn btn-sm">🤔 Уточнить</button>
             <span id="step1-status-{{ detail.id }}" class="hint"></span>
             <div id="questions-area-{{ detail.id }}"></div>
@@ -396,7 +433,7 @@ function step3_refine(did) {
 {% set cur_role = current_role_from_request(request) %}
 {% if cur_role in ('technologist', 'main_technologist', 'admin') %}
 <div class="action-bar">
-    <form hx-post="/api/generate"
+    <form id="generate-form" hx-post="/api/generate"
           hx-target="#generate-status"
           hx-swap="innerHTML"
           hx-indicator="#loading"
@@ -413,7 +450,7 @@ function step3_refine(did) {
         </select>
         <button type="submit" class="btn btn-primary btn-large"
                 id="generate-btn"
-                onclick="this.disabled=true; this.textContent='⏳ Генерирую...'; document.getElementById('generate-form').submit();">
+                onclick="this.disabled=true; this.textContent='⏳ Генерирую...';">
             🤖 Сгенерировать проект ТК
         </button>
     </form>
