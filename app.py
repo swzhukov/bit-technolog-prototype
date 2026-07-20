@@ -253,7 +253,7 @@ async def _lifespan(app):
         pass
 
 
-app = FastAPI(title="БИТ.Технолог — Прототип", version="0.4.5", lifespan=_lifespan)
+app = FastAPI(title="БИТ.Технолог — Прототип", version="0.4.18", lifespan=_lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
@@ -3824,7 +3824,7 @@ async def health():
         "api_url": LLM_API_URL if not DEMO_MODE else None,
         "details_count": len(MOCK_DETAILS),
         # V4-11: version + uptime + build date
-        "version": "0.4.9",
+        "version": "0.4.18",
         "build_date": "2026-07-19",
         "git_commit": _GIT_COMMIT,  # V7-2
         "uptime_sec": int(time.time() - _APP_START_TS) if '_APP_START_TS' in dir() else 0,
