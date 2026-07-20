@@ -490,7 +490,8 @@ async def admin_backup(request: Request):
     if get_current_role(request) != "admin":
         return HTMLResponse("<h1>403</h1>", status_code=403)
     # Список существующих бэкапов
-    backup_dir = os.path.dirname(DB_PATH) + "/backups"
+    db_dir = os.path.dirname(DB_PATH) or "."
+    backup_dir = os.path.join(db_dir, "backups")
     backups = []
     if os.path.isdir(backup_dir):
         for f in sorted(os.listdir(backup_dir), reverse=True)[:20]:
