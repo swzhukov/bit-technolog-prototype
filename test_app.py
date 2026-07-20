@@ -3149,3 +3149,45 @@ def test_settings_page_shows_flash_message(client):
     assert "✅ Сохранено" in r.text
     assert "LLM_API_KEY" in r.text
     assert "проверен через YandexGPT" in r.text or "проверьте" in r.text.lower()
+
+
+# ========== M20: ВСЕ fetch POST в JS должны слать X-Requested-With ==========
+
+def test_all_fetch_post_have_csrf_header():
+    """M20: проверяем ВСЕ fetch POST в templates/*.html — должен быть X-Requested-With.
+    Защита от регрессий: добавил JS fetch, забыл X-Requested-With — CSRF блокирует."""
+    import re
+    from pathlib import Path
+    issues = []
+    for f in Path("templates").glob("*.html"):
+        content = f.read_text()
+        # Находим все fetch( ... { ... } ) с балансировкой скобок
+        for m in re.finditer(r'fetch\s*\(', content):
+            # Найти matching close paren
+            start = m.end()
+            depth = 1
+            i = start
+            while i < len(content) and depth > 0:
+                if content[i] == '(':
+                    depth += 1
+                elif content[i] == ')':
+                    depth -= 1
+                i += 1
+            body = content[start:i-1]
+            if "method" in body and re.search(r"['\"]POST['\"]|['\"]PUT['\"]|['\"]DELETE['\"]", body):
+                if "X-Requested-With" not in body and "hx-post" not in body:
+                    issues.append(f"{f.name}: fetch() body[:200]={body[:200]!r}")
+    assert not issues, f"Found {len(issues)} fetch POST без X-Requested-With:\n" + "\n".join(issues[:5])
+
+
+def test_ai_buttons_have_csrf_safe_fetch():
+    """M20: /api/analyze, /api/draft-fast, /api/refine — CSRF-safe"""
+    from pathlib import Path
+    content = Path("templates/detail.html").read_text()
+    for endpoint in ("/api/analyze", "/api/draft-fast", "/api/refine"):
+        # Найти fetch с этим endpoint
+        idx = content.find(f"fetch('{endpoint}'")
+        assert idx >= 0, f"{endpoint} not found in detail.html"
+        # В окне 500 символов должен быть X-Requested-With
+        chunk = content[idx:idx+500]
+        assert "X-Requested-With" in chunk, f"{endpoint} fetch без X-Requested-With"

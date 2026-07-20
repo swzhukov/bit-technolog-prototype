@@ -87,7 +87,11 @@ function step1_analyze(did) {
     status.textContent = '⏳ AI думает...';
     fetch('/api/analyze', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'  // CSRF bypass
+        },
         body: JSON.stringify({detail_id: did})
     })
     .then(r => r.json())
@@ -146,7 +150,11 @@ function step2_draft_fast(did) {
     status.textContent = '⏳ Генерация draft...';
     fetch('/api/draft-fast', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'  // CSRF bypass
+        },
         body: JSON.stringify({detail_id: did, answers: JSON.stringify(answers)})
     })
     .then(r => r.json())
@@ -183,7 +191,11 @@ function step3_refine(did) {
     }, 1000);
     fetch('/api/refine', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'  // CSRF bypass
+        },
         body: JSON.stringify({detail_id: did, draft: '{}', answers: JSON.stringify(answers)})
     })
     .then(r => r.json())
@@ -888,7 +900,7 @@ function submitApprove() {
     btn.textContent = '⏳ Утверждаю...';
     const fd = new FormData();
     fd.append('detail_id', '{{ detail.id }}');
-    fetch('/api/approve', {method: 'POST', body: fd})
+    fetch('/api/approve', {method: 'POST', credentials: 'same-origin', body: fd, headers: {'X-Requested-With': 'XMLHttpRequest'}})
         .then(r => r.json())
         .then(d => {
             if (d.ok) location.reload();
@@ -969,7 +981,11 @@ function submitApprove() {
         } else {
             fetch('/api/pilot/session-start', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
                 body: JSON.stringify({detail_id: detailId})
             }).catch(() => {});
         }

@@ -85,14 +85,14 @@
 <script>
 async function runBackup() {
     if (!confirm('Запустить бэкап?')) return;
-    const r = await fetch('/api/admin/backup', {method: 'POST'});
+    const r = await fetch('/api/admin/backup', {method: 'POST', credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}});
     const data = await r.json();
     alert(data.ok ? 'Бэкап выполнен' : ('Ошибка: ' + (data.stderr || data.error)));
     location.reload();
 }
 async function rebuildRag() {
     if (!confirm('Переиндексировать RAG?')) return;
-    const r = await fetch('/api/admin/rag-rebuild', {method: 'POST'});
+    const r = await fetch('/api/admin/rag-rebuild', {method: 'POST', credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}});
     const data = await r.json();
     alert(data.ok ? 'RAG переиндексирован' : ('Ошибка: ' + data.error));
     location.reload();
