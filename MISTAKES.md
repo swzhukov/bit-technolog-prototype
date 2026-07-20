@@ -375,3 +375,68 @@
 - `status == "approved"` → ↩️ Вернуть в работу
 
 **Production:** /health → 200, commit=a4228b5, 267/267 tests passing.
+
+# M28 (2026-07-20): Process redesign — PDF/DXF/КОМПАС upload → AI распознавание → генерация ТК
+
+**Контекст:** пилот через 5 дней (27 июля). Workflow технолога:
+получил деталь → смотрит чертёж (PDF/DWG) → заполняет карточку → генерирует ТК.
+
+**Раньше:** технолог вручную вводил designation, material, mass_kg и т.д.
+**Теперь:** загружает чертёж → AI распознаёт → предзаполняет → технолог подтверждает → генерирует.
+
+**Что сделано:**
+
+## 1. Загружены реальные данные Техинкома
+
+### 27 единиц оборудования (vs 8 в production БД)
+- DOCX "Список оборудования на 2025 год" распарсен
+- Залито в production БД: BEFORE 207 → AFTER 234
+- Категории: Токарный (5), Сверлильный (7), Фрезерный (1), Раскрой (5), Гибка (3), Лазер (2), Маркировка (1), Сборка (1)
+- source='tehinkom_docx_2025', external_id='ZP-371' (Заготовительное производство) и т.д.
+
+### 5 цехов с 36 операциями
+- DOCX "Участки производства" распарсен
+- Создан `workshops_tehinkom.py` с `TECHINKOM_WORKSHOPS_CONTEXT` (2190 символов)
+- Контекст подставляется в `$workshops_context` в `TECH_CARD_PROMPT` и `REFINE_PROMPT`
+- LLM теперь знает РЕАЛЬНЫЕ операции Техинкома и использует их в маршрутах
+
+## 2. PDF/PNG/JPG распознавание (drawing_recognize.py)
+
+### Pipeline
+1. `pdftoppm -r 300 -gray` → PNG (300 dpi grayscale)
+2. `tesseract -l rus+eng --psm 6` → текст
+3. Regex-извлечение: designation, material, material_grade, dimensions, thickness_mm, mass_kg, blank_type
+4. Confidence 0-100 + warnings
+
+### Endpoint
+- `POST /api/drawing/recognize` (HTML partial) — для уже загруженного чертежа
+- Авто-OCR после upload через `/api/import/drawing/{id}` (если PDF/PNG/JPG)
+- UI: кнопка "🔍 Распознать чертёж" в "Ещё > Чертёж"
+- Кнопка "✨ Применить к детали" → POST `/api/details/{id}/apply-ocr` (CSRF + auth)
+
+### Производство зависимостей
+- Установлено на Beget: `apt-get install -y poppler-utils tesseract-ocr tesseract-ocr-rus`
+- Без этого — endpoint отвечает "No such file or directory: /usr/bin/pdftoppm"
+- На sandbox есть из коробки (`/usr/bin/pdftoppm` + `tesseract` + скачанный `rus.traineddata`)
+
+## 3. Тестирование
+
+- 272/272 tests passing (стабильно)
+- Test endpoint: detail_id='TEST_OCR_DRAWING' → PDF 4c85941a → 1 страница, 502 символа, confidence 30%
+- Реальный чертёж e46a0a90 (маленький, 1 стр): обозначение 03-ТВ.30.119.01 извлечено
+- OCR больших PDF (4c85941a с 30+ страниц) — долго (5-10 мин), работает
+
+## 4. Что НЕ сделано (out of scope M28)
+
+- Чертёж → AI анализ геометрии (LMSHA.301314.010 — это просто обозначение, не размеры)
+- КОМПАС-3D .cdw парсинг (нужен КОМПАС или конвертер)
+- Автоопределение заготовки (лист/труба/пруток) — пока только regex
+- "Уточняющие вопросы ТОЛЬКО по неочевидному" — пока LLM генерирует всё
+
+## 5. MISTAKES (новые)
+
+- ❌ **PDF — это скан, нужен OCR**: pdftotext возвращает пусто, нужно tesseract
+- ❌ **На Beget нет pdftoppm и tesseract по умолчанию**: установить poppler-utils + tesseract-ocr-rus
+- ❌ **Детали в БД на production ≠ детали в local БД**: drawing_path нужно заполнять руками или через /api/import/drawing
+- ❌ **workshop-ы в DOCX имеют разный формат**: оглавление (cell[0]="Уч-к X", cell[1]="") vs operations (cell[0]="", cell[1]="Уч-к X | Операция"). Парсер должен понимать оба.
+- ❌ **Первый workshop в DOCX = оглавление (без операций)**: фильтровать по `len(operations) > 0`
