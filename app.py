@@ -424,6 +424,7 @@ async def add_daily_cost(request: Request, call_next):
 from prompts import TECH_CARD_PROMPT
 from mock_data import MOCK_DETAILS
 from few_shot import FEW_SHOT_4C85941A, get_relevant_few_shot
+from workshops_tehinkom import TECHINKOM_WORKSHOPS_CONTEXT
 
 with open("equipment.json", "r", encoding="utf-8") as f:
     EQUIPMENT = json.load(f)
@@ -2743,6 +2744,7 @@ async def api_refine(request: Request):
                 few_shot_json=json.dumps(FEW_SHOT_4C85941A, indent=2, ensure_ascii=False),
                 tech_rules="(правила не указаны)",
                 rules_block=rules_block,
+                workshops_context=TECHINKOM_WORKSHOPS_CONTEXT,
                 draft_json=json.dumps(draft_dict, indent=2, ensure_ascii=False),
                 answers_json=json.dumps(answers_dict, indent=2, ensure_ascii=False),
                 similar_block=similar_block
@@ -2858,7 +2860,8 @@ async def generate(request: Request):
                 structure_json=json.dumps(STRUCTURE, indent=2, ensure_ascii=False),
                 few_shot_json=json.dumps(FEW_SHOT_4C85941A, indent=2, ensure_ascii=False),
                 tech_rules="(правила не указаны)",
-                rules_block=rules_block
+                rules_block=rules_block,
+                workshops_context=TECHINKOM_WORKSHOPS_CONTEXT
             )
 
             log.info(f"Calling {LLM_MODEL} via {LLM_API_URL}...")
@@ -3316,7 +3319,8 @@ async def api_batch_generate(request: Request):
                     structure_json=json.dumps(STRUCTURE, indent=2, ensure_ascii=False),
                     few_shot_json=json.dumps(FEW_SHOT_4C85941A, indent=2, ensure_ascii=False),
                     tech_rules="(правила не указаны)",
-                    rules_block=""
+                    rules_block="",
+                    workshops_context=TECHINKOM_WORKSHOPS_CONTEXT
                 )
                 response = client.chat.completions.create(
                     model=LLM_MODEL,
