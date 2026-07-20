@@ -85,7 +85,7 @@
             {% endif %}
         </div>
     {% else %}
-        {# Сводка маршрута — одна строка #}
+        {# Сводка маршрута — одна строка (без кнопки Перегенерировать — она вкладке Ещё) #}
         <div class="route-summary">
             <div class="route-summary-item">
                 <span class="route-summary-label">Операций</span>
@@ -96,59 +96,113 @@
                 <span class="route-summary-value">{{ "%.1f"|format(draft.operations|sum(attribute='duration_hours') or 0) }} ч</span>
             </div>
             <div class="route-summary-item">
-                <span class="route-summary-label">Сложность</span>
-                <span class="route-summary-value">{{ draft.summary.complexity if draft.summary else '—' }}</span>
+                <span class="route-summary-label">Цехов</span>
+                <span class="route-summary-value">{{ draft.operations|map(attribute='department')|select|unique|list|length }}</span>
             </div>
-            {% if _cur in ('technologist', 'main_technologist', 'admin') %}
-            <div class="route-summary-actions">
-                <button type="button" class="btn btn-sm" onclick="generateTK('{{ detail.id }}', this, true)">🔄 Перегенерировать</button>
-            </div>
-            {% endif %}
         </div>
 
-        {# Список операций — inline-edit #}
-        <div class="ops-list">
-            {% for op in draft.operations %}
-            <div class="op-card" data-op-id="{{ op.id }}">
-                <div class="op-card-head">
-                    <code class="op-index">{{ op.op_index or loop.index|string + '0' }}</code>
-                    <input type="text" class="op-name" value="{{ op.name }}"
-                           onblur="editOp('{{ detail.id }}', '{{ op.id }}', 'name', this.value)"
-                           placeholder="Название операции">
-                    <span class="op-duration">
-                        <input type="number" step="0.1" class="op-hours" value="{{ op.duration_hours or 0 }}"
-                               onblur="editOp('{{ detail.id }}', '{{ op.id }}', 'duration_hours', this.value)">
-                        <span class="op-hours-unit">ч</span>
+        {# M26: Маршрут с расцеховкой — операции группируются по цехам (department) #}
+        {# Собираем уникальные цеха в порядке появления #}
+        {% set ns = namespace(workshops=[], seen=[]) %}
+        {% for op in draft.operations %}
+            {% if op.department and op.department not in ns.seen %}
+                {% set ns.workshops = ns.workshops + [op.department] %}
+                {% set ns.seen = ns.seen + [op.department] %}
+            {% endif %}
+        {% endfor %}
+
+        <div class="route-workshops">
+            {% for ws_name in ns.workshops %}
+            <div class="workshop-block">
+                <div class="workshop-head">
+                    <span class="workshop-icon">🏭</span>
+                    <strong>{{ ws_name }}</strong>
+                    <span class="workshop-count">
+                        {{ draft.operations|selectattr('department', 'equalto', ws_name)|list|length }} оп. ·
+                        {{ "%.1f"|format(draft.operations|selectattr('department', 'equalto', ws_name)|sum(attribute='duration_hours'))|float }} ч
                     </span>
-                    <button type="button" class="op-del" onclick="delOp('{{ detail.id }}', '{{ op.id }}', this)" title="Удалить операцию">🗑</button>
                 </div>
-                <div class="op-card-body">
-                    <div class="op-field">
-                        <label>Оборудование</label>
-                        <input list="eq-list" type="text" class="op-equipment" value="{{ op.equipment or '' }}"
-                               onblur="editOp('{{ detail.id }}', '{{ op.id }}', 'equipment', this.value)"
-                               placeholder="Например: Сварочный аппарат Кедр-300">
-                    </div>
-                    <div class="op-field">
-                        <label>Материал</label>
-                        <input type="text" class="op-material" value="{{ op.material or '' }}"
-                               onblur="editOp('{{ detail.id }}', '{{ op.id }}', 'material', this.value)"
-                               placeholder="Например: Сталь 09Г2С, 5мм">
-                    </div>
-                    <div class="op-field op-field-sm">
-                        <label>Профессия</label>
-                        <input type="text" class="op-profession" value="{{ op.profession or '' }}"
-                               onblur="editOp('{{ detail.id }}', '{{ op.id }}', 'profession', this.value)"
-                               placeholder="Сварщик 4р">
-                    </div>
-                    <div class="op-field op-field-sm">
-                        <label>Разряд</label>
-                        <input type="number" min="1" max="6" class="op-rank" value="{{ op.rank or 4 }}"
-                               onblur="editOp('{{ detail.id }}', '{{ op.id }}', 'rank', this.value)">
-                    </div>
+                <div class="ops-list">
+                    {% for op in draft.operations %}
+                        {% if op.department == ws_name %}
+                        {% set op_key = op.op_index|string if op.op_index else loop.index|string %}
+                        <div class="op-card" data-op-id="{{ op_key }}">
+                            <div class="op-card-head">
+                                <code class="op-index">{{ op.op_index or (loop.index * 10)|string }}</code>
+                                <input type="text" class="op-name" value="{{ op.name }}"
+                                       onblur="editOp('{{ detail.id }}', '{{ op_key }}', 'name', this.value)"
+                                       placeholder="Название операции">
+                                <span class="op-duration">
+                                    <input type="number" step="0.1" class="op-hours" value="{{ op.duration_hours or 0 }}"
+                                           onblur="editOp('{{ detail.id }}', '{{ op_key }}', 'duration_hours', this.value)">
+                                    <span class="op-hours-unit">ч</span>
+                                </span>
+                                {% if op.confidence %}
+                                <span class="op-confidence" title="AI уверенность: {{ op.confidence }}%">
+                                    {% if op.confidence >= 80 %}🟢{% elif op.confidence >= 50 %}🟡{% else %}🔴{% endif %}
+                                </span>
+                                {% endif %}
+                                <button type="button" class="op-del" onclick="delOp('{{ detail.id }}', '{{ op_key }}', this)" title="Удалить операцию">🗑</button>
+                            </div>
+                            <div class="op-card-body">
+                                <div class="op-field">
+                                    <label>Оборудование</label>
+                                    <input list="eq-list" type="text" class="op-equipment" value="{{ op.equipment or '' }}"
+                                           onblur="editOp('{{ detail.id }}', '{{ op_key }}', 'equipment', this.value)"
+                                           placeholder="Например: Сварочный аппарат Кедр-300">
+                                </div>
+                                <div class="op-field">
+                                    <label>Рабочее место</label>
+                                    <input type="text" class="op-workplace" value="{{ op.workplace or '' }}"
+                                           onblur="editOp('{{ detail.id }}', '{{ op_key }}', 'workplace', this.value)"
+                                           placeholder="Например: 01/01/04">
+                                </div>
+                                <div class="op-field op-field-sm">
+                                    <label>Профессия</label>
+                                    <input type="text" class="op-profession" value="{{ op.profession or '' }}"
+                                           onblur="editOp('{{ detail.id }}', '{{ op_key }}', 'profession', this.value)"
+                                           placeholder="Сварщик 4р">
+                                </div>
+                                <div class="op-field op-field-sm">
+                                    <label>Разряд</label>
+                                    <input type="number" min="1" max="6" class="op-rank" value="{{ op.rank or 4 }}"
+                                           onblur="editOp('{{ detail.id }}', '{{ op_key }}', 'rank', this.value)">
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
                 </div>
             </div>
             {% endfor %}
+
+            {# Операции без цеха (fallback) #}
+            {% set no_ws = draft.operations|rejectattr('department')|list %}
+            {% if no_ws %}
+            <div class="workshop-block workshop-block-empty">
+                <div class="workshop-head">
+                    <span class="workshop-icon">⚠️</span>
+                    <strong>Без цеха (заполните)</strong>
+                </div>
+                <div class="ops-list">
+                    {% for op in no_ws %}
+                    {% set op_key = 'noidx-' ~ loop.index %}
+                    <div class="op-card" data-op-id="{{ op_key }}">
+                        <div class="op-card-head">
+                            <code class="op-index">{{ loop.index * 10 }}</code>
+                            <input type="text" class="op-name" value="{{ op.name }}"
+                                   onblur="editOp('{{ detail.id }}', '{{ op_key }}', 'name', this.value)">
+                            <span class="op-duration">
+                                <input type="number" step="0.1" class="op-hours" value="{{ op.duration_hours or 0 }}"
+                                       onblur="editOp('{{ detail.id }}', '{{ op_key }}', 'duration_hours', this.value)">
+                                <span class="op-hours-unit">ч</span>
+                            </span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
         </div>
         <datalist id="eq-list">
             {% for eq in all_equipment %}<option value="{{ eq }}">{% endfor %}
@@ -239,7 +293,25 @@
 
 {# ===== Вкладка: ЕЩЁ ===== #}
 <section class="tab-panel {% if active_tab == 'more' %}active{% endif %}" id="panel-more" role="tabpanel">
+
+    {# M26: RAG — компактный блок (когда технолог сомневается, посмотреть аналоги) #}
+    <div class="more-section">
+        <h3>🔍 Похожие техкарты</h3>
+        <p class="hint">AI подобрал детали с похожими параметрами (материал, масса, шасси). Если устраивает чужая ТК — откройте её, возьмите маршрут за основу.</p>
+        <div hx-get="/api/rag/similar/{{ detail.id }}?top_k=3" hx-trigger="load" hx-swap="innerHTML" class="rag-compact">
+            <div class="empty"><div class="empty-icon">⏳</div><div class="empty-title">Подбираю аналоги...</div></div>
+        </div>
+    </div>
+
     <div class="more-grid">
+        <div class="more-card">
+            <h3>🔀 Альтернативы маршрута</h3>
+            <p class="hint">2-3 варианта технологии (TIG, MIG, без термообработки и т.д.)</p>
+            <button hx-post="/api/alternatives" hx-vals='{"detail_id": "{{ detail.id }}"}'
+                    hx-target="#alts-area" hx-swap="innerHTML" class="btn btn-sm">🔀 Показать альтернативы</button>
+            <div id="alts-area" class="alts-compact"></div>
+        </div>
+
         <div class="more-card">
             <h3>📐 Чертёж</h3>
             {% if detail.drawing_path %}
@@ -272,11 +344,30 @@
         </div>
 
         <div class="more-card">
-            <h3>📊 Экспорт</h3>
-            <p class="hint">Когда ТК утверждена</p>
+            <h3>📋 Ресурсная спецификация (1С:ERP)</h3>
+            <p class="hint">Материалы и профессии по операциям</p>
+            <div hx-get="/api/resource-specs/{{ detail.id }}" hx-trigger="load" hx-swap="innerHTML" class="rs-compact">
+                <div class="empty"><div class="empty-icon">⏳</div></div>
+            </div>
+            <a href="/api/1c/export/rs/{{ detail.id }}" target="_blank" class="btn btn-sm" style="margin-top:8px;">📤 XML для 1С</a>
+        </div>
+
+        <div class="more-card">
+            <h3>🔗 Связанные детали (иерархия)</h3>
+            <p class="hint">Изделие, узел, соседние детали</p>
+            <div hx-get="/api/related/{{ detail.id }}" hx-trigger="load" hx-swap="innerHTML" class="related-compact">
+                <div class="empty"><div class="empty-icon">⏳</div></div>
+            </div>
+        </div>
+
+        <div class="more-card">
+            <h3>📊 Экспорт / Перегенерация</h3>
+            <p class="hint">Печатать когда ТК утверждена; перегенерировать когда не устраивает</p>
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
                 <a href="/detail/{{ detail.id }}/print" target="_blank" class="btn btn-sm">📄 PDF</a>
-                <a href="/api/1c/export/rs/{{ detail.id }}" target="_blank" class="btn btn-sm">📤 1С:ERP XML</a>
+                {% if _cur in ('technologist', 'main_technologist', 'admin') %}
+                <button type="button" class="btn btn-sm btn-warn" onclick="generateTK('{{ detail.id }}', this, true)">🔄 Перегенерировать ТК</button>
+                {% endif %}
             </div>
         </div>
     </div>

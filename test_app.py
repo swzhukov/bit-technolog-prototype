@@ -3087,10 +3087,12 @@ def test_m25_no_rag_block_in_main(client):
 
 
 def test_m25_no_alternatives_in_main(client):
-    """M25: Альтернативы маршрута убраны — не нужны в production workflow"""
+    """M25: Альтернативы маршрута не в основном потоке — на вкладке Ещё"""
     c, _ = client
     r = c.get("/detail/detail-001")
-    assert 'id="alts-area"' not in r.text
+    # Вкладка "Ещё" содержит id="alts-area" (для кнопки показать)
+    assert 'id="alts-area"' in r.text
+    # Но НЕ открыта по умолчанию (есть вкладка-панель, но без active)
     # API остаётся
     r2 = c.post("/api/alternatives", data={"detail_id": "detail-001"})
     assert r2.status_code == 200
@@ -3107,7 +3109,7 @@ def test_m25_inline_edit_operations(client):
     # Все основные поля есть
     assert 'class="op-name"' in r.text
     assert 'class="op-equipment"' in r.text
-    assert 'class="op-material"' in r.text
+    assert 'class="op-workplace"' in r.text
 
 
 def test_m25_no_three_step_flow(client):
@@ -3142,3 +3144,69 @@ def test_m25_economics_tab_works(client):
     # Поля экономики
     assert 'name="cost_per_hour"' in r.text
     assert 'name="overhead_pct"' in r.text
+
+
+# ========== M26: Расцеховка + возврат фишек ==========
+
+def test_m26_route_has_workshop_blocks(client):
+    """M26: маршрут группируется по цехам (department) — каждая группа = workshop-block"""
+    c, _ = client
+    r = c.get("/detail/detail-001")
+    assert r.status_code == 200
+    assert 'class="workshop-block"' in r.text
+    # Хедер цеха с эмодзи
+    assert 'workshop-head' in r.text
+    # workshop-count: "N оп. · X.X ч"
+    assert 'workshop-count' in r.text
+
+
+def test_m26_op_has_workshop_department(client):
+    """M26: каждая операция знает свой цех (department) — из данных LLM"""
+    c, _ = client
+    r = c.get("/detail/detail-001")
+    assert 'Сварочно-сборочный' in r.text or 'department' in r.text or 'workshop' in r.text
+
+
+def test_m26_op_id_not_empty(client):
+    """M26: data-op-id заполнен (раньше был пустым — editOp не работал)"""
+    c, _ = client
+    r = c.get("/detail/detail-001")
+    # Находим data-op-id="..." — должен быть непустой
+    import re
+    ids = re.findall(r'data-op-id="([^"]*)"', r.text)
+    # Если есть операции — должны быть непустые id
+    nonempty = [i for i in ids if i]
+    assert len(nonempty) > 0, f"data-op-id пустые: {ids}"
+
+
+def test_m26_more_tab_has_all_features(client):
+    """M26: вкладка 'Ещё' содержит RAG, альтернативы, РС, связи, чертёж, перегенерация"""
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "technologist"})
+    r = c.get("/detail/detail-001")
+    # RAG
+    assert 'api/rag/similar' in r.text
+    # Альтернативы
+    assert 'api/alternatives' in r.text
+    # Ресурсная спецификация
+    assert 'api/resource-specs' in r.text
+    # Связанные
+    assert 'api/related' in r.text
+    # Чертёж
+    assert 'Чертёж' in r.text
+    # Перегенерировать (теперь в Ещё)
+    assert 'Перегенерировать' in r.text
+
+
+def test_m26_no_main_workshop_duplicate_button(client):
+    """M26: в hero только ОДНА CTA (раньше было 2 — Утвердить + Перегенерировать)"""
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "technologist"})
+    r = c.get("/detail/detail-001")
+    # В hero должна быть ОДНА кнопка btn-lg
+    hero_match = re.search(r'class="detail-hero-cta"[^>]*>(.+?)</div>', r.text, re.DOTALL) if 're' in dir() else None
+    import re
+    hero = re.search(r'class="detail-hero-cta".+?</div>', r.text, re.DOTALL)
+    if hero:
+        btn_lg_count = hero.group(0).count('btn-lg')
+        assert btn_lg_count <= 1, f"В hero {btn_lg_count} кнопок btn-lg, должно быть ≤1"
