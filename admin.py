@@ -303,11 +303,18 @@ async def admin_settings_page(request: Request):
 
 @router.post("/api/admin/settings/set")
 async def api_admin_set_setting(request: Request):
+    """M19: после сохранения — redirect на /admin/settings с flash-сообщением.
+    Для LLM_API_KEY — валидация через HEAD/GET к YandexGPT API перед сохранением."""
+    from fastapi.responses import RedirectResponse
     from app import set_setting
     from settings import SETTING_REGISTRY, _mask_value
+    import os
+    import httpx
+
     _, _, _, err, _get_param, _require_admin_or_json, _ = _get_templates_db_path_roles()
     err_resp = _require_admin_or_json(request)
     if err_resp: return err_resp
+
     key = await _get_param(request, "key")
     value = await _get_param(request, "value")
     if not key:
@@ -315,6 +322,33 @@ async def api_admin_set_setting(request: Request):
     valid_keys = {s[0] for s in SETTING_REGISTRY}
     if key not in valid_keys:
         return err(f"unknown setting: {key}", 400)
+
+    # M19: валидация LLM ключа перед сохранением
+    if key == "LLM_API_KEY" and value:
+        api_url = os.getenv("LLM_API_URL", "https://llm.api.cloud.yandex.net/v1").rstrip("/")
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                # /v1/models — эндпоинт для проверки доступа (не тратит токены)
+                r = await client.get(
+                    f"{api_url}/models",
+                    headers={
+                        "Authorization": f"Api-Key {value}",
+                        "x-folder-id": os.getenv("LLM_FOLDER_ID", ""),
+                    },
+                )
+                if r.status_code == 401:
+                    return err("LLM_API_KEY невалидный (401 Unauthorized). Проверьте ключ в Yandex Cloud.", 400)
+                if r.status_code == 403:
+                    return err("LLM_API_KEY невалидный (403 Forbidden). Проверьте folder_id.", 400)
+                if r.status_code >= 500:
+                    return err(f"YandexGPT API недоступен ({r.status_code}). Попробуйте позже.", 503)
+                if r.status_code not in (200, 404):  # 404 = неправильный URL, но ключ валидный
+                    return err(f"LLM_API_KEY неожиданный ответ: {r.status_code}", 400)
+        except httpx.TimeoutException:
+            return err("Timeout при проверке LLM_API_KEY (10 сек). YandexGPT недоступен?", 504)
+        except Exception as e:
+            return err(f"Ошибка проверки LLM_API_KEY: {str(e)[:200]}", 500)
+
     reg = next(s for s in SETTING_REGISTRY if s[0] == key)
     if reg[1] == "int" and value:
         try:
@@ -324,6 +358,19 @@ async def api_admin_set_setting(request: Request):
     if reg[1] == "bool" and value not in ("true", "false", "1", "0", ""):
         return err(f"{key} must be true/false", 400)
     ok = set_setting(key, value or "", updated_by=getattr(request.state, "current_role", "admin"))
+    if not ok:
+        return err("set_setting failed (db error)", 500)
+
+    # M19: после успешного сохранения — redirect на /admin/settings с flash-сообщением
+    # Если запрос пришёл из формы (Accept: text/html) — редирект
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept:
+        masked = _mask_value(value) if (reg[4] and value) else (value[:50] if value else "")
+        # Используем cookie для flash-сообщения
+        response = RedirectResponse(url="/admin/settings?ok=1&key=" + key, status_code=303)
+        return response
+
+    # API-вызовы получают JSON
     return JSONResponse({
         "ok": ok, "key": key,
         "value_masked": _mask_value(value) if (reg[4] and value) else (value[:100] if value else "")

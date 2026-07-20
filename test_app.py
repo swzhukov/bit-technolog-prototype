@@ -3103,3 +3103,49 @@ def test_kpi_cards_have_colors(client):
     assert "stat-draft" in r.text
     assert "stat-approved" in r.text
     assert "stat-total" in r.text
+
+
+# ========== M19: валидация LLM_API_KEY + redirect после сохранения ==========
+
+def test_settings_save_redirects_with_flash(client):
+    """M19: после сохранения настройки — 303 redirect на /admin/settings (не JSON)"""
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "admin"})
+    # Симулируем form-submit (Accept: text/html)
+    r = c.post("/api/admin/settings/set",
+               data={"key": "LLM_DAILY_COST_LIMIT_RUB", "value": "300"},
+               headers={"Accept": "text/html", "X-Requested-With": "XMLHttpRequest"},
+               follow_redirects=False)
+    assert r.status_code in (303, 302), f"expected redirect, got {r.status_code}: {r.text[:200]}"
+    assert "/admin/settings" in r.headers.get("location", "")
+    assert "ok=1" in r.headers.get("location", "")
+
+
+def test_settings_save_invalidates_bad_llm_key(client):
+    """M19: невалидный LLM_API_KEY должен быть отклонён (не 200 ok)"""
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "admin"})
+    # Мок YandexGPT чтобы вернул 401
+    import os
+    os.environ["LLM_API_URL"] = "http://localhost:1"  # connection refused
+    try:
+        r = c.post("/api/admin/settings/set",
+                   data={"key": "LLM_API_KEY", "value": "bad-key-12345"},
+                   headers={"Accept": "application/json"})
+        # Должен быть 4xx или 5xx, не 200
+        assert r.status_code >= 400, f"expected error, got {r.status_code}: {r.text[:200]}"
+        body = r.json()
+        assert body.get("ok") in (False, None)
+    finally:
+        del os.environ["LLM_API_URL"]
+
+
+def test_settings_page_shows_flash_message(client):
+    """M19: на /admin/settings?ok=1&key=X должен быть flash-баннер"""
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "admin"})
+    r = c.get("/admin/settings?ok=1&key=LLM_API_KEY")
+    assert r.status_code == 200
+    assert "✅ Сохранено" in r.text
+    assert "LLM_API_KEY" in r.text
+    assert "проверен через YandexGPT" in r.text or "проверьте" in r.text.lower()

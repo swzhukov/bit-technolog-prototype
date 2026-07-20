@@ -3,6 +3,21 @@
 {% block content %}
 <div class="breadcrumb"><a href="/admin">← К дашборду</a></div>
 <h1>⚙ Глобальные настройки</h1>
+
+{# M19: flash-сообщение после сохранения #}
+{% if request.query_params.get('ok') == '1' %}
+<div class="alert" style="background:#d1fae5; border-left:4px solid #10b981; padding:12px 16px; border-radius:6px; margin-bottom:16px;">
+    <strong>✅ Сохранено:</strong> <code>{{ request.query_params.get('key', '?') }}</code> успешно записан.
+    {% if request.query_params.get('key') == 'LLM_API_KEY' %}
+    Ключ проверен через YandexGPT API. Проверьте <a href="/health">/health</a> — <code>dependencies.llm</code> должен быть <code>"ok"</code>.
+    {% endif %}
+</div>
+{% elif request.query_params.get('error') %}
+<div class="alert" style="background:#fee2e2; border-left:4px solid #dc2626; padding:12px 16px; border-radius:6px; margin-bottom:16px;">
+    <strong>❌ Ошибка:</strong> {{ request.query_params.get('error') }}
+</div>
+{% endif %}
+
 <p class="lead">{{ settings_count }} настроек в 4 разделах. Хранение: <strong>зашифровано в БД</strong> (Fernet/AES).</p>
 
 <div class="alert" style="background:#fffbeb; border-left-color:#f59e0b; color:#92400e; padding:10px 14px; border-radius:4px; margin-bottom:16px;">
