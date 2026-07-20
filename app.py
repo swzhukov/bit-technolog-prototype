@@ -2517,6 +2517,7 @@ async def detail(request: Request, detail_id: str):
         "edits": edits,
         "economics": economics,
         "all_equipment": all_equipment,
+        "active_tab": request.query_params.get("active_tab", "route"),
         "demo_mode": DEMO_MODE,
         "llm_model": LLM_MODEL
     })

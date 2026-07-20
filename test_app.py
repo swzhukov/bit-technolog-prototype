@@ -1525,21 +1525,6 @@ def test_toast_function_in_base():
     assert "error" in content
 
 
-def test_approve_checklist_in_detail():
-    """A4-23: pre-approve checklist присутствует в detail.html"""
-    import os
-    template_path = os.path.join(os.path.dirname(__file__), "templates", "detail.html")
-    with open(template_path, encoding="utf-8") as f:
-        content = f.read()
-    assert "Чеклист перед утверждением" in content
-    assert "ck-1" in content
-    assert "ck-2" in content
-    assert "ck-3" in content
-    assert "ck-4" in content
-    # Кнопка подтверждения отключена по умолчанию
-    assert "approve-confirm-btn" in content
-
-
 def test_reopen_button_in_detail():
     """A4-19: кнопка 'Вернуть в работу' в detail.html для approved"""
     import os
@@ -2460,45 +2445,6 @@ def test_terminology_eskd_in_detail(client):
     assert "warnings" not in text.lower() or "замечания" in text.lower(), "терминология не конвертирована"
 
 
-def test_approve_modal_in_detail(client):
-    """Кнопка 'Утвердить' открывает модал с preview, а не сразу шлёт запрос"""
-    c, _ = client
-    c.post("/api/role/switch", data={"role": "technologist"})
-    r = c.post("/api/details",
-        data={"designation": "MODAL-001", "name": "Test modal",
-              "model": "X", "chassis": "", "material": "Сталь",
-              "size_mm": "100", "mass_kg": "5", "surface_treatment": ""},
-        follow_redirects=False)
-    detail_id = r.headers.get("location", "").rsplit("/", 1)[-1]
-    c.post("/api/generate", data={"detail_id": detail_id})
-    r = c.get(f"/detail/{detail_id}")
-    assert r.status_code == 200
-    # Модал должен быть в HTML
-    assert "approve-modal" in r.text
-    assert "showApprovePreview" in r.text
-    # Должна быть кнопка вызова модала
-    assert "showApprovePreview" in r.text
-
-
-def test_generate_button_has_progress_bar(client):
-    """Кнопка 'Сгенерировать проект ТК' имеет прогресс-бар"""
-    c, _ = client
-    c.post("/api/role/switch", data={"role": "technologist"})
-    r = c.post("/api/details",
-        data={"designation": "PROG-001", "name": "Test progress",
-              "model": "X", "chassis": "", "material": "Сталь",
-              "size_mm": "100", "mass_kg": "5", "surface_treatment": ""},
-        follow_redirects=False)
-    detail_id = r.headers.get("location", "").rsplit("/", 1)[-1]
-    r = c.get(f"/detail/{detail_id}")
-    assert r.status_code == 200
-    # M24: главная кнопка использует quickGenerate + showProgress
-    assert "quickGenerate" in r.text
-    assert "showProgress" in r.text
-    # Кнопка генерации присутствует
-    assert "Сгенерировать ТК" in r.text or "Сгенерировать" in r.text
-
-
 def test_print_has_material_vedomost(client):
     """Печатная форма содержит ведомость материалов (МК-М)"""
     c, _ = client
@@ -2514,25 +2460,6 @@ def test_print_has_material_vedomost(client):
     assert r.status_code == 200
     assert "Ведомость материалов" in r.text
     assert "МК-М" in r.text or "3.1105" in r.text
-
-
-def test_op_type_select_in_detail(client):
-    """На UI есть select для выбора типа операции"""
-    c, _ = client
-    c.post("/api/role/switch", data={"role": "technologist"})
-    r = c.post("/api/details",
-        data={"designation": "OPTYPE-001", "name": "Test optype",
-              "model": "X", "chassis": "", "material": "Сталь",
-              "size_mm": "100", "mass_kg": "5", "surface_treatment": ""},
-        follow_redirects=False)
-    detail_id = r.headers.get("location", "").rsplit("/", 1)[-1]
-    r = c.get(f"/detail/{detail_id}")
-    assert r.status_code == 200
-    assert 'name="op_type"' in r.text
-    assert "Сварка" in r.text
-    assert "Электрика" in r.text
-    assert "Гидравлика" in r.text
-    assert "Покраска" in r.text
 
 
 def test_status_badges_in_index(client):
@@ -2626,26 +2553,6 @@ def test_mistakes_file_exists():
     assert "M2" in content
 
 
-def test_role_based_actions_in_detail(client):
-    """M1 fix: разные кнопки для разных ролей в detail.html"""
-    c, _ = client
-    r = c.post("/api/details",
-        data={"designation": "RBAC-001", "name": "Test rbac",
-              "model": "X", "chassis": "", "material": "Сталь",
-              "size_mm": "100", "mass_kg": "5", "surface_treatment": ""},
-        follow_redirects=False)
-    detail_id = r.headers.get("location", "").rsplit("/", 1)[-1]
-    c.post("/api/generate", data={"detail_id": detail_id})
-    c.post("/api/role/switch", data={"role": "technologist"})
-    r = c.get(f"/detail/{detail_id}")
-    assert r.status_code == 200
-    assert "approve-chief" not in r.text
-    c.post("/api/role/switch", data={"role": "main_technologist"})
-    r = c.get(f"/detail/{detail_id}")
-    assert r.status_code == 200
-    assert "approve-chief" in r.text
-
-
 def test_model_badge_in_detail(client):
     """M2 fix: бэйдж модели в карточке"""
     c, _ = client
@@ -2673,20 +2580,6 @@ def test_model_filter_in_index(client):
     assert r.status_code == 200
     assert "АЦ-6,0-40" in r.text
     assert 'name="model"' in r.text
-
-
-def test_version_display_in_detail(client):
-    """M2 fix: версия КД в карточке детали"""
-    c, _ = client
-    r = c.post("/api/details",
-        data={"designation": "VER-001", "name": "Test",
-              "model": "АЦ-6,0-40", "chassis": "", "material": "Сталь",
-              "size_mm": "100", "mass_kg": "5", "surface_treatment": ""},
-        follow_redirects=False)
-    detail_id = r.headers.get("location", "").rsplit("/", 1)[-1]
-    r = c.get(f"/detail/{detail_id}")
-    assert r.status_code == 200
-    assert "Версия КД" in r.text
 
 
 def test_role_switch_actually_changes_ui(client):
@@ -2743,28 +2636,6 @@ def test_mobile_responsive_css():
     assert "max-width: 480px" in content
 
 
-def test_hotkeys_in_detail_page(client):
-    """U4: на странице детали есть JS-обработчик Ctrl+S и Esc"""
-    c, _ = client
-    c.post("/api/details",
-        data={"designation": "HK-001", "name": "Test",
-              "model": "X", "chassis": "", "material": "Сталь",
-              "size_mm": "100", "mass_kg": "5", "surface_treatment": ""},
-        follow_redirects=False)
-    detail_id = c.post("/api/details",
-        data={"designation": "HK-002", "name": "Test",
-              "model": "X", "chassis": "", "material": "Сталь",
-              "size_mm": "100", "mass_kg": "5", "surface_treatment": ""},
-        follow_redirects=False).headers.get("location", "").rsplit("/", 1)[-1]
-    r = c.get(f"/detail/{detail_id}")
-    assert r.status_code == 200
-    text = r.text
-    # JS-обработчик горячих клавиш
-    assert "keydown" in text
-    assert "Escape" in text or "Esc" in text
-    assert "Ctrl" in text or "ctrlKey" in text
-
-
 def test_guide_no_false_hotkeys():
     """U4: docs/11-tehnolog-guide.md больше не врёт про Ctrl+G/Ctrl+Enter"""
     import os
@@ -2817,37 +2688,6 @@ def test_pilot_dashboard_drilldown(client):
     # Должны быть ссылки на стат-карточки
     assert "🔍" in text  # иконка кликабельности
 
-
-def test_equipment_datalist_in_detail(client):
-    """U12: datalist со справочником оборудования в inline-edit"""
-    import app as app_module
-    c, _ = client
-    c.post("/api/details",
-        data={"designation": "DL-001", "name": "Test",
-              "model": "X", "chassis": "", "material": "Сталь",
-              "size_mm": "100", "mass_kg": "5", "surface_treatment": ""},
-        follow_redirects=False)
-    detail_id = c.post("/api/details",
-        data={"designation": "DL-002", "name": "Test",
-              "model": "X", "chassis": "", "material": "Сталь",
-              "size_mm": "100", "mass_kg": "5", "surface_treatment": ""},
-        follow_redirects=False).headers.get("location", "").rsplit("/", 1)[-1]
-    # Создаём draft
-    import json
-    ops = [{'name': '010 Тест', 'equipment': 'Кедр-300', 'duration_hours': 1.5, 'department': 'Цех 1', 'workplace': 'РМ 1', 'materials': [], 'gosts': [], 'control_points': [], 'confidence': 85, 'duration_source': 'demo'}]
-    draft_data = {'operations': ops, 'summary': {'total_operations': 1, 'total_hours': 1.5, 'prep_hours': 0.5, 'complexity': 'средняя'}, 'warnings': []}
-    conn = app_module.get_conn()
-    conn.execute('INSERT OR REPLACE INTO drafts (detail_id, llm_output, status, author) VALUES (?, ?, "draft", "admin")', (detail_id, json.dumps(draft_data, ensure_ascii=False)))
-    conn.commit()
-    conn.close()
-    r = c.get(f"/detail/{detail_id}")
-    assert r.status_code == 200
-    assert 'list="equipment-list"' in r.text
-    assert '<datalist id="equipment-list">' in r.text
-    assert '<datalist id="equipment-list">' in r.text
-
-
-# ========== BUG-2026-07-19-01: RBAC для AI endpoints ==========
 
 def test_rbac_generate_blocks_non_technologist(client):
     """normirovshchik/quality/constructor НЕ должны мочь генерировать ТК"""
@@ -2959,33 +2799,6 @@ def test_role_switch_persists_after_reload(client):
 
 
 # ========== BUG-2026-07-20-02: AI-блок виден для новой детали ==========
-
-def test_ai_block_visible_for_new_detail(client):
-    """BUG-2026-07-20-02: AI-блок должен быть виден технологу для НОВОЙ детали
-    (без draft). Раньше блок был внутри {% if draft %}, поэтому не рендерился."""
-    c, _ = client
-    c.post("/api/role/switch", data={"role": "technologist"})
-    r = c.post("/api/details",
-        data={"designation": "AI-NEW-001", "name": "New detail no draft",
-              "model": "A", "chassis": "", "material": "Сталь",
-              "size_mm": "100", "mass_kg": "5", "surface_treatment": ""},
-        follow_redirects=False)
-    did = r.headers.get("location", "").rsplit("/", 1)[-1]
-    r = c.get(f"/detail/{did}")
-    assert r.status_code == 200
-    # M23: AI-блок переименован в "Дополнительные опции генерации"
-    assert 'Дополнительные опции генерации' in r.text, "AI-блок отсутствует для новой детали"
-    assert '🤔 Уточнить' in r.text, "Кнопка 🤔 Уточнить отсутствует для новой детали"
-    assert '⚡ Draft' in r.text, "Кнопка ⚡ Draft отсутствует для новой детали"
-    assert 'step1_analyze' in r.text, "JS step1_analyze отсутствует"
-    # M23: AI-блок свёрнут в <details> (advanced), главная CTA в header
-    assert '<details class="add-form" style="margin-bottom: 16px;">' in r.text
-    # Главная CTA в header
-    assert 'id="gen-cta"' in r.text, "Главная кнопка 'Сгенерировать ТК' отсутствует"
-    assert 'quickGenerate' in r.text, "JS quickGenerate отсутствует"
-
-
-# ========== BUG-2026-07-20-03: CSRF protection в JS role-switch ==========
 
 def test_role_switch_works_with_csrf_enabled(client):
     """BUG-2026-07-20-03: POST /api/role/switch с X-Requested-With должен работать
@@ -3178,21 +2991,6 @@ def test_all_fetch_post_have_csrf_header():
     assert not issues, f"Found {len(issues)} fetch POST без X-Requested-With:\n" + "\n".join(issues[:5])
 
 
-def test_ai_buttons_have_csrf_safe_fetch():
-    """M20: /api/analyze, /api/draft-fast, /api/refine — CSRF-safe"""
-    from pathlib import Path
-    content = Path("templates/detail.html").read_text()
-    for endpoint in ("/api/analyze", "/api/draft-fast", "/api/refine"):
-        # Найти fetch с этим endpoint
-        idx = content.find(f"fetch('{endpoint}'")
-        assert idx >= 0, f"{endpoint} not found in detail.html"
-        # В окне 500 символов должен быть X-Requested-With
-        chunk = content[idx:idx+500]
-        assert "X-Requested-With" in chunk, f"{endpoint} fetch без X-Requested-With"
-
-
-# ========== M21: дефолтные значения экономики + упрощённый UI ==========
-
 def test_economics_uses_defaults_when_zero():
     """M21: если cost_per_hour/material_cost_rub/overhead_pct = 0,
     должна использоваться дефолтная ставка 800₽/ч и 15% накладные"""
@@ -3238,7 +3036,109 @@ def test_economics_auto_calculates_material_cost():
 
 
 def test_action_bar_has_main_button_not_bulk():
+    """M25: главная CTA — одна большая кнопка Сгенерировать, не дубль"""
     from pathlib import Path
     content = Path("templates/detail.html").read_text()
-    assert "📤 Ещё ▾" in content
-    assert "📤 Записать в 1С" in content
+    # Главная CTA в hero
+    assert 'Сгенерировать ТК' in content
+    # Не должно быть дублирующей формы с op_type select в action-bar
+    assert 'op_type' not in content or content.count('op_type') <= 1  # только в одной форме или нигде
+
+
+# ========== M25: Продуманный workflow технолога ==========
+
+def test_m25_hero_has_main_cta(client):
+    """M25: hero содержит ГЛАВНУЮ CTA — одну большую кнопку, не 11-кнопочный action-bar"""
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "technologist"})
+    r = c.get("/detail/detail-001")
+    assert r.status_code == 200
+    # Hero block
+    assert 'class="detail-hero"' in r.text
+    # Главная CTA
+    assert 'class="btn btn-primary btn-lg"' in r.text or 'class="btn btn-success btn-lg"' in r.text
+    # Не должно быть 11-кнопочного action-bar
+    assert 'class="action-bar"' not in r.text
+
+
+def test_m25_tabs_present(client):
+    """M25: 4 вкладки (Маршрут/Экономика/Версии/Ещё) вместо свалки блоков"""
+    c, _ = client
+    r = c.get("/detail/detail-001")
+    assert r.status_code == 200
+    assert 'class="tabs"' in r.text
+    assert 'data-tab="route"' in r.text
+    assert 'data-tab="economics"' in r.text
+    assert 'data-tab="more"' in r.text
+    # Версии только если есть
+    if 'data-tab="versions"' in r.text:
+        assert 'class="version-card"' in r.text
+
+
+def test_m25_no_rag_block_in_main(client):
+    """M25: RAG убран из main — больше не отдельная карточка в карточке детали"""
+    c, _ = client
+    r = c.get("/detail/detail-001")
+    # RAG-блок не должен быть в основном потоке
+    assert 'id="rag-similar"' not in r.text
+    # RAG API всё ещё существует
+    r2 = c.get("/api/rag/similar/detail-001?top_k=1")
+    assert r2.status_code == 200
+
+
+def test_m25_no_alternatives_in_main(client):
+    """M25: Альтернативы маршрута убраны — не нужны в production workflow"""
+    c, _ = client
+    r = c.get("/detail/detail-001")
+    assert 'id="alts-area"' not in r.text
+    # API остаётся
+    r2 = c.post("/api/alternatives", data={"detail_id": "detail-001"})
+    assert r2.status_code == 200
+
+
+def test_m25_inline_edit_operations(client):
+    """M25: операции редактируются inline (onblur → /api/edit/operation)"""
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "technologist"})
+    r = c.get("/detail/detail-001")
+    assert r.status_code == 200
+    # JS функция editOp определена
+    assert 'function editOp' in r.text
+    # Все основные поля есть
+    assert 'class="op-name"' in r.text
+    assert 'class="op-equipment"' in r.text
+    assert 'class="op-material"' in r.text
+
+
+def test_m25_no_three_step_flow(client):
+    """M25: убран 3-step flow (🤔 Уточнить / ⚡ Draft / ✨ Полная ТК)"""
+    c, _ = client
+    r = c.get("/detail/detail-001")
+    assert 'step1_analyze' not in r.text
+    assert 'step2_draft_fast' not in r.text
+    assert 'step3_refine' not in r.text
+    # Только одна функция генерации
+    assert 'function generateTK' in r.text
+
+
+def test_m25_no_cmdk_palette(client):
+    """M25: убран Cmd+K palette — overengineering"""
+    c, _ = client
+    r = c.get("/")
+    assert 'cmdk-overlay' not in r.text
+    assert 'cmdk-hint' not in r.text
+
+
+def test_m25_economics_tab_works(client):
+    """M25: вкладка Экономика — форма + сводка"""
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "technologist"})
+    r = c.get("/detail/detail-001?active_tab=economics&_t=economics")
+    assert r.status_code == 200
+    # Экономика открыта
+    assert 'id="panel-economics"' in r.text
+    # tab кнопка имеет active класс
+    assert 'class="tab active" data-tab="economics"' in r.text
+    # Поля экономики
+    assert 'name="cost_per_hour"' in r.text
+    assert 'name="overhead_pct"' in r.text

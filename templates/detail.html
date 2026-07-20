@@ -2,1049 +2,450 @@
 {% block title %}{{ detail.designation }} — БИТ.Технолог{% endblock %}
 {% block content %}
 
-{# M22: breadcrumbs в стиле дизайн-системы #}
-<nav style="font-size:13px; color:var(--c-text-muted); margin-bottom:12px;">
-    <a href="/" style="color:var(--c-text-muted);">Главная</a> › <a href="/?status={{ status }}" style="color:var(--c-text-muted);">Список деталей</a> › <strong style="color:var(--c-text);">{{ detail.designation }}</strong>
+{# M25: Продуманный workflow технолога. Только то, что нужно для работы с деталью. #}
+{# Hero: обозначение + сводка + главная CTA. Никаких лишних блоков. #}
+
+<nav class="breadcrumbs">
+    <a href="/">Главная</a> ›
+    <a href="/?status={{ status }}">Детали</a> ›
+    <span>{{ detail.designation }}</span>
 </nav>
 
-{# M22: компактный header карточки — designation, name, status, главная CTA #}
-<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:24px;">
-    <div>
-        <h1 style="margin-bottom:6px;">{{ detail.designation }}</h1>
-        <p style="color:var(--c-text-muted); margin:0; font-size:15px;">{{ detail.name or 'Без названия' }}</p>
-        <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
-            {% if status == "new" %}<span class="badge badge-new">🔴 Новый</span>
-            {% elif status == "approved" or status == "approved_chief" %}<span class="badge badge-approved">🟢 Утверждён</span>
-            {% elif status_ext == "review" %}<span class="badge badge-review">👀 На проверке</span>
-            {% else %}<span class="badge badge-draft">🟡 Проект ТК</span>{% endif %}
-            {% if detail.model %}<span class="badge" style="background:var(--c-brand-soft); color:#1e40af;">🚒 {{ detail.model }}</span>{% endif %}
-            {% if detail.chassis %}<span class="badge" style="background:#fef3c7; color:#92400e;">🛻 {{ detail.chassis }}</span>{% endif %}
-            {% if detail.material %}<span class="badge" style="background:#f1f5f9; color:#475569;">{{ detail.material }}</span>{% endif %}
-            {% if detail.mass_kg %}<span class="badge" style="background:#f1f5f9; color:#475569;">{{ detail.mass_kg }} кг</span>{% endif %}
+<div class="detail-hero">
+    <div class="detail-hero-main">
+        <h1>{{ detail.designation }}</h1>
+        <p class="detail-hero-name">{{ detail.name or 'Без названия' }}</p>
+        <div class="detail-hero-tags">
+            {% if status == "approved" or status == "approved_chief" %}
+                <span class="badge badge-approved">🟢 Утверждена</span>
+            {% elif status_ext == "review" %}
+                <span class="badge badge-review">👀 На проверке</span>
+            {% elif status == "draft" %}
+                <span class="badge badge-draft">🟡 Черновик ТК</span>
+            {% else %}
+                <span class="badge badge-new">🔴 Новая</span>
+            {% endif %}
+            {% if detail.model %}<span class="badge">🚒 {{ detail.model }}</span>{% endif %}
+            {% if detail.chassis %}<span class="badge">🛻 {{ detail.chassis }}</span>{% endif %}
+            {% if detail.material %}<span class="badge">🔩 {{ detail.material }}</span>{% endif %}
+            {% if detail.mass_kg %}<span class="badge">⚖️ {{ detail.mass_kg }} кг</span>{% endif %}
         </div>
     </div>
-    {# M23: Главная CTA — одна большая кнопка, в зависимости от статуса. status=new → Сгенерировать, иначе → Утвердить #}
-    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <div class="detail-hero-cta">
         {% set _cur = current_role_from_request(request) %}
-        {% if status == "new" and _cur in ('technologist', 'main_technologist', 'admin') %}
-            <button type="button" onclick="quickGenerate('{{ detail.id }}')" class="btn btn-primary btn-lg" id="gen-cta">
-                <span class="gen-icon">✨</span> <span class="gen-label">Сгенерировать ТК</span>
-                <span class="gen-cost" style="font-size:12px;opacity:0.7;margin-left:6px;">~3₽ / 30 сек</span>
-            </button>
-        {% elif status != "approved" and _cur in ('technologist', 'main_technologist', 'admin') %}
-            <button onclick="showApprovePreview()" class="btn btn-success btn-lg">✅ Утвердить</button>
-            {% if status == "approved" and _cur in ('technologist', 'main_technologist', 'admin') %}
-            <button hx-post="/api/reopen" hx-vals='{"detail_id": "{{ detail.id }}", "reason": "Возврат в работу"}'
-                    hx-confirm="Вернуть в работу?"
-                    class="btn">↩️ Вернуть в работу</button>
+        {% if _cur in ('technologist', 'main_technologist', 'admin') %}
+            {% if not draft %}
+                <button type="button" class="btn btn-primary btn-lg" id="gen-cta"
+                        onclick="generateTK('{{ detail.id }}', this)">
+                    <span class="gen-icon">✨</span>
+                    <span class="gen-label">Сгенерировать ТК</span>
+                </button>
+            {% elif status == "approved" %}
+                <button hx-post="/api/reopen"
+                        hx-vals='{"detail_id": "{{ detail.id }}", "reason": "Возврат в работу"}'
+                        hx-confirm="Вернуть ТК в работу?"
+                        class="btn btn-warn">↩️ Вернуть в работу</button>
+            {% else %}
+                <button type="button" class="btn btn-success btn-lg" id="approve-cta"
+                        onclick="approveTK('{{ detail.id }}', this)">
+                    ✅ Утвердить
+                </button>
             {% endif %}
         {% endif %}
     </div>
 </div>
 
-<div class="detail-header" style="display:none;">
-    <h1>{{ detail.designation }} — {{ detail.name }}</h1>
-    <div class="detail-meta">
-        {% if status == "new" %}<span class="badge red">🔴 Новый</span>
-        {% elif status == "approved" %}<span class="badge green">🟢 Утверждён</span>
-        {% else %}<span class="badge yellow">🟡 Проект ТК</span>{% endif %}
-        {% if status_ext == "review" %}<span class="badge yellow">👀 На проверке</span>
-        {% elif status_ext == "approved_chief" %}<span class="badge green">👑 Утверждён начальником</span>
-        {% endif %}
-        {% if detail.model %}<span class="badge blue" style="background:#dbeafe;color:#1e40af;font-weight:600;">🚒 {{ detail.model }}</span>{% endif %}
-        {% if detail.chassis %}<span class="badge" style="background:#fef3c7;color:#92400e;">🛻 {{ detail.chassis }}</span>{% endif %}
-        <span class="meta-item">{{ detail.material }}</span>
-        <span class="meta-item">{{ detail.mass_kg }} кг</span>
-        <span class="meta-item">{{ detail.surface_treatment }}</span>
-    </div>
-    {# M2 fix: показ версии + уровня иерархии #}
-    <div style="margin-top:8px; font-size:12px; color:#6b7280;">
-        {% if detail.level == 'product' %}<span style="background:#7c3aed;color:white;padding:2px 6px;border-radius:3px;font-size:11px;font-weight:600;">📦 ИЗДЕЛИЕ</span>
-        {% elif detail.level == 'assembly' %}<span style="background:#a855f7;color:white;padding:2px 6px;border-radius:3px;font-size:11px;font-weight:600;">🧩 УЗЕЛ</span>
-        {% elif detail.level == 'detail' %}<span style="background:#3b82f6;color:white;padding:2px 6px;border-radius:3px;font-size:11px;font-weight:600;">🔩 ДЕТАЛЬ</span>
-        {% endif %}
-        <span style="margin-left:8px;">📋 Версия КД: <code>{{ detail.version or '1.0' }}</code></span>
-        {% if detail.parent_id %}<span style="margin-left:8px;">↑ Входит в: <a href="/detail/{{ detail.parent_id }}"><code>{{ detail.parent_id }}</code></a></span>{% endif %}
-    </div>
-</div>
+{# M25: Tabs — единственный способ навигации по детали. Без свалок блоков. #}
+{% set active_tab = active_tab or 'route' %}
+<nav class="tabs" role="tablist">
+    <button type="button" class="tab {% if active_tab == 'route' %}active{% endif %}" data-tab="route" role="tab">
+        📋 Маршрут
+        {% if draft and draft.operations %}<span class="tab-count">{{ draft.operations|length }}</span>{% endif %}
+    </button>
+    <button type="button" class="tab {% if active_tab == 'economics' %}active{% endif %}" data-tab="economics" role="tab">💰 Экономика</button>
+    {% if versions and versions|length > 0 %}
+    <button type="button" class="tab {% if active_tab == 'versions' %}active{% endif %}" data-tab="versions" role="tab">
+        📜 Версии <span class="tab-count">{{ versions|length }}</span>
+    </button>
+    {% endif %}
+    <button type="button" class="tab {% if active_tab == 'more' %}active{% endif %}" data-tab="more" role="tab">🔧 Ещё</button>
+</nav>
 
-{% if draft %}
-<details class="add-form" style="margin-bottom: 16px;">
-    <summary>📐 Правила технолога (учитываются AI при генерации)</summary>
-    <form hx-post="/api/details/{{ detail.id }}/rules"
-          hx-target="#rules-status"
-          hx-swap="innerHTML"
-          hx-on::after-request="setTimeout(() => location.reload(), 1000);"
-          class="form">
-        <label>Правила и нюансы (свободная форма):<br>
-            <textarea name="rules" rows="4" placeholder="Например: обезжиривание 20 мин в травильной жидкости; сварку вести снизу вверх; после закалки — отпуск при 600°С">{{ detail.tech_rules or "" }}</textarea>
-        </label>
-        <button type="submit" class="btn btn-primary">💾 Сохранить правила</button>
-        <span id="rules-status"></span>
-    </form>
-</details>
+{# ===== Вкладка: МАРШРУТ ===== #}
+<section class="tab-panel {% if active_tab == 'route' %}active{% endif %}" id="panel-route" role="tabpanel">
+    {% if not draft %}
+        <div class="empty empty-lg">
+            <div class="empty-icon">📋</div>
+            <div class="empty-title">ТК ещё не создана</div>
+            <div class="empty-desc">AI создаст черновик из 5-10 операций на основе материала, массы и шасси. Это займёт 30-60 секунд и ~3₽.</div>
+            {% if _cur in ('technologist', 'main_technologist', 'admin') %}
+            <button type="button" class="btn btn-primary btn-lg" onclick="generateTK('{{ detail.id }}', this)" style="margin-top:16px;">
+                ✨ Сгенерировать черновик
+            </button>
+            {% endif %}
+        </div>
+    {% else %}
+        {# Сводка маршрута — одна строка #}
+        <div class="route-summary">
+            <div class="route-summary-item">
+                <span class="route-summary-label">Операций</span>
+                <span class="route-summary-value">{{ draft.operations|length }}</span>
+            </div>
+            <div class="route-summary-item">
+                <span class="route-summary-label">Общее время</span>
+                <span class="route-summary-value">{{ "%.1f"|format(draft.operations|sum(attribute='duration_hours') or 0) }} ч</span>
+            </div>
+            <div class="route-summary-item">
+                <span class="route-summary-label">Сложность</span>
+                <span class="route-summary-value">{{ draft.summary.complexity if draft.summary else '—' }}</span>
+            </div>
+            {% if _cur in ('technologist', 'main_technologist', 'admin') %}
+            <div class="route-summary-actions">
+                <button type="button" class="btn btn-sm" onclick="generateTK('{{ detail.id }}', this, true)">🔄 Перегенерировать</button>
+            </div>
+            {% endif %}
+        </div>
 
-{# M21: экономика — раскрыта по умолчанию, видна сразу #}
-<details class="add-form" style="margin-bottom: 16px;" open>
-    <summary>💰 Экономика (расчёт себестоимости)</summary>
+        {# Список операций — inline-edit #}
+        <div class="ops-list">
+            {% for op in draft.operations %}
+            <div class="op-card" data-op-id="{{ op.id }}">
+                <div class="op-card-head">
+                    <code class="op-index">{{ op.op_index or loop.index|string + '0' }}</code>
+                    <input type="text" class="op-name" value="{{ op.name }}"
+                           onblur="editOp('{{ detail.id }}', '{{ op.id }}', 'name', this.value)"
+                           placeholder="Название операции">
+                    <span class="op-duration">
+                        <input type="number" step="0.1" class="op-hours" value="{{ op.duration_hours or 0 }}"
+                               onblur="editOp('{{ detail.id }}', '{{ op.id }}', 'duration_hours', this.value)">
+                        <span class="op-hours-unit">ч</span>
+                    </span>
+                    <button type="button" class="op-del" onclick="delOp('{{ detail.id }}', '{{ op.id }}', this)" title="Удалить операцию">🗑</button>
+                </div>
+                <div class="op-card-body">
+                    <div class="op-field">
+                        <label>Оборудование</label>
+                        <input list="eq-list" type="text" class="op-equipment" value="{{ op.equipment or '' }}"
+                               onblur="editOp('{{ detail.id }}', '{{ op.id }}', 'equipment', this.value)"
+                               placeholder="Например: Сварочный аппарат Кедр-300">
+                    </div>
+                    <div class="op-field">
+                        <label>Материал</label>
+                        <input type="text" class="op-material" value="{{ op.material or '' }}"
+                               onblur="editOp('{{ detail.id }}', '{{ op.id }}', 'material', this.value)"
+                               placeholder="Например: Сталь 09Г2С, 5мм">
+                    </div>
+                    <div class="op-field op-field-sm">
+                        <label>Профессия</label>
+                        <input type="text" class="op-profession" value="{{ op.profession or '' }}"
+                               onblur="editOp('{{ detail.id }}', '{{ op.id }}', 'profession', this.value)"
+                               placeholder="Сварщик 4р">
+                    </div>
+                    <div class="op-field op-field-sm">
+                        <label>Разряд</label>
+                        <input type="number" min="1" max="6" class="op-rank" value="{{ op.rank or 4 }}"
+                               onblur="editOp('{{ detail.id }}', '{{ op.id }}', 'rank', this.value)">
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <datalist id="eq-list">
+            {% for eq in all_equipment %}<option value="{{ eq }}">{% endfor %}
+        </datalist>
+
+        {% if _cur in ('technologist', 'main_technologist', 'admin') %}
+        <div class="ops-add">
+            <button type="button" class="btn" onclick="addOp('{{ detail.id }}', this)">＋ Добавить операцию</button>
+        </div>
+        {% endif %}
+    {% endif %}
+</section>
+
+{# ===== Вкладка: ЭКОНОМИКА ===== #}
+<section class="tab-panel {% if active_tab == 'economics' %}active{% endif %}" id="panel-economics" role="tabpanel">
     <form hx-post="/api/details/{{ detail.id }}/economics"
           hx-target="#econ-status"
           hx-swap="innerHTML"
-          hx-on::after-request="setTimeout(() => location.reload(), 1000);"
+          hx-on::after-request="setTimeout(() => location.reload(), 800);"
           class="form">
         <div class="form-row">
-            <label>Ставка в час (₽)<br>
-                <input name="cost_per_hour" type="number" step="0.01" value="{{ detail.cost_per_hour or 500 }}">
+            <label class="form-field">
+                <span>Ставка в час (₽)</span>
+                <input name="cost_per_hour" type="number" step="0.01" value="{{ detail.cost_per_hour or 800 }}">
             </label>
-            <label>Накладные (%)<br>
+            <label class="form-field">
+                <span>Накладные (%)</span>
                 <input name="overhead_pct" type="number" step="0.1" value="{{ detail.overhead_pct or 15 }}">
             </label>
-            <label>Стоимость материала (₽)<br>
+            <label class="form-field">
+                <span>Стоимость материала (₽)</span>
                 <input name="material_cost_rub" type="number" step="0.01" value="{{ detail.material_cost_rub or 0 }}">
             </label>
         </div>
+        {% if _cur in ('technologist', 'main_technologist', 'admin') %}
         <button type="submit" class="btn btn-primary">💾 Сохранить</button>
+        {% endif %}
         <span id="econ-status"></span>
     </form>
-</details>
 
+    {% if economics %}
+    <div class="econ-summary">
+        <div class="econ-row">
+            <span>Трудозатраты</span>
+            <span class="econ-value">{{ "%.0f"|format(economics.labor_cost_rub or 0) }} ₽</span>
+        </div>
+        <div class="econ-row">
+            <span>Материалы</span>
+            <span class="econ-value">{{ "%.0f"|format(economics.material_cost_rub or 0) }} ₽</span>
+        </div>
+        <div class="econ-row">
+            <span>Накладные</span>
+            <span class="econ-value">{{ "%.0f"|format(economics.overhead_rub or 0) }} ₽</span>
+        </div>
+        <div class="econ-row econ-row-total">
+            <span>Итого себестоимость</span>
+            <span class="econ-value">{{ "%.0f"|format(economics.total_cost_rub or 0) }} ₽</span>
+        </div>
+    </div>
+    {% endif %}
+</section>
 
-
-{# M23 fix: закрыть if draft ДО <script>, иначе JS-функции step1/2/3 не рендерятся для status=new #}
+{# ===== Вкладка: ВЕРСИИ ===== #}
+{% if versions and versions|length > 0 %}
+<section class="tab-panel {% if active_tab == 'versions' %}active{% endif %}" id="panel-versions" role="tabpanel">
+    <div class="versions-list">
+        {% for v in versions %}
+        <div class="version-card">
+            <div class="version-head">
+                <strong>v{{ v.version }}</strong>
+                <span class="version-date">{{ v.created_at[:10] }}</span>
+            </div>
+            <div class="version-meta">
+                {{ v.output.operations|length if v.output and v.output.operations else 0 }} операций ·
+                {{ "%.1f"|format(v.output.operations|sum(attribute='duration_hours') if v.output and v.output.operations else 0) }} ч
+            </div>
+            <div class="version-actions">
+                <a href="/detail/{{ detail.id }}?active_tab=route&v={{ v.version }}" class="btn btn-sm">Открыть</a>
+                {% if loop.first == false %}
+                <a href="/detail/{{ detail.id }}/diff/{{ v.version }}/{{ versions[0].version }}" class="btn btn-sm">🔀 Сравнить с текущей</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
 {% endif %}
 
-<script>
-{# M4 fix: 3-step flow использует localStorage для передачи answers между шагами #}
-const STORAGE_KEY = function(did) { return `bit_step_${did}`; };
+{# ===== Вкладка: ЕЩЁ ===== #}
+<section class="tab-panel {% if active_tab == 'more' %}active{% endif %}" id="panel-more" role="tabpanel">
+    <div class="more-grid">
+        <div class="more-card">
+            <h3>📐 Чертёж</h3>
+            {% if detail.drawing_path %}
+                <p>Загружен: <code>{{ detail.drawing_path }}</code></p>
+                <a href="/drawings/{{ detail.id }}_{{ detail.drawing_format }}" target="_blank" class="btn btn-sm">📥 Открыть</a>
+            {% else %}
+                <p class="hint">Чертёж не загружен</p>
+                {% if _cur in ('technologist', 'main_technologist', 'admin') %}
+                <form hx-post="/api/import/drawing/{{ detail.id }}"
+                      hx-target="#drawing-status" hx-swap="innerHTML"
+                      hx-encoding="multipart/form-data" enctype="multipart/form-data">
+                    <input type="file" name="file" accept=".frw,.dwg,.pdf,.png,.jpg,.jpeg" required>
+                    <button type="submit" class="btn btn-sm">📤 Загрузить</button>
+                    <span id="drawing-status"></span>
+                </form>
+                {% endif %}
+            {% endif %}
+        </div>
 
-{# M23: quickGenerate — одна кнопка, сразу вызов /api/draft-fast + перезагрузка через 1.5 сек #}
-function quickGenerate(did) {
-    const btn = document.getElementById('gen-cta');
-    if (!btn) return;
+        <div class="more-card">
+            <h3>📝 Правила технолога</h3>
+            <p class="hint">Учитываются AI при следующей генерации</p>
+            <form hx-post="/api/details/{{ detail.id }}/rules" hx-target="#rules-status" hx-swap="innerHTML">
+                <textarea name="tech_rules" rows="4" placeholder="Например: только TIG-сварка, не применять порошковую покраску">{{ detail.tech_rules or '' }}</textarea>
+                {% if _cur in ('technologist', 'main_technологолог', 'admin') %}
+                <button type="submit" class="btn btn-sm">💾 Сохранить</button>
+                {% endif %}
+                <span id="rules-status"></span>
+            </form>
+        </div>
+
+        <div class="more-card">
+            <h3>📊 Экспорт</h3>
+            <p class="hint">Когда ТК утверждена</p>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <a href="/detail/{{ detail.id }}/print" target="_blank" class="btn btn-sm">📄 PDF</a>
+                <a href="/api/1c/export/rs/{{ detail.id }}" target="_blank" class="btn btn-sm">📤 1С:ERP XML</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+// M25: Workflow-функции. Простые, надёжные, без 3-step flow.
+function getCookie(name) {
+    const m = document.cookie.match(new RegExp(name + '=([^;]+)'));
+    return m ? m[1] : null;
+}
+
+function toast(msg, type) {
+    if (window.showToast) return window.showToast(msg, type);
+    alert(msg);
+}
+
+// === Генерация ТК — одна функция, один endpoint ===
+async function generateTK(detailId, btn, isRegen) {
     const orig = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '⏳ Генерирую...';
-    fetch('/api/draft-fast', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'  // CSRF bypass
-        },
-        body: JSON.stringify({detail_id: did})
-    })
-    .then(r => r.json().then(d => ({status: r.status, body: d})))
-    .then(({status, body}) => {
-        if (status >= 200 && status < 300) {
-            btn.innerHTML = '✅ Готово! Обновляю...';
-            setTimeout(() => location.reload(), 1500);
-        } else {
-            btn.innerHTML = '❌ Ошибка: ' + (body.error || body.detail || status);
-            btn.disabled = false;
-            setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 4000);
-        }
-    })
-    .catch(e => {
-        btn.innerHTML = '❌ ' + e.message;
-        setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 4000);
-    });
-}
-
-function step1_analyze(did) {
-    const status = document.getElementById(`step1-status-${did}`);
-    const qArea = document.getElementById(`questions-area-${did}`);
-    const refineBtn = document.getElementById(`refine-btn-${did}`);
-    status.textContent = '⏳ AI думает...';
-    fetch('/api/analyze', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'  // CSRF bypass
-        },
-        body: JSON.stringify({detail_id: did})
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.error) { status.textContent = '❌ ' + data.error; return; }
-        const qs = data.questions || [];
-        // U2 fix: простые человеческие формулировки
-        let html = '<div class="step-flow">';
-        qs.forEach((q, i) => {
-            html += `<div class="question-item">`;
-            html += `<div class="q-text">${q.question}</div>`;
-            if (q.options && q.options.length) {
-                html += '<select class="answer-select" data-qid="' + q.id + '">';
-                q.options.forEach(opt => {
-                    html += `<option value="${opt}" ${opt === q.default ? 'selected' : ''}>${opt}</option>`;
-                });
-                html += '</select>';
-            } else {
-                html += `<input type="text" class="answer-input" data-qid="${q.id}" placeholder="твой ответ" value="${q.default || ''}">`;
-            }
-            html += `<div class="q-impact">${q.impact_if_changed || ''}</div>`;
-            html += `</div>`;
-        });
-        html += '<button class="btn btn-primary" onclick="step1_save(\'' + did + '\')">💾 Сохранить ответы</button>';
-        html += '</div>';
-        qArea.innerHTML = html;
-        status.textContent = '✅ Ответь на вопросы и нажми Сохранить';
-    })
-    .catch(err => { status.textContent = '❌ ' + err; });
-}
-
-function step1_save(did) {
-    const answers = {};
-    document.querySelectorAll(`#questions-area-${did} .answer-select, #questions-area-${did} .answer-input`).forEach(el => {
-        answers[el.dataset.qid] = el.value;
-    });
-    localStorage.setItem(STORAGE_KEY(did), JSON.stringify({answers: answers, ts: Date.now()}));
-    document.getElementById(`step1-status-${did}`).textContent = '✅ Ответы сохранены. Теперь можно Draft и Полная ТК.';
-    const refineBtn = document.getElementById(`refine-btn-${did}`);
-    refineBtn.disabled = false;
-    refineBtn.textContent = '✨ Полная ТК';
-}
-
-function getAnswers(did) {
+    btn.innerHTML = '⏳ Генерирую (~30 сек)...';
+    if (isRegen && !confirm('Перегенерировать ТК? Текущие операции будут заменены.')) {
+        btn.disabled = false;
+        btn.innerHTML = orig;
+        return;
+    }
     try {
-        const stored = localStorage.getItem(STORAGE_KEY(did));
-        if (stored) return JSON.parse(stored).answers || {};
-    } catch (e) {}
-    return {};
-}
-
-function step2_draft_fast(did) {
-    const status = document.getElementById(`step2-status-${did}`);
-    const area = document.getElementById(`draft-area-${did}`);
-    const answers = getAnswers(did);
-    status.textContent = '⏳ Генерация draft...';
-    fetch('/api/draft-fast', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'  // CSRF bypass
-        },
-        body: JSON.stringify({detail_id: did, answers: JSON.stringify(answers)})
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.error) { status.textContent = '❌ ' + data.error; return; }
-        const ops = (data.draft && data.draft.route) || [];
-        area.innerHTML = '<div class="info-block"><strong>⚡ Draft:</strong> ' + ops.length + ' операций (быстрый вариант). Нажми «Полная ТК» для деталей.</div>';
-        status.textContent = '✅ Draft готов';
-    })
-    .catch(err => { status.textContent = '❌ ' + err; });
-}
-
-function step3_refine(did) {
-    const status = document.getElementById(`step3-status-${did}`);
-    const area = document.getElementById(`refine-status-${did}`);
-    const answers = getAnswers(did);
-    // F16.9: A4-3 — прогресс-бар с ETA
-    let elapsed = 0;
-    status.innerHTML = `
-        <div style="display:flex; align-items:center; gap:8px;">
-            <div style="flex:1; height:6px; background:#e5e7eb; border-radius:3px; overflow:hidden;">
-                <div id="gen-progress-${did}" style="height:100%; background:linear-gradient(90deg, #3b82f6, #10b981); width:0%; transition:width 0.5s;"></div>
-            </div>
-            <span id="gen-elapsed-${did}" style="font-size:12px; color:#6b7280; min-width:50px;">0с</span>
-        </div>
-        <small style="color:#6b7280;">⏳ AI думает... обычно 15-30 сек</small>
-    `;
-    const timer = setInterval(() => {
-        elapsed += 1;
-        const el = document.getElementById(`gen-elapsed-${did}`);
-        const bar = document.getElementById(`gen-progress-${did}`);
-        if (el) el.textContent = elapsed + 'с';
-        if (bar) bar.style.width = Math.min(95, elapsed * 3) + '%';  // ~30сек до 95%
-    }, 1000);
-    fetch('/api/refine', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'  // CSRF bypass
-        },
-        body: JSON.stringify({detail_id: did, draft: '{}', answers: JSON.stringify(answers)})
-    })
-    .then(r => r.json())
-    .then(data => {
-        clearInterval(timer);
-        if (data.error) {
-            // F16.9: A4-4 — retry при ошибке
-            status.innerHTML = `
-                <span style="color:#ef4444;">❌ ${data.error}</span>
-                <button class="btn btn-small" onclick="step3_refine('${did}')">🔄 Повторить</button>
-            `;
-            return;
+        const r = await fetch('/api/draft-fast', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'  // CSRF bypass
+            },
+            body: JSON.stringify({detail_id: detailId})
+        });
+        const data = await r.json();
+        if (r.ok) {
+            toast('✨ ТК создана', 'success');
+            setTimeout(() => location.reload(), 800);
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = '❌ ' + (data.detail || data.error || r.status);
+            toast(data.detail || data.error || 'Ошибка генерации', 'error');
         }
-        status.textContent = '✅ Полная ТК готова. Перезагрузка...';
-        setTimeout(() => location.reload(), 1500);
-    })
-    .catch(err => {
-        clearInterval(timer);
-        // F16.9: A4-4 — retry при сетевой ошибке
-        status.innerHTML = `
-            <span style="color:#ef4444;">❌ ${err}</span>
-            <button class="btn btn-small" onclick="step3_refine('${did}')">🔄 Повторить</button>
-        `;
-    });
+    } catch (e) {
+        btn.disabled = false;
+        btn.innerHTML = '❌ ' + e.message;
+        toast('Сетевая ошибка: ' + e.message, 'error');
+    }
 }
-</script>
 
-{# U2 fix: переименовано без "Sprint 1/2/3" #}
-{# M22: RAG, альтернативы, РС, связи — в <details open> маленьком блоке, не свёрнуты #}
-<div class="card" style="margin-bottom:12px;">
-    <div class="card-header" style="margin-bottom:0;">
-        <h3 class="card-title" style="font-size:14px;">🔍 Похожие ТК (RAG)</h3>
-    </div>
-    <div id="rag-similar" hx-get="/api/rag/similar/{{ detail.id }}?top_k=3" hx-trigger="load" hx-swap="innerHTML" class="rag-container">
-        <div class="empty"><div class="empty-icon">⏳</div><div class="empty-title">Идёт подбор похожих ТК...</div></div>
-    </div>
-</div>
+// === Утверждение ТК ===
+async function approveTK(detailId, btn) {
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Утверждаю...';
+    try {
+        const r = await fetch('/api/approve', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({detail_id: detailId})
+        });
+        if (r.ok) {
+            toast('✅ ТК утверждена', 'success');
+            setTimeout(() => location.reload(), 800);
+        } else {
+            const d = await r.json().catch(() => ({}));
+            btn.disabled = false;
+            btn.innerHTML = orig;
+            toast(d.detail || d.error || 'Ошибка', 'error');
+        }
+    } catch (e) {
+        btn.disabled = false;
+        btn.innerHTML = orig;
+        toast('Сетевая ошибка: ' + e.message, 'error');
+    }
+}
 
-<div class="card" style="margin-bottom:12px;">
-    <div class="card-header" style="margin-bottom:0;">
-        <h3 class="card-title" style="font-size:14px;">🔀 Альтернативы маршрута</h3>
-        <button hx-post="/api/alternatives" hx-vals='{"detail_id": "{{ detail.id }}"}' hx-target="#alts-area" hx-swap="innerHTML" class="btn btn-sm">Показать</button>
-    </div>
-    <div id="alts-area" class="alts-container"></div>
-</div>
+// === Inline-edit операции ===
+async function editOp(detailId, opId, field, value) {
+    try {
+        const fd = new FormData();
+        fd.append('detail_id', detailId);
+        fd.append('op_id', opId);
+        fd.append('field', field);
+        fd.append('value', value);
+        const r = await fetch('/api/edit/operation', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {'X-Requested-With': 'XMLHttpRequest'},
+            body: fd
+        });
+        if (!r.ok) {
+            const d = await r.json().catch(() => ({}));
+            toast('Не сохранено: ' + (d.detail || d.error || r.status), 'error');
+        }
+    } catch (e) {
+        toast('Сетевая ошибка', 'error');
+    }
+}
 
-{# M22: Ресурсная спецификация — компактный блок, не свёрнутый #}
-<div class="card" style="margin-bottom:12px;">
-    <div class="card-header" style="margin-bottom:0;">
-        <h3 class="card-title" style="font-size:14px;">📋 Ресурсная спецификация (1С:ERP)</h3>
-        <a href="/api/1c/export/rs/{{ detail.id }}" target="_blank" class="btn btn-sm">XML</a>
-    </div>
-    <div hx-get="/api/resource-specs/{{ detail.id }}" hx-trigger="load" hx-swap="innerHTML" class="rs-container">
-        <div class="empty"><div class="empty-icon">⏳</div><div class="empty-title">Загрузка РС...</div></div>
-    </div>
-</div>
+async function addOp(detailId, btn) {
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Добавляю...';
+    try {
+        const fd = new FormData();
+        fd.append('detail_id', detailId);
+        const r = await fetch('/api/edit/add-operation', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {'X-Requested-With': 'XMLHttpRequest'},
+            body: fd
+        });
+        if (r.ok) location.reload();
+        else {
+            btn.disabled = false;
+            btn.innerHTML = orig;
+            toast('Ошибка добавления', 'error');
+        }
+    } catch (e) {
+        btn.disabled = false;
+        btn.innerHTML = orig;
+        toast('Сетевая ошибка', 'error');
+    }
+}
 
-<div class="card" style="margin-bottom:12px;">
-    <div class="card-header" style="margin-bottom:0;">
-        <h3 class="card-title" style="font-size:14px;">🔗 Связанные детали (иерархия)</h3>
-    </div>
-    <div hx-get="/api/related/{{ detail.id }}" hx-trigger="load" hx-swap="innerHTML" class="related-container">
-        <div class="empty"><div class="empty-icon">⏳</div><div class="empty-title">Загрузка связей...</div></div>
-    </div>
-</div>
+async function delOp(detailId, opId, btn) {
+    if (!confirm('Удалить операцию?')) return;
+    const card = btn.closest('.op-card');
+    try {
+        const fd = new FormData();
+        fd.append('detail_id', detailId);
+        fd.append('op_id', opId);
+        const r = await fetch('/api/edit/delete-operation', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {'X-Requested-With': 'XMLHttpRequest'},
+            body: fd
+        });
+        if (r.ok) {
+            card.style.opacity = '0.4';
+            setTimeout(() => card.remove(), 300);
+            toast('Операция удалена', 'success');
+        } else {
+            toast('Ошибка удаления', 'error');
+        }
+    } catch (e) {
+        toast('Сетевая ошибка', 'error');
+    }
+}
 
-{# M22: Чертёж — компактный #}
-{% if detail.drawing_path %}
-<div class="info-block">
-    <strong>📐 Чертёж:</strong> <a href="/drawings/{{ detail.id }}_{{ detail.drawing_format }}" target="_blank">{{ detail.drawing_path }}</a>
-    <span class="hint">Формат: {{ detail.drawing_format }}</span>
-</div>
-{% else %}
-<div class="card" style="margin-bottom:12px;">
-    <div class="card-header" style="margin-bottom:0;">
-        <h3 class="card-title" style="font-size:14px;">📐 Загрузить чертёж</h3>
-    </div>
-    <form hx-post="/api/import/drawing/{{ detail.id }}" hx-target="#drawing-status" hx-swap="innerHTML" hx-encoding="multipart/form-data" enctype="multipart/form-data">
-        <input type="file" name="file" accept=".frw,.dwg,.pdf,.png,.jpg,.jpeg" required>
-        <button type="submit" class="btn btn-primary btn-sm">Загрузить</button>
-        <span id="drawing-status"></span>
-    </form>
-</div>
-{% endif %}
-
-{# M23: AI-блок виден для status=new (M4 fix) #}
-
-{# BUG-2026-07-20-02: AI-блок вынесен наружу из {% if draft %}, виден для ВСЕХ статусов (включая new) #}
-{# BUG-2026-07-19-01: AI-блок виден только технологу/гл.технологу/админу #}
-{# M23: AI-блок свёрнут — главная кнопка уже в header, это advanced-опции #}
-{% if current_role_from_request(request) in ('technologist', 'main_technologist', 'admin') %}
-<details class="add-form" style="margin-bottom: 16px;">
-    <summary>⚙️ Дополнительные опции генерации (для опытных)</summary>
-    <p class="hint" style="margin-top:8px;">Продвинутый режим: 3-шаговый flow с уточнениями. Обычно достаточно одной кнопки «✨ Сгенерировать ТК» в header.</p>
-    <div class="step-flow" id="step-flow-{{ detail.id }}">
-        <div class="step" id="step-analyze-{{ detail.id }}">
-            <strong>Шаг 1.</strong> AI задаёт 3-5 уточняющих вопросов (если нужны)
-            <button onclick="step1_analyze('{{ detail.id }}')" class="btn btn-sm">🤔 Уточнить</button>
-            <span id="step1-status-{{ detail.id }}" class="hint"></span>
-            <div id="questions-area-{{ detail.id }}"></div>
-        </div>
-        <div class="step" id="step-draft-{{ detail.id }}">
-            <strong>Шаг 2.</strong> Быстрый draft (3 операции, ~1₽) — использует ответы из Шага 1
-            <button onclick="step2_draft_fast('{{ detail.id }}')" class="btn btn-sm">⚡ Draft</button>
-            <span id="step2-status-{{ detail.id }}" class="hint"></span>
-            <div id="draft-area-{{ detail.id }}"></div>
-        </div>
-        <div class="step" id="step-refine-{{ detail.id }}">
-            <strong>Шаг 3.</strong> Полная ТК с учётом уточнений
-            <button id="refine-btn-{{ detail.id }}" onclick="step3_refine('{{ detail.id }}')" class="btn btn-sm btn-primary" disabled>✨ Полная ТК (сначала ответьте на вопросы)</button>
-            <span id="step3-status-{{ detail.id }}" class="hint"></span>
-            <div id="refine-status-{{ detail.id }}"></div>
-        </div>
-    </div>
-    <p class="hint">💡 Или используй старую кнопку «✨ Сгенерировать» (полный вызов без уточнений, ~3₽).</p>
-</details>
-{% endif %}
-
-{# F16.9: A4-10 — UI для сравнения версий (diff) #}
-{% if draft_versions and draft_versions|length > 1 %}
-<div class="action-bar" style="background:#eff6ff; padding:12px; border-radius:6px; margin-bottom:16px;">
-    <strong>🔄 Сравнить версии:</strong>
-    <form method="get" action="/detail/{{ detail.id }}/diff" class="inline-form" style="display:inline-flex; gap:4px; align-items:center;">
-        <label>v от: <select name="v_from">
-            {% for v in draft_versions %}
-            <option value="{{ v.version }}">v{{ v.version }}</option>
-            {% endfor %}
-        </select></label>
-        <label>v до: <select name="v_to">
-            {% for v in draft_versions %}
-            <option value="{{ v.version }}" {% if loop.first %}selected{% endif %}>v{{ v.version }}</option>
-            {% endfor %}
-        </select></label>
-        <button type="submit" class="btn btn-small" title="Показать различия между версиями">Показать diff</button>
-    </form>
-</div>
-{% endif %}
-
-{# F16.8: A4-11 — список удалённых операций с кнопкой restore #}
-{% if draft and deleted_ops %}
-<div class="action-bar" style="background:#fef3c7; padding:12px; border-radius:6px; margin-bottom:16px;">
-    <strong>🗑 Удалённые операции ({{ deleted_ops|length }}):</strong>
-    <ul style="margin:8px 0 0 0; padding-left:20px;">
-        {% for d in deleted_ops %}
-        <li>
-            <code>{{ d.op_name }}</code> — удалено {{ d.deleted_at[:16] }}
-            {% if d.reason %}<small style="color:#6b7280;">({{ d.reason }})</small>{% endif %}
-            {% if not d.restored_at %}
-            <button class="btn btn-small"
-                    hx-post="/api/edit/restore-operation"
-                    hx-vals='{"detail_id": "{{ detail.id }}", "del_id": "{{ d.id }}"}'
-                    hx-on::after-request="if(event.detail.xhr.status==200){showToast('Операция восстановлена', 'success');setTimeout(()=>location.reload(), 600);}else{showToast('Ошибка восстановления', 'error');}">
-                ↩️ Восстановить
-            </button>
-            {% else %}
-            <span style="color:#10b981;">✅ восстановлено</span>
-            {% endif %}
-        </li>
-        {% endfor %}
-    </ul>
-</div>
-{% endif %}
-
-{% if not draft %}
-{% set cur_role = current_role_from_request(request) %}
-{% if cur_role in ('technologist', 'main_technologist', 'admin') %}
-<div class="card" style="margin-top: var(--sp-3);">
-    <div class="card-header">
-        <h3 class="card-title">🪄 Сгенерировать проект ТК (продвинутый режим)</h3>
-    </div>
-    <p class="hint" style="margin: 4px 0 12px 0;">Главная кнопка <strong>«✨ Сгенерировать ТК»</strong> — в header справа. Это альтернативный вход с выбором типа операции (сварка/электрика/гидравлика/покраска).</p>
-    <form id="generate-form" hx-post="/api/generate"
-          hx-target="#generate-status"
-          hx-swap="innerHTML"
-          hx-on::after-request="setTimeout(() => location.reload(), 800);"
-          style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-        <input type="hidden" name="detail_id" value="{{ detail.id }}">
-        <select name="op_type" style="padding:8px 10px; border:1px solid var(--c-border); border-radius:6px; font-size:14px;">
-            <option value="">🛠 Общая (смешанная)</option>
-            <option value="welding">🔥 Сварка</option>
-            <option value="electrical">⚡ Электрика</option>
-            <option value="hydraulic">💧 Гидравлика</option>
-            <option value="paint">🎨 Покраска</option>
-        </select>
-        <button type="submit" class="btn btn-primary"
-                onclick="showProgress('Генерация черновой ТК...');">
-            🪄 Сгенерировать
-        </button>
-        <span id="generate-status"></span>
-    </form>
-</div>
-{% else %}
-{# только для ролей, которые могут генерировать #}
-<div class="info-block" style="color:#6b7280;">
-    <p>Проект ТК ещё не сгенерирован. Только технолог или гл. технолог могут запустить генерацию.</p>
-    <p style="font-size:12px;">Ваша роль: <strong>{{ current_role_from_request(request) }}</strong></p>
-</div>
-{% endif %}
-{% else %}
-<div class="action-bar">
-    {% set cur_role = current_role_from_request(request) %}
-    {% if status != "approved" %}
-    {% if cur_role in ('technologist', 'main_technologist', 'admin') %}
-    {# M21: только ГЛАВНЫЕ кнопки — не 11 а 4 #}
-    <button onclick="showApprovePreview()"
-            class="btn btn-primary"
-            aria-label="Утвердить проект ТК (после проверки чеклиста)"
-            title="Утвердить проект ТК (после проверки чеклиста)">
-        ✅ Утвердить
-    </button>
-    {% endif %}
-    {% if status == "approved" and cur_role in ('technologist', 'main_technologist', 'admin') %}
-    <button hx-post="/api/reopen"
-            hx-vals='{"detail_id": "{{ detail.id }}", "reason": "Возврат в работу"}'
-            hx-confirm="Вернуть в работу? Потребуется повторное утверждение."
-            hx-on::after-request="if(event.detail.xhr.status==200){showToast('Возвращено в работу', 'info');setTimeout(()=>location.reload(), 800);}else{showToast('Ошибка', 'error');}"
-            class="btn">
-        ↩️ Вернуть в работу
-    </button>
-    {% endif %}
-    {% endif %}
-    {# M21: остальные кнопки — в dropdown, чтобы не перегружать #}
-    <details class="action-dropdown" style="display:inline-block;">
-        <summary class="btn" style="cursor:pointer;list-style:none;">📤 Ещё ▾</summary>
-        <div style="position:absolute; background:white; border:1px solid #d1d5db; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.1); padding:8px 0; z-index:100; min-width:200px;">
-            {% if cur_role in ('technologist', 'main_technologist', 'admin') and status != "approved" %}
-            <button hx-post="/api/submit-for-review"
-                    hx-vals='{"detail_id": "{{ detail.id }}"}'
-                    hx-on::after-request="location.reload()"
-                    class="dropdown-item" style="display:block;width:100%;text-align:left;padding:6px 12px;border:none;background:none;cursor:pointer;">
-                👀 Отправить на проверку
-            </button>
-            {% endif %}
-            {% if cur_role in ('main_technologist', 'workshop_chief', 'admin') %}
-            <button hx-post="/api/approve-chief"
-                    hx-vals='{"detail_id": "{{ detail.id }}", "chief": "Баранов"}'
-                    hx-on::after-request="location.reload()"
-                    class="dropdown-item approve-chief" style="display:block;width:100%;text-align:left;padding:6px 12px;border:none;background:none;cursor:pointer;">
-                👑 Утвердить как начальник
-            </button>
-            {% endif %}
-            {% if cur_role in ('main_technologist', 'admin') %}
-            <button hx-post="/api/send-to-1c"
-                    hx-vals='{"detail_id": "{{ detail.id }}"}'
-                    hx-confirm="Записать РС в 1С:ERP?"
-                    class="dropdown-item" style="display:block;width:100%;text-align:left;padding:6px 12px;border:none;background:none;cursor:pointer;">
-                📤 Записать в 1С
-            </button>
-            {% endif %}
-            <hr style="margin:4px 0;">
-            <form action="/api/export/excel" method="post" style="margin:0;">
-                <input type="hidden" name="detail_id" value="{{ detail.id }}">
-                <button type="submit" class="dropdown-item" style="display:block;width:100%;text-align:left;padding:6px 12px;border:none;background:none;cursor:pointer;">📊 Excel</button>
-            </form>
-            <form action="/api/export/pdf" method="post" style="margin:0;">
-                <input type="hidden" name="detail_id" value="{{ detail.id }}">
-                <button type="submit" class="dropdown-item" style="display:block;width:100%;text-align:left;padding:6px 12px;border:none;background:none;cursor:pointer;">📄 PDF</button>
-            </form>
-            <a href="/api/export/onec-csv?detail_id={{ detail.id }}" class="dropdown-item" style="display:block;padding:6px 12px;color:#1f2937;text-decoration:none;">📤 CSV для 1С</a>
-            <a href="/detail/{{ detail.id }}/print" target="_blank" class="dropdown-item" style="display:block;padding:6px 12px;color:#1f2937;text-decoration:none;">🖨 Печатная форма</a>
-        </div>
-    </details>
-    <details class="add-form" style="display:inline-block;">
-        <summary>👍/👎 Фидбек</summary>
-        <form hx-post="/api/feedback" hx-target="#fb-status" hx-swap="innerHTML" class="form">
-            <input type="hidden" name="detail_id" value="{{ detail.id }}">
-            <label>Что не так?<br>
-                <textarea name="reason" rows="2" placeholder="Операции не те / время не то / нет нужного оборудования..." required></textarea>
-            </label>
-            <button type="submit" class="btn">Отправить</button>
-        </form>
-    </details>
-    <span id="fb-status"></span>
-    <span id="action-result"></span>
-</div>
-{% endif %}
-
-<div id="draft-content">
-{% if draft %}
-<div class="tabs">
-    <button class="tab active" data-tab="summary">📊 Сводка</button>
-    <button class="tab" data-tab="route">🛤 Маршрут</button>
-    <button class="tab" data-tab="operations">⚙ Операции</button>
-    <button class="tab" data-tab="reasoning">💡 Обоснование</button>
-    <button class="tab" data-tab="замечания">⚠️ Замечания <span class="badge-count">{{ draft.замечания | length }}</span></button>
-    <button class="tab" data-tab="questions">❓ Вопросы <span class="badge-count">{{ draft.questions | length }}</span></button>
-    {% if versions %}
-    <button class="tab" data-tab="versions">🔄 Версии <span class="badge-count">{{ versions | length }}</span></button>
-    {% endif %}
-    {% if edits %}
-    <button class="tab" data-tab="edits">✏️ Корректировки <span class="badge-count">{{ edits | length }}</span></button>
-    {% endif %}
-</div>
-
-<div class="tab-content" id="tab-summary">
-    <h2>Сводка</h2>
-    <div class="metrics">
-        <div class="metric">
-            <div class="metric-value">{{ draft.summary.total_operations }} <small>опер.</small></div>
-            <div class="metric-label">операций всего</div>
-        </div>
-        <div class="metric">
-            <div class="metric-value">{{ draft.summary.total_hours }} <small>ч</small></div>
-            <div class="metric-label">часов общее</div>
-        </div>
-        <div class="metric">
-            <div class="metric-value">{{ draft.summary.prep_hours }} <small>ч</small></div>
-            <div class="metric-label">часов подготовка</div>
-        </div>
-        <div class="metric">
-            <div class="metric-value">{{ draft.summary.complexity }}</div>
-            <div class="metric-label">сложность</div>
-        </div>
-    </div>
-
-    {% if draft.summary.closest_analog %}
-    <div class="info-block">
-        <strong>Ближайший аналог:</strong> <code>{{ draft.summary.closest_analog }}</code>
-    </div>
-    {% endif %}
-
-    {# U8 fix: экономика в карточке детали #}
-    {% if economics %}
-    <h3>💰 Экономика (себестоимость)</h3>
-    <div class="metrics">
-        <div class="metric">
-            <div class="metric-value">{{ economics.total_hours }} <small>ч</small></div>
-            <div class="metric-label">трудоёмкость</div>
-        </div>
-        <div class="metric">
-            <div class="metric-value">{{ economics.labor_cost }}₽</div>
-            <div class="metric-label">труд</div>
-        </div>
-        <div class="metric">
-            <div class="metric-value">{{ economics.material_cost }}₽</div>
-            <div class="metric-label">материал</div>
-        </div>
-        <div class="metric">
-            <div class="metric-value">{{ economics.overhead }}₽</div>
-            <div class="metric-label">накладные ({{ economics.overhead_pct }}%)</div>
-        </div>
-        <div class="metric" style="background:#fef2f2; padding:8px; border-radius:6px;">
-            <div class="metric-value" style="color:#dc2626;">{{ economics.total_cost }}₽</div>
-            <div class="metric-label">себестоимость</div>
-        </div>
-        <div class="metric" style="background:#f0fdf4; padding:8px; border-radius:6px;">
-            <div class="metric-value" style="color:#16a34a;">{{ economics.price }}₽</div>
-            <div class="metric-label">цена (наценка 30%)</div>
-        </div>
-    </div>
-    {% if economics.by_department %}
-    <h4>По цехам</h4>
-    <table class="data-table">
-        <thead><tr><th>Цех</th><th>Операций</th><th>Часы</th><th>Труд (₽)</th><th>Материал (₽)</th><th>Итого (₽)</th></tr></thead>
-        <tbody>
-        {% for d in economics.by_department %}
-            <tr>
-                <td><strong>{{ d.department }}</strong></td>
-                <td>{{ d.operations }}</td>
-                <td>{{ d.hours }}</td>
-                <td>{{ d.labor_cost }}₽</td>
-                <td>{{ d.material_cost }}₽</td>
-                <td><strong>{{ d.labor_cost + d.material_cost }}₽</strong></td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
-    {% endif %}
-    {% endif %}
-
-    <h3>Операции (кратко)</h3>
-    <table class="op-table">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>Операция</th>
-                <th>Оборудование</th>
-                <th>Время</th>
-                <th>Уверенность</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for op in draft.operations %}
-            <tr>
-                <td>{{ loop.index }}</td>
-                <td>{{ op.name }}</td>
-                <td>{{ op.equipment or "—" }}</td>
-                <td>{{ op.duration_hours }} ч</td>
-                <td>
-                    {% if op.confidence is defined and op.confidence >= 80 %}🟢
-                    {% elif op.confidence is defined and op.confidence >= 60 %}🟡
-                    {% else %}🔴{% endif %}
-                    {{ op.confidence if op.confidence is defined else '—' }}%
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-
-<div class="tab-content" id="tab-route" style="display:none">
-    <h2>Маршрут производства</h2>
-    <div class="route-flow">
-        {% for step in draft.route %}
-        <div class="route-step">
-            <div class="step-num">{{ step.step }}</div>
-            <div class="step-content">
-                <div class="step-name">{{ step.operation }}</div>
-                <div class="step-time">{{ step.duration_hours }} ч</div>
-            </div>
-            {% if not loop.last %}<div class="step-arrow">↓</div>{% endif %}
-        </div>
-        {% endfor %}
-    </div>
-</div>
-
-<div class="tab-content" id="tab-operations" style="display:none">
-    <h2>Операции (детально + редактор)</h2>
-    <p class="lead">Кликни на значение чтобы изменить. Все корректировки логируются и попадают в обучение.</p>
-
-    <details class="add-form">
-        <summary>＋ Добавить операцию</summary>
-        <form hx-post="/api/edit/add-operation"
-              hx-vals='{"detail_id": "{{ detail.id }}"}'
-              hx-target="#edit-status"
-              hx-swap="innerHTML"
-              hx-on::after-request="setTimeout(() => location.reload(), 500);"
-              class="form">
-            <div class="form-row">
-                <label>Название *<br><input name="name" required placeholder="040 Зачистка"></label>
-                <label>Оборудование<br><input name="equipment" placeholder="Кедр-300"></label>
-                <label>Время (ч)<br><input name="duration_hours" type="number" step="0.01" value="0"></label>
-            </div>
-            <button type="submit" class="btn btn-primary">Добавить</button>
-        </form>
-    </details>
-
-    {% for op in draft.operations %}
-    <div class="op-card">
-        <div class="op-card-header">
-            <h3>Операция {{ loop.index }}</h3>
-            <span class="op-confidence">
-                {% if op.confidence is defined and op.confidence >= 80 %}🟢
-                {% elif op.confidence is defined and op.confidence >= 60 %}🟡
-                {% else %}🔴{% endif %}
-                {{ op.confidence if op.confidence is defined else '—' }}%
-            </span>
-        </div>
-        <div class="op-card-body">
-            <p><strong>Название:</strong> {{ op.name }}</p>
-            <form hx-post="/api/edit/operation"
-                  hx-vals='{"detail_id": "{{ detail.id }}", "op_index": "{{ loop.index0 }}", "field": "name"}'
-                  hx-target="#edit-status-{{ loop.index0 }}"
-                  hx-swap="innerHTML"
-                  hx-on::after-request="if(event.detail.xhr.status==200){showToast('Сохранено', 'success');}else{showToast('Ошибка сохранения', 'error');}"
-                  class="inline-edit-form">
-                <input name="value" value="{{ op.name }}" placeholder="новое название">
-                <button type="submit" class="btn btn-small">✏️</button>
-                <span id="edit-status-{{ loop.index0 }}"></span>
-            </form>
-            <p><strong>Оборудование:</strong> {{ op.equipment or "—" }}</p>
-            <form hx-post="/api/edit/operation"
-                  hx-vals='{"detail_id": "{{ detail.id }}", "op_index": "{{ loop.index0 }}", "field": "equipment"}'
-                  hx-target="#edit-status-{{ loop.index0 }}"
-                  hx-swap="innerHTML"
-                  class="inline-edit-form">
-                <input name="value" value="{{ op.equipment or '' }}" placeholder="оборудование" list="equipment-list">
-                <datalist id="equipment-list">
-                    {% if all_equipment %}
-                    {% for e in all_equipment %}
-                    <option value="{{ e.name }}">{{ e.type or '' }} — {{ e.code or '' }}</option>
-                    {% endfor %}
-                    {% endif %}
-                </datalist>
-                <button type="submit" class="btn btn-small">✏️</button>
-            </form>
-            <p><strong>Время (ч):</strong> {{ op.duration_hours }}</p>
-            <form hx-post="/api/edit/operation"
-                  hx-vals='{"detail_id": "{{ detail.id }}", "op_index": "{{ loop.index0 }}", "field": "duration_hours"}'
-                  hx-target="#edit-status-{{ loop.index0 }}"
-                  hx-swap="innerHTML"
-                  class="inline-edit-form">
-                <input name="value" type="number" step="0.01" value="{{ op.duration_hours }}" placeholder="часы">
-                <button type="submit" class="btn btn-small">✏️</button>
-            </form>
-            <p><strong>Источник оценки:</strong> {{ op.duration_source }}</p>
-            <p><strong>Цех/участок/РМ:</strong> {{ op.department or "—" }} / {{ op.workplace or "—" }}</p>
-            {% if op.materials %}
-            <p><strong>Материалы:</strong> {{ op.materials | join(", ") }}</p>
-            {% endif %}
-            {% if op.control_points %}
-            <p><strong>Контрольные точки:</strong> {{ op.control_points | join(", ") }}</p>
-            {% endif %}
-            {% if op.gosts %}
-            <p><strong>ГОСТы:</strong> {{ op.gosts | join(", ") }}</p>
-            {% endif %}
-            <button class="btn btn-small btn-danger"
-                    hx-post="/api/edit/delete-operation"
-                    hx-vals='{"detail_id": "{{ detail.id }}", "op_index": "{{ loop.index0 }}", "reason": "удалено вручную"}'
-                    hx-target="#edit-status-{{ loop.index0 }}"
-                    hx-swap="innerHTML"
-                    hx-on::after-request="setTimeout(() => location.reload(), 500);"
-                    hx-confirm="Удалить операцию?">
-                🗑 Удалить
-            </button>
-        </div>
-    </div>
-    {% endfor %}
-    <div id="edit-status"></div>
-</div>
-
-<div class="tab-content" id="tab-reasoning" style="display:none">
-    <h2>Обоснование (для руководства)</h2>
-    <div class="info-block">
-        {% if draft.reasoning is defined and draft.reasoning %}
-        {% for key, value in draft.reasoning.items() %}
-        <h4>{{ key | replace('_', ' ') | title }}</h4>
-        <p>{{ value }}</p>
-        {% endfor %}
-        {% else %}
-        <p style="color:#9ca3af;font-style:italic;">Обоснование не предоставлено AI (демо-режим).</p>
-        {% endif %}
-    </div>
-</div>
-
-<div class="tab-content" id="tab-замечания" style="display:none">
-    <h2>Предупреждения</h2>
-    {% if draft.замечания %}
-        {% for w in draft.замечания %}
-        <div class="warning-card">
-            <div class="warning-type">{{ w.type | upper }}</div>
-            <div class="warning-quote">«{{ w.quote }}»</div>
-            <div class="warning-concern"><strong>Что смущает:</strong> {{ w.concern }}</div>
-            <div class="warning-question"><strong>Вопрос:</strong> {{ w.question }}</div>
-        </div>
-        {% endfor %}
-    {% else %}
-        <p>Нет предупреждений — все данные однозначны.</p>
-    {% endif %}
-</div>
-
-<div class="tab-content" id="tab-questions" style="display:none">
-    <h2>Вопросы к технологу</h2>
-    {% if draft.questions %}
-        {% for q in draft.questions %}
-        <div class="question-card">
-            <div class="question-id">{{ q.id }}: {{ q.topic }}</div>
-            <div class="question-text">{{ q.question }}</div>
-            <div class="question-options">
-                <strong>Варианты:</strong>
-                <ul>
-                    {% for opt in q.options %}
-                    <li>{{ opt }}</li>
-                    {% endfor %}
-                </ul>
-            </div>
-            <div class="question-default"><em>По умолчанию:</em> {{ q.default }}</div>
-            <div class="question-impact"><strong>Влияние:</strong> {{ q.impact_if_changed }}</div>
-        </div>
-        {% endfor %}
-    {% else %}
-        <p>Нет вопросов — данных достаточно.</p>
-    {% endif %}
-</div>
-
-{% if versions %}
-<div class="tab-content" id="tab-versions" style="display:none">
-    <h2>🔄 Версии проект ТКа</h2>
-    <p class="lead">Все корректировки сохраняются как версии. Можно откатиться к любой.</p>
-    <table class="data-table">
-        <thead><tr><th>v</th><th>Когда</th><th>Автор</th><th>Источник</th><th>Что изменилось</th></tr></thead>
-        <tbody>
-            {% for v in versions %}
-            <tr>
-                <td><strong>v{{ v.version }}</strong></td>
-                <td><small>{{ v.created_at[:16] }}</small></td>
-                <td>{{ v.author }}</td>
-                <td>{{ v.source }}</td>
-                <td><small>{{ v.notes or "—" }}</small></td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-{% endif %}
-
-<div class="tab-content" id="tab-economics" style="display:none">
-    <h2>💰 Экономика</h2>
-    <p class="lead">Себестоимость и рекомендуемая цена продажи (с наценкой 30%). Sprint 1: process-based pricing по цехам.</p>
-    <div id="econ-data"
-         hx-get="/api/economics/{{ detail.id }}"
-         hx-trigger="load"
-         hx-swap="innerHTML">
-        ⏳ Загрузка...
-    </div>
-    <p class="lead"><small>Сначала заполните ставку и стоимость материала в форме "Экономика" выше и утвердите проект ТК.</small></p>
-</div>
-
-{% if edits %}
-<div class="tab-content" id="tab-edits" style="display:none">
-    <h2>✏️ Корректировки технолога</h2>
-    <p class="lead">Все корректировки логируются и используются для обучения системы.</p>
-    <table class="data-table">
-        <thead><tr><th>Когда</th><th>v</th><th>Поле</th><th>Было</th><th>Стало</th><th>Причина</th><th>Автор</th></tr></thead>
-        <tbody>
-            {% for e in edits %}
-            <tr>
-                <td><small>{{ e.created_at[:16] }}</small></td>
-                <td>v{{ e.version }}</td>
-                <td><code>{{ e.field }}</code></td>
-                <td><small>{{ e.old_value[:50] }}</small></td>
-                <td><small>{{ e.new_value[:50] }}</small></td>
-                <td>{{ e.reason }}</td>
-                <td>{{ e.author }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-{% endif %}
-{% endif %}
-</div>
-
-{% if draft %}
-<script>
-document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-        const target = tab.dataset.tab;
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
-        tab.classList.add('active');
-        document.getElementById('tab-' + target).style.display = 'block';
-    });
+// === Tabs ===
+document.addEventListener('click', (e) => {
+    const tab = e.target.closest('.tab');
+    if (!tab) return;
+    const name = tab.dataset.tab;
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+    const url = new URL(location.href);
+    url.searchParams.set('active_tab', name);
+    history.replaceState(null, '', url);
 });
 </script>
-{% endif %}
-<!-- F16.7: модал подтверждения утверждения с pre-approve checklist -->
-<div id="approve-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; overflow:auto;">
-    <div style="background:white; max-width:720px; margin:40px auto; padding:24px; border-radius:8px;">
-        <h2>✅ Утверждение проекта ТК</h2>
-        <p>Проверьте перед утверждением. После утверждения редактирование ограничено.</p>
-        <table class="data-table" style="margin:12px 0;">
-            <tr><th>Обозначение</th><td><code>{{ detail.designation }}</code></td></tr>
-            <tr><th>Наименование</th><td>{{ detail.name }}</td></tr>
-            <tr><th>Операций</th><td>{{ draft.operations | length if draft else 0 }}</td></tr>
-            <tr><th>Замечаний</th><td>{{ draft.warnings | length if draft and draft.warnings else 0 }}</td></tr>
-            <tr><th>Общее время</th><td>{{ "%.1f"|format(draft.operations | sum(attribute='duration_hours') if draft else 0) }} ч</td></tr>
-        </table>
-        {# F16.7: pre-approve checklist (A4-23) #}
-        <div style="background:#fffbeb; border:1px solid #f59e0b; padding:12px; border-radius:6px; margin-bottom:12px;">
-            <strong>☐ Чеклист перед утверждением:</strong>
-            <ul style="margin:6px 0 0 0; padding-left:20px;">
-                <li><label><input type="checkbox" id="ck-1"> Все операции заполнены (оборудование, время)</label></li>
-                <li><label><input type="checkbox" id="ck-2"> Нет красных замечаний (все < 50% уверенности)</label></li>
-                <li><label><input type="checkbox" id="ck-3"> Экономика проверена (ставка, материал, накладные)</label></li>
-                <li><label><input type="checkbox" id="ck-4"> Связанные документы (чертежи, РС) в порядке</label></li>
-            </ul>
-        </div>
-        <details style="background:#f9fafb; padding:10px; border-radius:4px; margin-bottom:12px;">
-            <summary style="cursor:pointer;">📋 Показать маршрут</summary>
-            <ol style="margin-top:8px;">
-                {% for op in (draft.operations if draft else []) %}
-                <li><strong>{{ op.name }}</strong> — {{ op.equipment or "—" }} — {{ op.duration_hours }} ч</li>
-                {% endfor %}
-            </ol>
-        </details>
-        <div style="display:flex; gap:8px; justify-content:flex-end;">
-            <button type="button" class="btn" onclick="document.getElementById('approve-modal').style.display='none'">Отмена</button>
-            <button type="button" id="approve-confirm-btn" class="btn btn-primary" onclick="submitApprove()">✅ Да, утвердить</button>
-        </div>
-    </div>
-</div>
-<script>
-function showApprovePreview() {
-    document.getElementById('approve-modal').style.display = 'block';
-    // F16.7: сбросить чеклист
-    ['ck-1','ck-2','ck-3','ck-4'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.checked = false;
-    });
-    const btn = document.getElementById('approve-confirm-btn');
-    if (btn) btn.disabled = true;
-}
-function submitApprove() {
-    const btn = document.querySelector('#approve-modal .btn-primary');
-    btn.disabled = true;
-    btn.textContent = '⏳ Утверждаю...';
-    const fd = new FormData();
-    fd.append('detail_id', '{{ detail.id }}');
-    fetch('/api/approve', {method: 'POST', credentials: 'same-origin', body: fd, headers: {'X-Requested-With': 'XMLHttpRequest'}})
-        .then(r => r.json())
-        .then(d => {
-            if (d.ok) location.reload();
-            else { alert('Ошибка: ' + (d.error || JSON.stringify(d))); btn.disabled = false; btn.textContent = '✅ Да, утвердить'; }
-        })
-        .catch(e => { alert('Сеть: ' + e); btn.disabled = false; btn.textContent = '✅ Да, утвердить'; });
-}
-</script>
 
-<!-- U4 fix: горячие клавиши для inline-edit -->
-<script>
-(function() {
-    let lastFocus = null;
-    // Запоминаем последний сфокусированный inline-edit input
-    document.addEventListener('focusin', (e) => {
-        if (e.target.matches('.inline-edit-form input[name="value"]')) {
-            lastFocus = e.target;
-        }
-    });
-    document.addEventListener('keydown', (e) => {
-        // Esc — отменить inline-edit (вернуть оригинальное значение)
-        if (e.key === 'Escape' && lastFocus) {
-            e.preventDefault();
-            const original = lastFocus.defaultValue || '';
-            lastFocus.value = original;
-            lastFocus.blur();
-            lastFocus = null;
-        }
-        // Ctrl+S / Cmd+S — сохранить активный inline-edit
-        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-            e.preventDefault();
-            if (lastFocus) {
-                const form = lastFocus.closest('form');
-                if (form) {
-                    form.requestSubmit();
-                }
-            } else {
-                // Нет активного inline-edit — сохранить approve (как в модале)
-                showApprovePreview();
-            }
-        }
-    });
-})();
-
-// F16.7: pre-approve checklist — требует все 4 галочки перед активацией кнопки
-(function() {
-    const ids = ['ck-1','ck-2','ck-3','ck-4'];
-    function checkAll() {
-        const allChecked = ids.every(id => {
-            const el = document.getElementById(id);
-            return el && el.checked;
-        });
-        const btn = document.getElementById('approve-confirm-btn');
-        if (btn) {
-            btn.disabled = !allChecked;
-            btn.style.opacity = allChecked ? '1' : '0.5';
-            btn.title = allChecked ? '' : 'Отметьте все пункты чеклиста';
-        }
-    }
-    document.addEventListener('change', (e) => {
-        if (e.target && e.target.id && ids.includes(e.target.id)) {
-            checkAll();
-        }
-    });
-})();
-</script>
-
-{# F16.1: авто-старт таймера при открытии карточки #}
-<script>
-(function() {
-    const detailId = '{{ detail.id }}';
-    if (detailId) {
-        // Используем sendBeacon чтобы не блокировать закрытие
-        if (navigator.sendBeacon) {
-            const fd = new FormData();
-            fd.append('detail_id', detailId);
-            navigator.sendBeacon('/api/pilot/session-start', fd);
-        } else {
-            fetch('/api/pilot/session-start', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify({detail_id: detailId})
-            }).catch(() => {});
-        }
-    }
-})();
-</script>
 {% endblock %}
