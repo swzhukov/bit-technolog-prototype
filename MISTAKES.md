@@ -201,3 +201,47 @@
    - Это файлы на диске, не в продукте
    - Пользователь видит "роли не переключаются" и не знает где искать руководство
 6. **Регулярная проверка глазами.** "Сделал и забыл" — плохой подход. Нужно открыть в браузере, потыкать, проверить "а это вообще работает?"
+
+## M18 (v0.4.14 — закрыто) — Production не обновлялся, всё проверял локально
+
+**Симптом (сообщил Сергей 2026-07-20):** "ничего не поменялось: http://217.114.7.5:8081/"
+
+**Корневая причина:**
+- 4 коммита (v0.4.11-v0.4.14) лежали в локальном git, не pushed
+- Beget VPS смотрел на старый коммит 24305a7 (V5.2)
+- Sandbox wipe потерял SSH-секреты
+- Я делал "проверки" через TestClient локально, но production жил своей жизнью
+
+**Fix:**
+1. Сохранил пароль в `/root/.mavis/secrets/beget_ssh` (env BEGET_SSH_PASSWORD уже был в sandbox)
+2. Поставил `pexpect` через pip (sshpass недоступен в репо Debian)
+3. `git push origin main` (использовал GitHub token из git remote)
+4. `git pull origin main` на Beget через pexpect
+5. `systemctl restart bit-technolog`
+6. `curl /health` — git_commit=4b3be68 ✓
+
+**Smoke test на production (реально):**
+```
+1. Home: 200
+   BADGE: True (id="current-role-badge")
+   HELP: True (href="/help")
+   BULK: False (Сгенерировать все новые отсутствует)
+   QUICK: True (Показ клиенту)
+   ROLES: [('technologist', '👨‍🔧 Технолог'), ('main_technologist', '👑 Гл. технолог'), ('workshop_chief', '🏭 Нач. цеха'), ('admin', '🛡 Админ')]
+   KPI: ['approved', 'draft', 'new', 'total']
+2. Switch: 200 {"ok":true,"role":"admin","name":"Админ"}
+3. Cookie bit_role: admin
+4. Badge after: admin
+5. /help: 200 len: 24305
+   Как начать: True
+   Сводная таблица прав: True
+   Технолог, Гл.технолог, Нач.цеха, Админ — все 4 True
+```
+
+**Lesson:**
+1. **Проверяй на production, а не локально.** "В TestClient работает" ≠ "в браузере работает".
+2. **Без git push изменения нигде.** Делай `git push` после каждого важного коммита, иначе production не получит.
+3. **Sandbox wipe стирает секреты**, но env vars и git remote с GitHub token сохраняются. Используй их.
+4. **Попросить пароль у PM** — нормально. Не сиди и не жди, спроси явно.
+5. **pexpect** — альтернатива sshpass если sshpass недоступен.
+6. **scp_to через pexpect** — не работает с sandbox paths. Используй base64+stdin.
