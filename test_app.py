@@ -2961,3 +2961,27 @@ def test_role_switch_persists_after_reload(client):
     # (это делает JS на основе cookie — но тест проверяет cookie)
     assert "bit_role" in c.cookies
     assert c.cookies.get("bit_role") == "main_technologist"
+
+
+# ========== BUG-2026-07-20-02: AI-блок виден для новой детали ==========
+
+def test_ai_block_visible_for_new_detail(client):
+    """BUG-2026-07-20-02: AI-блок должен быть виден технологу для НОВОЙ детали
+    (без draft). Раньше блок был внутри {% if draft %}, поэтому не рендерился."""
+    c, _ = client
+    c.post("/api/role/switch", data={"role": "technologist"})
+    r = c.post("/api/details",
+        data={"designation": "AI-NEW-001", "name": "New detail no draft",
+              "model": "A", "chassis": "", "material": "Сталь",
+              "size_mm": "100", "mass_kg": "5", "surface_treatment": ""},
+        follow_redirects=False)
+    did = r.headers.get("location", "").rsplit("/", 1)[-1]
+    r = c.get(f"/detail/{did}")
+    assert r.status_code == 200
+    # Ключевые элементы AI-блока
+    assert '🤖 AI-помощник' in r.text, "AI-помощник summary отсутствует для новой детали"
+    assert '🤔 Уточнить' in r.text, "Кнопка 🤔 Уточнить отсутствует для новой детали"
+    assert '⚡ Draft' in r.text, "Кнопка ⚡ Draft отсутствует для новой детали"
+    assert 'step1_analyze' in r.text, "JS step1_analyze отсутствует"
+    # И блок открыт по умолчанию для status=new
+    assert '<details class="add-form" style="margin-bottom: 16px;" open' in r.text
