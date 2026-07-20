@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% block title %}Помощь — БИТ.Технолог{% endblock %}
+{% block content %}
+
+<div class="page-header">
+    <h1>❓ Помощь — Руководство пользователя</h1>
+    <p class="lead">БИТ.Технолог v0.4.13 · 27 июля 2026 — пилот</p>
+</div>
+
+<div style="background:#fef3c7; border:1px solid #f59e0b; padding:12px 16px; border-radius:8px; margin-bottom:16px;">
+    <strong>🎬 Вы сейчас в роли:</strong>
+    <span id="current-role-help" style="font-weight:600; padding:2px 8px; border-radius:4px; background:#f59e0b; color:white; margin-left:6px;">
+        {{ role_name_lookup(current_role_from_request(request)) }}
+    </span>
+    <p style="margin:8px 0 0 0; font-size:13px;">
+        <strong>Переключить роль:</strong> селектор в header справа, или 3 быстрые кнопки
+        <a href="/" style="color:#92400e; font-weight:600;">на главной</a>.
+    </p>
+</div>
+
+{# ========== СОДЕРЖАНИЕ ========== #}
+<div style="background:#f0f9ff; border:1px solid #0ea5e9; padding:16px; border-radius:8px; margin-bottom:24px;">
+    <h2 style="margin-top:0;">📚 Содержание</h2>
+    <ul style="column-count: 2; column-gap: 24px; list-style:none; padding:0;">
+        <li>📌 <a href="#how-to-start">Как начать работу</a></li>
+        <li>🎭 <a href="#roles">Роли — что видит каждая</a></li>
+        <li>🛠 <a href="#workflow">Workflow технолога (30 мин на деталь)</a></li>
+        <li>👑 <a href="#chief">Workflow гл.технолога (утверждение)</a></li>
+        <li>📏 <a href="#norm">Что делает нормировщик</a></li>
+        <li>🏭 <a href="#workshop">Что делает нач. цеха</a></li>
+        <li>📐 <a href="#constructor">Что делает конструктор</a></li>
+        <li>🔍 <a href="#quality">Что делает ОТК</a></li>
+        <li>🛡 <a href="#admin">Что делает админ</a></li>
+        <li>📊 <a href="#matrix">Сводная таблица прав</a></li>
+        <li>❓ <a href="#faq">Частые вопросы</a></li>
+        <li>🆘 <a href="#trouble">Что делать, если сломалось</a></li>
+    </ul>
+</div>
+
+{# ========== КАК НАЧАТЬ ========== #}
+<h2 id="how-to-start">📌 Как начать работу</h2>
+
+<ol>
+    <li><strong>Переключитесь в роль "Технолог"</strong> через селектор в header (справа) или 3 кнопки на <a href="/">главной</a>.</li>
+    <li>Нажмите <strong>"＋ Деталь"</strong> в header → заполните форму:
+        <ul>
+            <li><strong>Обозначение</strong> (обязательно) — например, <code>АЦ-6,0-40</code></li>
+            <li><strong>Наименование</strong> — что за деталь</li>
+            <li><strong>Модель (шасси)</strong> — например, <code>АЦ-6,0-40 на КАМАЗ-43118</code></li>
+            <li><strong>Материал</strong> — например, <code>Сталь 09Г2С</code></li>
+            <li><strong>Размер, мм</strong> и <strong>Масса, кг</strong> — числа</li>
+            <li><strong>Поверхностная обработка</strong> — например, <code>Грунт ГФ-021</code></li>
+        </ul>
+    </li>
+    <li>Нажмите <strong>💾 Сохранить</strong> → откроется карточка детали.</li>
+    <li>В карточке: <strong>🤖 AI-помощник</strong> (открыт по умолчанию) → <strong>⚡ Draft</strong> → дождитесь 5-30 сек → операции появятся.</li>
+    <li>Проверьте, отредактируйте, утвердите.</li>
+</ol>
+
+<div style="background:#ecfdf5; border-left:4px solid #10b981; padding:12px 16px; margin:12px 0;">
+    <strong>💡 Совет:</strong> используйте <strong>3-step UX</strong> для лучшего качества:
+    <code>🤔 Уточнить</code> (AI задаст 3-5 вопросов) → ответьте → <code>⚡ Draft</code> → <code>✨ Полная ТК</code>.
+</div>
+
+{# ========== РОЛИ ========== #}
+<h2 id="roles">🎭 Роли — что видит каждая</h2>
+
+<p>Всего 7 ролей. Каждая видит свой набор кнопок и страниц. В header — цветной badge с вашей ролью, перепутать невозможно.</p>
+
+<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin:12px 0;">
+
+    <div style="background:white; border:2px solid #2563eb; padding:12px; border-radius:8px;">
+        <h3 style="color:#2563eb; margin-top:0;">👨‍🔧 Технолог</h3>
+        <p><strong>Главный пользователь.</strong> Создаёт ТК.</p>
+        <p><strong>Может:</strong> создавать детали, генерировать AI, редактировать, утверждать, импортировать/экспортировать.</p>
+        <p><strong>Не может:</strong> админ-панель.</p>
+    </div>
+
+    <div style="background:white; border:2px solid #7c3aed; padding:12px; border-radius:8px;">
+        <h3 style="color:#7c3aed; margin-top:0;">👑 Гл. технолог</h3>
+        <p><strong>Утверждающий.</strong> Подписывает ТК.</p>
+        <p><strong>Может:</strong> всё, что технолог + утверждать как гл. технолог + возвращать в работу.</p>
+        <p><strong>Не может:</strong> админ-панель.</p>
+    </div>
+
+    <div style="background:white; border:2px solid #dc2626; padding:12px; border-radius:8px;">
+        <h3 style="color:#dc2626; margin-top:0;">🛡 Админ</h3>
+        <p><strong>Управляет системой.</strong></p>
+        <p><strong>Может:</strong> всё + <a href="/admin">/admin</a> (8 страниц: пользователи, настройки, LLM-логи, ошибки, бэкапы).</p>
+    </div>
+
+    <div style="background:white; border:2px solid #0891b2; padding:12px; border-radius:8px;">
+        <h3 style="color:#0891b2; margin-top:0;">📏 Нормировщик</h3>
+        <p><strong>Только просмотр.</strong> Проверяет экономику и нормы.</p>
+        <p><strong>Может:</strong> смотреть детали, экономику, бенчмарки, отчёты.</p>
+        <p><strong>Не может:</strong> создавать, генерировать, редактировать, утверждать.</p>
+    </div>
+
+    <div style="background:white; border:2px solid #ea580c; padding:12px; border-radius:8px;">
+        <h3 style="color:#ea580c; margin-top:0;">🏭 Нач. цеха</h3>
+        <p><strong>Контролирует реализуемость.</strong></p>
+        <p><strong>Может:</strong> смотреть, утверждать как начальник цеха.</p>
+    </div>
+
+    <div style="background:white; border:2px solid #16a34a; padding:12px; border-radius:8px;">
+        <h3 style="color:#16a34a; margin-top:0;">📐 Конструктор</h3>
+        <p><strong>Создаёт детали.</strong> Но не ТК.</p>
+        <p><strong>Может:</strong> создавать детали, просматривать ТК когда технолог их сделает.</p>
+        <p><strong>Не может:</strong> генерировать AI (кнопок нет).</p>
+    </div>
+
+    <div style="background:white; border:2px solid #db2777; padding:12px; border-radius:8px;">
+        <h3 style="color:#db2777; margin-top:0;">🔍 ОТК (контролёр)</h3>
+        <p><strong>Контроль качества.</strong> Только просмотр.</p>
+        <p><strong>Может:</strong> смотреть детали, контрольные точки, бенчмарки.</p>
+    </div>
+
+</div>
+
+{# ========== WORKFLOW ТЕХНОЛОГА ========== #}
+<h2 id="workflow">🛠 Workflow технолога (30 мин на деталь)</h2>
+
+<ol>
+    <li><strong>Создать деталь</strong> — <code>＋ Деталь</code> в header (5 мин)</li>
+    <li><strong>AI-помощник → 🤔 Уточнить</strong> — AI задаст 3-5 вопросов (10 сек) → ответьте (2 мин)</li>
+    <li><strong>⚡ Draft</strong> — короткий маршрут, 3 операции, ~1₽ (10 сек + 1 мин проверка)</li>
+    <li><strong>✨ Полная ТК</strong> — полный маршрут с учётом ответов, ~3₽ (30-60 сек + 5 мин проверка)</li>
+    <li><strong>Редактировать операции</strong> — кликните на название/оборудование/время (5 мин)</li>
+    <li><strong>Проверить экономику</strong> — вкладка <code>💰 Экономика</code>: ставка, материал, накладные (2 мин)</li>
+    <li><strong>Утвердить</strong> — галки в чеклисте (4 пункта) → <code>✅ Утвердить</code> (1 мин)</li>
+    <li><strong>Экспортировать</strong> — <code>📤 Загрузить</code> (PDF), <code>📊 Excel</code>, <code>📄 PDF</code>, или <code>/api/export/onec-csv</code> (1 мин)</li>
+</ol>
+
+<div style="background:#fffbeb; border-left:4px solid #f59e0b; padding:12px 16px; margin:12px 0;">
+    <strong>⚠ Пре-аппрув чеклист (4 пункта, обязательно для утверждения):</strong>
+    <ol style="margin:6px 0;">
+        <li>Все операции заполнены (оборудование, время)</li>
+        <li>Нет красных замечаний (все < 50% уверенности)</li>
+        <li>Экономика проверена (ставка, материал, накладные)</li>
+        <li>Связанные документы (чертежи, РС) в порядке</li>
+    </ol>
+</div>
+
+{# ========== ГЛ.ТЕХНОЛОГ ========== #}
+<h2 id="chief">👑 Workflow гл.технолога (утверждение)</h2>
+
+<ol>
+    <li>Переключитесь в роль <strong>Гл. технолог</strong></li>
+    <li>Главная → фильтр <code>?status=draft</code> (проекты, ждут вашего утверждения)</li>
+    <li>Откройте деталь → проверьте маршрут, экономику, замечания</li>
+    <li>Если сомнения → <strong>Вернуть в работу</strong> (с комментарием)</li>
+    <li>Если всё хорошо → <strong>Утвердить как гл. технолог</strong></li>
+    <li>ТК уходит в архив, редактирование ограничено</li>
+    <li>Экспортируйте в PDF (с QR) для архива</li>
+</ol>
+
+{# ========== ДРУГИЕ РОЛИ ========== #}
+<h2 id="norm">📏 Что делает нормировщик</h2>
+<p><strong>Только смотрит.</strong> Открывает детали → вкладка <code>💰 Экономика</code> → сравнивает с <a href="/benchmarks">бенчмарками</a>. Если расхождение > 20% — пишет технологу. Кнопок не нажимает.</p>
+
+<h2 id="workshop">🏭 Что делает нач. цеха</h2>
+<p>Проверяет, что ТК реализуема в цеху (оборудование есть, время реалистично, материалы доступны). Утверждает как начальник цеха (после гл.технолога).</p>
+
+<h2 id="constructor">📐 Что делает конструктор</h2>
+<p>Создаёт детали через <code>＋ Деталь</code> по чертежам. Сообщает технологу "Деталь X готова". Сам ТК не делает.</p>
+
+<h2 id="quality">🔍 Что делает ОТК</h2>
+<p>Проверяет контрольные точки в операциях (поле <code>control_points</code>). Только просмотр. Никаких кнопок.</p>
+
+<h2 id="admin">🛡 Что делает админ</h2>
+<p>Управляет системой. Доступ к <a href="/admin">/admin</a> (8 страниц):</p>
+<ul>
+    <li><a href="/admin/users">Пользователи</a> — будущее (LDAP/AD)</li>
+    <li><a href="/admin/login-log">Лог входов</a> — кто заходил</li>
+    <li><a href="/admin/llm-calls">LLM-вызовы</a> — все вызовы AI, цена, ошибки</li>
+    <li><a href="/admin/settings">Настройки</a> — YandexGPT API key, Telegram, SMTP</li>
+    <li><a href="/admin/errors">Ошибки</a> — последние 50 ошибок сервера</li>
+    <li><a href="/admin/system">Система</a> — состояние (БД, RAG, диск)</li>
+    <li><a href="/admin/backup">Бэкап</a> — ручной бэкап БД</li>
+</ul>
+
+{# ========== СВОДНАЯ ТАБЛИЦА ========== #}
+<h2 id="matrix">📊 Сводная таблица прав</h2>
+
+<div style="overflow-x:auto;">
+<table class="data-table" style="font-size:12px;">
+    <thead>
+        <tr>
+            <th>Действие</th>
+            <th>Техн</th>
+            <th>Гл.Т</th>
+            <th>Админ</th>
+            <th>Норм</th>
+            <th>НачЦ</th>
+            <th>Конст</th>
+            <th>ОТК</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr><td>Просмотр деталей</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+        <tr><td>Создание деталей</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td></tr>
+        <tr><td>Генерация ТК через AI</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
+        <tr><td>Редактирование операций</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
+        <tr><td>Утверждение как технолог</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
+        <tr><td>Утверждение как гл. технолог</td><td>❌</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
+        <tr><td>Утверждение как нач. цеха</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td></tr>
+        <tr><td>Возврат в работу (reopen)</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
+        <tr><td>Экспорт PDF/Excel/1С</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+        <tr><td>Импорт (JSON/Excel)</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
+        <tr style="background:#fef2f2;"><td><code>/admin/*</code></td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
+        <tr><td>Смена ролей (UI)</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+        <tr><td>Настройки системы</td><td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
+    </tbody>
+</table>
+</div>
+
+{# ========== FAQ ========== #}
+<h2 id="faq">❓ Частые вопросы</h2>
+
+<details>
+<summary><strong>Переключаю роль, но badge показывает старую</strong></summary>
+<p>Обновите страницу (<kbd>Ctrl+Shift+R</kbd> — hard reload). Если не помогло — DevTools → Application → Cookies → удалите <code>bit_role</code>, повторите.</p>
+</details>
+
+<details>
+<summary><strong>AI выдаёт мусор / не те операции</strong></summary>
+<p>1) Проверьте входные данные (обозначение, материал, размер — чем точнее, тем лучше). 2) Используйте 3-step UX (Уточнить → Draft → Полная ТК). 3) Добавьте правила в "Правила технолога" в карточке детали. 4) Сообщите куратору — добавим в few-shot.</p>
+</details>
+
+<details>
+<summary><strong>429 — дневной лимит LLM исчерпан</strong></summary>
+<p>Лимит 200₽/день. Подождите до 00:00 МСК или попросите админа увеличить в <a href="/admin/settings">настройках</a>.</p>
+</details>
+
+<details>
+<summary><strong>AI-блок не виден / кнопки не нажимаются</strong></summary>
+<p>Проверьте роль в badge (справа вверху). Нормировщик, ОТК, нач. цеха, конструктор НЕ видят AI-блок — это by design (только создатель ТК).</p>
+</details>
+
+<details>
+<summary><strong>Как импортировать детали из Excel?</strong></summary>
+<p>Через API: <code>POST /api/import/tk</code> с JSON или файлом. См. <a href="/docs/README.md" target="_blank">API reference</a>.</p>
+</details>
+
+<details>
+<summary><strong>Как экспортировать в 1С?</strong></summary>
+<p>В карточке детали → <code>📤 Загрузить</code> → CSV для 1С (UTF-8, открыть в Excel через "Данные → Из текста").</p>
+</details>
+
+<details>
+<summary><strong>Можно редактировать утверждённую ТК?</strong></summary>
+<p>Нет (защита от случайных изменений). Чтобы отредактировать — <code>Вернуть в работу</code> → отредактировать → утвердить заново.</p>
+</details>
+
+<details>
+<summary><strong>Что такое pre-approve checklist?</strong></summary>
+<p>4 галочки, которые не дают утвердить ТК, пока не проверено всё: операции заполнены, нет красных замечаний, экономика проверена, документы в порядке. Это защита от утверждения "сырой" ТК.</p>
+</details>
+
+<details>
+<summary><strong>Где искать логи / ошибки?</strong></summary>
+<p>Админ → <a href="/admin/errors">/admin/errors</a> — последние 50 ошибок. Или SSH: <code>sudo journalctl -u bit-technolog -n 100</code>.</p>
+</details>
+
+{# ========== TROUBLESHOOTING ========== #}
+<h2 id="trouble">🆘 Что делать, если сломалось</h2>
+
+<ol>
+    <li>Откройте <code>/health</code> — покажет статус системы, версию, uptime, БД, LLM, Telegram, SMTP.</li>
+    <li>Если <code>status != "ok"</code> — посмотрите <a href="/admin/errors">/admin/errors</a> (если есть права админа).</li>
+    <li>Если кнопки не работают — откройте DevTools (<kbd>F12</kbd>) → Console, ищите красные ошибки.</li>
+    <li>Полная диагностика — см. <code>docs/18-troubleshooting.md</code>.</li>
+    <li>Связь с поддержкой — через куратора (Сергей) или issue в GitHub.</li>
+</ol>
+
+<hr style="margin:24px 0;">
+
+<p style="text-align:center; color:#6b7280; font-size:12px;">
+    📚 Полная документация: <a href="/docs/README.md" target="_blank">docs/README.md</a> (8000+ строк, 20 файлов)<br>
+    📖 Эта страница — сокращённая версия <code>docs/14-roles-user-guide.md</code><br>
+    🔧 Версия системы: <code>{{ version|default("0.4.13") }}</code> · Сборка: <code>{{ build_date|default("2026-07-20") }}</code>
+</p>
+
+{% endblock %}

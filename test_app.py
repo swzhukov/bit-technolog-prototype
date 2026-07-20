@@ -2985,3 +2985,58 @@ def test_ai_block_visible_for_new_detail(client):
     assert 'step1_analyze' in r.text, "JS step1_analyze отсутствует"
     # И блок открыт по умолчанию для status=new
     assert '<details class="add-form" style="margin-bottom: 16px;" open' in r.text
+
+
+# ========== BUG-2026-07-20-03: CSRF protection в JS role-switch ==========
+
+def test_role_switch_works_with_csrf_enabled(client):
+    """BUG-2026-07-20-03: POST /api/role/switch с X-Requested-With должен работать
+    даже при включённом CSRF (PILOT_CSRF_DISABLED=false)."""
+    import importlib
+    import app as app_module
+    # Временно включаем CSRF
+    import os
+    old = os.environ.get("PILOT_CSRF_DISABLED")
+    os.environ["PILOT_CSRF_DISABLED"] = "false"
+    try:
+        # Создаём новый test client с включённым CSRF
+        from fastapi.testclient import TestClient
+        c2 = TestClient(app_module.app)
+        # С X-Requested-With — должно работать
+        r = c2.post("/api/role/switch",
+                    json={"role": "admin"},
+                    headers={"X-Requested-With": "XMLHttpRequest"})
+        assert r.status_code == 200, f"with X-Requested-With: {r.status_code} {r.text[:200]}"
+        # Без X-Requested-With и без Referer/Origin — должен 403
+        r2 = c2.post("/api/role/switch", json={"role": "main_technologist"})
+        assert r2.status_code == 403, f"without CSRF token: {r2.status_code} {r2.text[:200]}"
+    finally:
+        if old is None:
+            os.environ.pop("PILOT_CSRF_DISABLED", None)
+        else:
+            os.environ["PILOT_CSRF_DISABLED"] = old
+
+
+def test_help_page_in_product(client):
+    """BUG-2026-07-20-04: руководство должно быть внутри продукта, не только в docs/"""
+    c, _ = client
+    r = c.get("/help")
+    assert r.status_code == 200
+    # Проверим ключевые разделы
+    assert "Как начать работу" in r.text
+    assert "Роли — что видит каждая" in r.text
+    assert "Сводная таблица прав" in r.text
+    assert "Частые вопросы" in r.text
+    # 7 ролей описаны
+    for role_ru in ("Технолог", "Гл. технолог", "Админ", "Нормировщик", "Нач. цеха", "Конструктор", "ОТК"):
+        assert role_ru in r.text, f"role {role_ru} not described"
+
+
+def test_help_link_in_header(client):
+    """Ссылка на /help должна быть в header на каждой странице"""
+    c, _ = client
+    for url in ("/", "/equipment", "/materials", "/learning", "/help"):
+        r = c.get(url)
+        assert r.status_code == 200
+        assert 'href="/help"' in r.text, f"help link missing on {url}"
+        assert "❓ Помощь" in r.text

@@ -83,6 +83,8 @@ document.addEventListener('keydown', function(e) {
             <a href="/pilot/report" class="navlink">📈 Отчёт</a>
             <a href="/audit" class="navlink">📋 Audit</a>
             <a href="/demo" class="navlink" aria-label="Демо-сценарий для руководства">🎯 Demo</a>
+            {# BUG-2026-07-20-04: ссылка на руководство — ВНУТРИ продукта, не в docs/ #}
+            <a href="/help" class="navlink" aria-label="Руководство пользователя" style="background:#fef3c7;color:#92400e;font-weight:600;">❓ Помощь</a>
             <span class="spacer"></span>
             {# BUG-2026-07-20-01: визуальный badge текущей роли — нельзя перепутать #}
             {% set _cur = current_role_from_request(request) %}
@@ -153,13 +155,32 @@ const ROLE_NAMES = {
 };
 document.getElementById('role-switcher')?.addEventListener('change', async (e) => {
     const role = e.target.value;
+    // BUG-2026-07-20-03: X-Requested-With: XMLHttpRequest — обязательно для CSRF check
+    // (в production PILOT_CSRF_DISABLED=false, без этого заголовка POST 403)
     await fetch('/api/role/switch', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        credentials: 'same-origin',  // отправлять cookies (нужно для set-cookie)
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'  // ← CSRF-обход (htmx-стиль)
+        },
         body: JSON.stringify({role: role})
+    }).then(r => {
+        if (!r.ok) {
+            console.error('role switch failed:', r.status, r.statusText);
+            showToast('Ошибка переключения роли: ' + r.status, 'error');
+            return;
+        }
+        return r.json();
+    }).then(data => {
+        if (data) {
+            showToast('Роль: ' + (ROLE_NAMES[role] || role), 'success');
+            setTimeout(() => location.reload(), 400);
+        }
+    }).catch(e => {
+        console.error('role switch error:', e);
+        showToast('Сетевая ошибка', 'error');
     });
-    showToast('Роль: ' + (ROLE_NAMES[role] || role), 'info');
-    setTimeout(() => location.reload(), 600);
 });
 // Load current role — теперь cookie не httponly (BUG-2026-07-20-01 fix)
 (function() {

@@ -40,13 +40,30 @@
 document.querySelectorAll('.quick-role-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
         const role = btn.dataset.role;
+        // BUG-2026-07-20-03: X-Requested-With: XMLHttpRequest — обязательно для CSRF check
         await fetch('/api/role/switch', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
             body: JSON.stringify({role: role})
+        }).then(r => {
+            if (!r.ok) {
+                console.error('quick role switch failed:', r.status);
+                showToast('Ошибка: ' + r.status, 'error');
+                return;
+            }
+            return r.json();
+        }).then(data => {
+            if (data) {
+                showToast('Роль: ' + role, 'success');
+                setTimeout(() => location.reload(), 400);
+            }
+        }).catch(e => {
+            console.error('quick role switch error:', e);
         });
-        showToast('Роль: ' + role, 'info');
-        setTimeout(() => location.reload(), 400);
     });
 });
 </script>

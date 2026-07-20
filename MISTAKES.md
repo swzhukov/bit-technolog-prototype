@@ -167,3 +167,37 @@
 **Lesson:** В app.py-версии /api/admin/rag-rebuild был `from rag import rebuild_index` — но такой функции не было. Был только `get_rag().rebuild_from_db()`.
 **Fix:** admin.py использует правильный путь: `from rag import get_rag; get_rag().rebuild_from_db()`.
 **Lesson:** Проверять имена функций при рефакторинге.
+
+## M16 (v0.4.13 — закрыто) — Роли не переключались в production из-за CSRF
+
+**Симптом (сообщил Сергей 2026-07-20):** "роли так и не переключаются. Почитай своё же руководство пользователя".
+
+**Корневая причина:**
+- В production `PILOT_CSRF_DISABLED=false` (CSRF ВКЛЮЧЁН, by design с v0.4.10)
+- В `templates/base.html` JS делал `fetch('/api/role/switch', { method: 'POST' })` БЕЗ `X-Requested-With`
+- В `templates/index.html` quick-role кнопки делали то же самое
+- Middleware `app.py:392` блокировал: "CSRF check failed: need X-Requested-With, same-origin Referer or matching Origin"
+- В тестах я устанавливал `PILOT_CSRF_DISABLED=true` — поэтому не видел баг
+
+**Вторая проблема (та же):** руководство пользователя было ТОЛЬКО в `docs/14-roles-user-guide.md` (вне продукта). В UI не было ссылки. Сергей об этом и сказал: "оно должно быть внутри продукта, как Помощь".
+
+**Fix:**
+1. `templates/base.html` — добавил `'X-Requested-With': 'XMLHttpRequest'` и `credentials: 'same-origin'` в fetch
+2. `templates/index.html` — то же самое для quick-role кнопок
+3. Создал `templates/help.html` — компактная версия руководства ВНУТРИ продукта
+4. Добавил `<a href="/help">❓ Помощь</a>` в header (на каждой странице)
+5. Добавил endpoint `@app.get("/help")`
+6. `test_role_switch_works_with_csrf_enabled` — CSRF-safe POST работает
+7. `test_help_page_in_product` — /help рендерится
+8. `test_help_link_in_header` — ссылка есть на каждой странице
+
+**Lesson:**
+1. **CSRF и fetch.** Если делаешь `fetch` из JS — ВСЕГДА шли `X-Requested-With: XMLHttpRequest`. Без этого CSRF заблокирует.
+2. **credentials: 'same-origin'.** Без этого `fetch` не отправляет cookies, и set-cookie не сохраняется.
+3. **Тестируй с production env.** Я тестировал с `PILOT_CSRF_DISABLED=true` — это скрыло баг. Надо тестировать с реальной production-конфигурацией.
+4. **Документация в продукте.** Внешние `docs/*.md` файлы никто не откроет. Должна быть кнопка "Помощь" в UI.
+5. **Документация — не substitute для кода.** Я создал красивое `docs/14-roles-user-guide.md` (12K строк), но **никто туда не зайдёт**, потому что:
+   - Ссылка в UI не было
+   - Это файлы на диске, не в продукте
+   - Пользователь видит "роли не переключаются" и не знает где искать руководство
+6. **Регулярная проверка глазами.** "Сделал и забыл" — плохой подход. Нужно открыть в браузере, потыкать, проверить "а это вообще работает?"

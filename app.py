@@ -2472,6 +2472,17 @@ async def not_found_handler(request: Request, exc):
     }, status_code=404)
 
 
+# ========== BUG-2026-07-20-04: Помощь ВНУТРИ продукта ==========
+@app.get("/help", response_class=HTMLResponse)
+async def help_page(request: Request):
+    """Руководство пользователя по 7 ролям (внутри продукта, не в docs/)"""
+    return templates.TemplateResponse("help.html", {
+        "request": request,
+        "current_role_from_request": get_current_role,
+        "roles": ROLES
+    })
+
+
 @app.get("/detail/{detail_id}", response_class=HTMLResponse)
 async def detail(request: Request, detail_id: str):
     detail_obj = get_detail(detail_id)
