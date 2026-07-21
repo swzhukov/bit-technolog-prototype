@@ -1,0 +1,132 @@
+{
+  "admin.py": {
+    "mtime": 1784552468.7707257,
+    "ast_hash": "29143d9d3535a02391919c38d4b3e6ca",
+    "semantic_hash": "29143d9d3535a02391919c38d4b3e6ca"
+  },
+  "app.py": {
+    "mtime": 1784555007.3771954,
+    "ast_hash": "9dd7591f02a7c7c4976e98f8c30e6e88",
+    "semantic_hash": "9dd7591f02a7c7c4976e98f8c30e6e88"
+  },
+  "auth.py": {
+    "mtime": 1784470855.1385343,
+    "ast_hash": "6013d39d397bc00008db290ab8d51c75",
+    "semantic_hash": "6013d39d397bc00008db290ab8d51c75"
+  },
+  "check_all_roles.py": {
+    "mtime": 1784523443.9786463,
+    "ast_hash": "5b9aef833b6eb2ace5f473da88ae08c9",
+    "semantic_hash": "5b9aef833b6eb2ace5f473da88ae08c9"
+  },
+  "db.py": {
+    "mtime": 1784474295.0384378,
+    "ast_hash": "b8925b0fa155742211e296206a5e9a27",
+    "semantic_hash": "b8925b0fa155742211e296206a5e9a27"
+  },
+  "drawing_recognize.py": {
+    "mtime": 1784554949.3616045,
+    "ast_hash": "d283a1be0b6843dae09ef94c09319799",
+    "semantic_hash": "d283a1be0b6843dae09ef94c09319799"
+  },
+  "e2e_technologist.py": {
+    "mtime": 1784521371.6731234,
+    "ast_hash": "f5cde17531cf22635bbbac62a77a7a29",
+    "semantic_hash": "f5cde17531cf22635bbbac62a77a7a29"
+  },
+  "economics.py": {
+    "mtime": 1784529971.3133078,
+    "ast_hash": "242e9d9ba8e846a7a2e93687fd264953",
+    "semantic_hash": "242e9d9ba8e846a7a2e93687fd264953"
+  },
+  "equipment.json": {
+    "mtime": 1784284612.6860127,
+    "ast_hash": "d04aad9b13f7bbfb07373baec8bddc97",
+    "semantic_hash": "d04aad9b13f7bbfb07373baec8bddc97"
+  },
+  "few_shot.py": {
+    "mtime": 1784472609.9072354,
+    "ast_hash": "2fd2825aadfd060d29571cd54ff27a9f",
+    "semantic_hash": "2fd2825aadfd060d29571cd54ff27a9f"
+  },
+  "importers.py": {
+    "mtime": 1784487709.3054338,
+    "ast_hash": "efa4256db572e3c343662b40c3f2d095",
+    "semantic_hash": "efa4256db572e3c343662b40c3f2d095"
+  },
+  "learning.py": {
+    "mtime": 1784471197.103678,
+    "ast_hash": "97f3dea78335fe79fef1260462fa540a",
+    "semantic_hash": "97f3dea78335fe79fef1260462fa540a"
+  },
+  "llm.py": {
+    "mtime": 1784470973.6568115,
+    "ast_hash": "17c906497b9f81c05d5f1d5a376cdee1",
+    "semantic_hash": "17c906497b9f81c05d5f1d5a376cdee1"
+  },
+  "metrics_auto.py": {
+    "mtime": 1784472437.0162697,
+    "ast_hash": "3f2c4c85aa7c502eb4db3eb55b6cd198",
+    "semantic_hash": "3f2c4c85aa7c502eb4db3eb55b6cd198"
+  },
+  "mock_data.py": {
+    "mtime": 1784284612.7124953,
+    "ast_hash": "e6d5ec675d793dfada4e3539eb27832f",
+    "semantic_hash": "e6d5ec675d793dfada4e3539eb27832f"
+  },
+  "notify.py": {
+    "mtime": 1784470928.3877857,
+    "ast_hash": "93e7fc3b2640efeda7fb3e381883c5b2",
+    "semantic_hash": "93e7fc3b2640efeda7fb3e381883c5b2"
+  },
+  "pilot_report.py": {
+    "mtime": 1784464846.6290627,
+    "ast_hash": "9aee4684d8cc451dbc81f309f2bc5674",
+    "semantic_hash": "9aee4684d8cc451dbc81f309f2bc5674"
+  },
+  "prompts.py": {
+    "mtime": 1784554576.6029174,
+    "ast_hash": "9f0f9ea9d32378018cb3c7980d6c15b1",
+    "semantic_hash": "9f0f9ea9d32378018cb3c7980d6c15b1"
+  },
+  "rag.py": {
+    "mtime": 1784472557.8943012,
+    "ast_hash": "6cb6cea7a307e771e6e90d86dcec3376",
+    "semantic_hash": "6cb6cea7a307e771e6e90d86dcec3376"
+  },
+  "settings.py": {
+    "mtime": 1784470900.4512947,
+    "ast_hash": "073d83bfa514385550b9fd56cff448ae",
+    "semantic_hash": "073d83bfa514385550b9fd56cff448ae"
+  },
+  "static/htmx.min.js": {
+    "mtime": 1784284612.755752,
+    "ast_hash": "7e9c374d75c23ad1d811715d41ac89f1",
+    "semantic_hash": "7e9c374d75c23ad1d811715d41ac89f1"
+  },
+  "static/qrcode.min.js": {
+    "mtime": 1784461295.4914916,
+    "ast_hash": "170c5297533897f4793f676fd2d259d6",
+    "semantic_hash": "170c5297533897f4793f676fd2d259d6"
+  },
+  "structure.json": {
+    "mtime": 1784284612.7812853,
+    "ast_hash": "17d86985c63757732e9fc4e8caf252c4",
+    "semantic_hash": "17d86985c63757732e9fc4e8caf252c4"
+  },
+  "techinkom_seed.py": {
+    "mtime": 1784464165.1497355,
+    "ast_hash": "0213a070f1f5fbbc60559a8fc312cf11",
+    "semantic_hash": "0213a070f1f5fbbc60559a8fc312cf11"
+  },
+  "test_app.py": {
+    "mtime": 1784550070.7337003,
+    "ast_hash": "d155825168d12e48b94ee88a3552d4f7",
+    "semantic_hash": "d155825168d12e48b94ee88a3552d4f7"
+  },
+  "workshops_tehinkom.py": {
+    "mtime": 1784554555.7353992,
+    "ast_hash": "7623f4dfecc31bbee2303d58ffba89da",
+    "semantic_hash": "7623f4dfecc31bbee2303d58ffba89da"
+  }
+}
