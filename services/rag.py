@@ -38,9 +38,12 @@ class EtalonIndex:
     operations: List[Dict[str, Any]]
     # TF-IDF: term -> tfidf_weight
     tfidf: Dict[str, float] = field(default_factory=dict)
-    # Структурные признаки
-    materials: List[str] = field(default_factory=list)
+    # Структурные признаки (Sprint 7 — RAG v2)
+    materials: List[str] = field(default_factory=list)  # backwards compat (= material_codes)
+    material_codes: List[str] = field(default_factory=list)
+    material_ids: List[int] = field(default_factory=list)  # FK на materials
     operation_types: List[str] = field(default_factory=list)
+    equipment_names: List[str] = field(default_factory=list)
     # Документ
     operations_text: str = ""  # Конкатенация названий операций
 
@@ -165,13 +168,23 @@ def load_etalons(force: bool = False) -> List[EtalonIndex]:
         # Соберём текст
         op_texts = []
         materials = set()
+        material_ids = set()
         op_types = set()
+        equipment_names = set()
         for op in operations:
             op_name = op.get("name", "")
             op_texts.append(op_name)
             op_types.add(detect_operation_type(op_name))
+            # Sprint 7: material_id (FK) + equipment
             for m in op.get("materials", []):
-                materials.add(m.get("code", "") or m.get("name", ""))
+                code = m.get("code", "") or m.get("name", "")
+                if code:
+                    materials.add(code)
+                    mrow = db.query_one("SELECT id FROM materials WHERE code = ?", (code,))
+                    if mrow:
+                        material_ids.add(mrow["id"])
+            if op.get("equipment_name"):
+                equipment_names.add(op["equipment_name"])
 
         operations_text = " ".join(op_texts)
         tokens = _tokenize(operations_text + " " + d.get("name", ""))
@@ -183,8 +196,11 @@ def load_etalons(force: bool = False) -> List[EtalonIndex]:
             name=d["name"],
             product_type=d.get("product_type") or "",
             operations=operations,
-            materials=list(materials),
+            materials=list(materials),  # backwards compat
+            material_codes=list(materials),
+            material_ids=list(material_ids),
             operation_types=list(op_types),
+            equipment_names=list(equipment_names),
             operations_text=operations_text,
         ))
 
@@ -229,6 +245,7 @@ def find_analogs(
     operation_name: str,
     operation_type: Optional[str] = None,
     material: Optional[str] = None,
+    material_id: Optional[int] = None,
     mass_kg: Optional[float] = None,
     top_k: int = 3,
 ) -> List[AnalogMatch]:

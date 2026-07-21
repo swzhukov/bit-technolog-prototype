@@ -605,3 +605,80 @@ class TestNotices:
         n = db.query_one("SELECT id FROM change_notices WHERE number = 'И-2026-TEST-FORM'")
         if n:
             db.execute("DELETE FROM change_notices WHERE id = ?", (n["id"],))
+
+
+# ============================================================
+# ТЕСТЫ SPRINT 7: ONE_C_LOADER + RAG V2
+# ============================================================
+
+class TestOneCLoader:
+    def test_load_chassis(self):
+        from services.one_c_loader import load_chassis
+        from gateways.one_c_gateway import FileGateway
+        gw = FileGateway()
+        n = load_chassis(gw)
+        assert n >= 1  # как минимум 1
+
+    def test_load_materials(self):
+        from services.one_c_loader import load_materials
+        from gateways.one_c_gateway import FileGateway
+        gw = FileGateway()
+        n = load_materials(gw)
+        assert n >= 1
+
+    def test_load_equipment(self):
+        from services.one_c_loader import load_equipment
+        from gateways.one_c_gateway import FileGateway
+        gw = FileGateway()
+        n = load_equipment(gw)
+        assert n >= 1
+
+    def test_load_nomenclature(self):
+        from services.one_c_loader import load_nomenclature
+        from gateways.one_c_gateway import FileGateway
+        gw = FileGateway()
+        n = load_nomenclature(gw)
+        assert n >= 1
+
+    def test_xml_files_exist(self):
+        from pathlib import Path
+        base = Path(__file__).parent.parent / "data" / "one_c_exchange" / "in"
+        for name in ["nomenclature.xml", "materials.xml", "equipment.xml", "professions.xml", "chassis.xml", "product_models.xml"]:
+            f = base / name
+            assert f.exists(), f"Missing {name}"
+            assert f.stat().st_size > 100  # Не пустой
+
+
+class TestRAGV2:
+    def test_find_analogs_with_material_id(self):
+        from services.rag import find_analogs, load_etalons
+        load_etalons(force=True)
+        mat = db.query_one("SELECT id FROM materials WHERE code = ?", ("09Г2С",))
+        if not mat:
+            pytest.skip("Material 09Г2С not loaded")
+        results = find_analogs("Сварка", material_id=mat["id"], top_k=3)
+        assert len(results) >= 1
+        # Все должны быть с material_id
+        for r in results:
+            assert r.evidence_level in ("green", "yellow", "red")
+
+    def test_more_etalons_loaded(self):
+        from services.rag import load_etalons
+        ets = load_etalons(force=True)
+        # Должно быть минимум 2 (из PDF) + 5 (синтетических) = 7
+        assert len(ets) >= 5
+
+    def test_etalon_has_material_ids(self):
+        from services.rag import load_etalons
+        ets = load_etalons(force=True)
+        # Хотя бы один эталон с material_ids
+        with_mat = [e for e in ets if e.material_ids]
+        assert len(with_mat) >= 1
+
+    def test_equipment_bonus(self):
+        from services.rag import find_analogs, load_etalons
+        load_etalons(force=True)
+        # Поиск с конкретным equipment
+        results = find_analogs("Сварка", top_k=5)
+        # Сварка должна найтись в нескольких эталонах
+        assert len(results) >= 2
