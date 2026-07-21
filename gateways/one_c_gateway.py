@@ -94,6 +94,31 @@ class OneCResourceSpec:
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
+    def to_xml(self) -> str:
+        """Сериализовать в XML для обмена с 1С:ERP."""
+        from xml.sax.saxutils import escape
+        rows_xml = []
+        for r in self.rows:
+            row_parts = []
+            for k, v in r.items():
+                if v is None:
+                    continue
+                row_parts.append(f"      <{k}>{escape(str(v))}</{k}>")
+            rows_xml.append("    <row>\n" + "\n".join(row_parts) + "\n    </row>")
+        return (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<ResourceSpec xmlns="http://v8.1c.ru/resource-spec">\n'
+            f'  <item_ref>{escape(str(self.item_ref))}</item_ref>\n'
+            f'  <tech_card_ref>{escape(str(self.tech_card_ref or ""))}</tech_card_ref>\n'
+            f'  <version>{self.version}</version>\n'
+            f'  <profile_code>{escape(str(self.profile_code))}</profile_code>\n'
+            f'  <change_reason>{escape(str(self.change_reason or ""))}</change_reason>\n'
+            f'  <rows count="{len(self.rows)}">\n'
+            + "\n".join(rows_xml) + "\n"
+            '  </rows>\n'
+            '</ResourceSpec>\n'
+        )
+
 
 # ============================================================
 # ИНТЕРФЕЙС

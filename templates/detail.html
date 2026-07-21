@@ -10,21 +10,36 @@
   {% if item.sourcing == 'make' %}<span class="badge ok">Изготавливаем</span>
   {% elif item.sourcing == 'buy' %}<span class="badge blue">Покупное</span>
   {% elif item.sourcing == 'coop_da' %}<span class="badge warn">Кооперация (давальч.)</span>{% endif %}
-  {% if tech_card and tech_card.is_approved %}<span class="badge ok">ТК утверждена</span>{% elif tech_card %}<span class="badge warn">Черновик</span>{% endif %}
+  {% if tech_card and tech_card.is_approved %}<span class="badge ok">ТК утверждена</span>{% elif tech_card %}<span class="badge warn">Черновик</span>
+  {% else %}<span class="badge" style="background: var(--v8-panel-2); color: var(--v8-muted);">Нет ТК</span>{% endif %}
 </p>
 
-<div style="display:flex; gap:8px; margin-bottom:16px;">
-  <button class="btn btn-primary">Утвердить и в эталоны</button>
-  <button class="btn btn-secondary">Экспорт в 1С</button>
-  <button class="btn btn-secondary">Перегенерировать</button>
+<div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap: wrap;">
+  {% if not tech_card %}
+  <a class="btn btn-primary" href="/items/{{ item.id }}/generate">Сгенерировать ТК</a>
+  {% else %}
+  {% if not tech_card.is_approved %}
+  <button class="btn btn-primary" id="btn-approve" data-tc-id="{{ tech_card.id }}">Утвердить и в эталоны</button>
+  {% endif %}
+  <button class="btn btn-secondary" id="btn-regenerate" data-tc-id="{{ tech_card.id }}">Перегенерировать</button>
+  <button class="btn btn-secondary" id="btn-export" data-tc-id="{{ tech_card.id }}" data-item-id="{{ item.id }}">Экспорт в 1С</button>
+  <a class="btn btn-ghost" href="/notices/new?item_id={{ item.id }}">+ Извещение</a>
+  {% endif %}
+  <a class="btn btn-ghost" href="/products?level={{ item.level }}">← Назад</a>
 </div>
 
-<div class="tabs">
-  <div class="tab active">1. Операции и светофор</div>
-  <div class="tab">2. Ресурсная спецификация</div>
-  <div class="tab">3. Состав изделия</div>
-  <div class="tab">4. Доп. параметры</div>
-  <div class="tab">5. История</div>
+{% if flash %}
+<div class="panel" style="background: {% if flash.kind == 'ok' %}#1a3a1f{% elif flash.kind == 'err' %}#3a1a1a{% else %}#1a2a3a{% endif %}; margin-bottom: 16px;">
+  <div class="panel-body">{{ flash.message }}</div>
+</div>
+{% endif %}
+
+<div class="tabs" style="position: sticky; top: 0; background: var(--v8-bg); z-index: 5;">
+  <a class="tab active" href="#ops">1. Операции и светофор</a>
+  <a class="tab" href="#rs">2. Ресурсная спецификация</a>
+  <a class="tab" href="#bom">3. Состав изделия</a>
+  <a class="tab" href="#params">4. Доп. параметры</a>
+  <a class="tab" href="#history">5. История</a>
 </div>
 
 {% if tech_card and tech_card.operations %}
@@ -33,61 +48,49 @@
   <div class="panel-body">
     <div style="display: flex; gap: 24px; align-items: center;">
       <div>
+<h2 id="ops" style="margin-top: 16px;">Операции</h2>
         <span class="muted" style="font-size: 12px;">Светофор норм (доказательства)</span><br>
         <span style="font-size: 14px;">
           <span class="dot g"></span> {{ evidence_summary.green }} подтверждено
           <span class="dot y" style="margin-left: 12px;"></span> {{ evidence_summary.yellow }} похоже на правду
           <span class="dot r" style="margin-left: 12px;"></span> {{ evidence_summary.red }} догадка AI
-          <span class="dot" style="margin-left: 12px; background: var(--v8-muted);"></span> {{ evidence_summary.gray }} нет данных
         </span>
-      </div>
-      <div>
-        <span class="muted" style="font-size: 12px;">Всего операций:</span>
-        <span style="font-size: 18px; font-weight: 600;">{{ evidence_summary.total }}</span>
-      </div>
-      <div>
-        <span class="muted" style="font-size: 12px;">Зелёных:</span>
-        <span style="font-size: 18px; font-weight: 600; color: var(--v8-ok);">{{ evidence_summary.green_pct }}%</span>
       </div>
     </div>
   </div>
 </div>
 
-<h2>Операции ({{ tech_card.operations|length }})</h2>
-<div class="panel" style="margin-bottom: 16px;">
+<div class="panel">
 <table class="tbl">
   <thead>
     <tr>
-      <th style="width: 30px;"></th>
       <th>№</th>
       <th>Операция</th>
-      <th>Цех/Уч.</th>
-      <th>Проф.</th>
+      <th>Цех/Участок</th>
+      <th>Профессия</th>
       <th>Тшт, мин</th>
       <th>Тпз, мин</th>
-      <th>Источник</th>
-      <th></th>
+      <th>Доказательство</th>
+      <th>Действие</th>
     </tr>
   </thead>
   <tbody>
     {% for op in tech_card.operations %}
-      {% set ev = evidences[loop.index0] if evidences and loop.index0 < evidences|length else None %}
+      {% set ev = evidence_map.get(op.id) %}
       <tr>
-        <td>
-          {% if ev %}
-            {% if ev.evidence_level == 'green' %}<span class="dot g" title="Подтверждено"></span>
-            {% elif ev.evidence_level == 'yellow' %}<span class="dot y" title="Похоже на правду"></span>
-            {% elif ev.evidence_level == 'red' %}<span class="dot r" title="Догадка AI"></span>
-            {% else %}<span class="dot" style="background: var(--v8-muted);" title="Нет данных"></span>{% endif %}
-          {% endif %}
-        </td>
-        <td>{{ "%03d"|format(op.op_number) }}</td>
+        <td>{{ op.op_number }}</td>
         <td><b>{{ op.name }}</b>
           {% if ev and ev.analogs %}<br><span class="muted" style="font-size: 11.5px;">{{ ev.note }}</span>{% endif %}
         </td>
-        <td>{{ op.workshop_code or '—' }}/{{ op.site_code or '—' }}</td>
-        <td>{{ op.profession_code or '—' }}</td>
-        <td>{{ op.time_per_unit_min or 0 }}</td>
+        <td>
+          <b>{{ workshop_names.get(op.workshop_code, op.workshop_code) or '—' }}</b>
+          {% if op.workshop_code %}<br><span class="muted" style="font-size: 11px;">{{ op.workshop_code }}/{{ op.site_code or '—' }}</span>{% endif %}
+        </td>
+        <td>
+          <b>{{ profession_names.get(op.profession_code, op.profession_code) or '—' }}</b>
+          {% if op.profession_code %}<br><span class="muted" style="font-size: 11px;">{{ op.profession_code }}</span>{% endif %}
+        </td>
+        <td><b>{{ op.time_per_unit_min or 0 }}</b></td>
         <td>{{ op.time_setup_min or 0 }}</td>
         <td>
           {% if ev %}
@@ -95,12 +98,14 @@
             {% elif ev.source == 'analog_estimate' %}<span class="badge warn">{{ ev.source_label }}</span>
             {% elif ev.source == 'ai_guess' %}<span class="badge bad">{{ ev.source_label }}</span>
             {% else %}<span class="badge">{{ ev.source_label }}</span>{% endif %}
-          {% endif %}
+          {% else %}<span class="muted">—</span>{% endif %}
         </td>
         <td>
           {% if ev and ev.analogs %}
+
             <a class="btn btn-ghost" onclick="document.getElementById('ev-{{ ev.operation_id }}').style.display = (document.getElementById('ev-{{ ev.operation_id }}').style.display === 'none' ? 'block' : 'none')">Аналоги</a>
           {% endif %}
+          <button class="btn btn-ghost" onclick="confirmOp({{ op.id }}, {{ op.time_per_unit_min or 0 }})">Подтвердить</button>
         </td>
       </tr>
       {% if ev and ev.analogs %}
@@ -142,7 +147,9 @@
 </div>
 {% else %}
 <div class="empty">
-  <div style="font-size: 13px; color: var(--v8-muted); padding: 24px;">Нет утверждённой ТК. Нажмите «Сгенерировать» или загрузите чертёж для распознавания.</div>
+  <div style="font-size: 13px; color: var(--v8-muted); padding: 24px;">
+    Нет ТК для этой детали. Нажмите «Сгенерировать ТК» — система подберёт аналоги и предложит нормы.
+  </div>
 </div>
 {% endif %}
 
@@ -167,6 +174,214 @@
 </table>
 {% else %}
 <div class="empty">Эталоны не найдены.</div>
+{% endif %}
+</div>
+
+<script>
+// === Кнопки на карточке ===
+function bindAction(btnId, action) {
+  const el = document.getElementById(btnId);
+  if (!el) return;
+  el.addEventListener('click', async function() {
+    const tcId = el.dataset.tcId;
+    el.disabled = true;
+    el.textContent = '...';
+    try {
+      const r = await fetch(`/api/tech-cards/${tcId}/${action}`, {
+        method: 'POST',
+        headers: {'X-Requested-With': 'XMLHttpRequest'},
+        credentials: 'same-origin'
+      });
+      if (r.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+      const data = await r.json();
+      if (r.ok && data.status === 'ok') {
+        location.reload();
+      } else {
+        alert('Ошибка: ' + (data.detail || JSON.stringify(data)));
+        el.disabled = false;
+        el.textContent = action === 'approve' ? 'Утвердить и в эталоны' : 'Перегенерировать';
+      }
+    } catch (e) {
+      alert('Сетевая ошибка: ' + e.message);
+      el.disabled = false;
+    }
+  });
+}
+
+bindAction('btn-approve', 'approve');
+bindAction('btn-regenerate', 'regenerate');
+
+const btnExport = document.getElementById('btn-export');
+if (btnExport) {
+  btnExport.addEventListener('click', async function() {
+    const itemId = btnExport.dataset.itemId;
+    btnExport.disabled = true;
+    btnExport.textContent = 'Экспорт...';
+    try {
+      const r = await fetch(`/api/items/${itemId}/export-to-1c`, {
+        method: 'POST',
+        headers: {'X-Requested-With': 'XMLHttpRequest'},
+        credentials: 'same-origin'
+      });
+      if (r.status === 401) { window.location.href = '/login'; return; }
+      const data = await r.json();
+      if (r.ok) {
+        alert('Готово. Файл записан: ' + (data.path || 'unknown'));
+      } else {
+        alert('Ошибка: ' + JSON.stringify(data));
+      }
+    } catch (e) {
+      alert('Сетевая ошибка: ' + e.message);
+    } finally {
+      btnExport.disabled = false;
+      btnExport.textContent = 'Экспорт в 1С';
+    }
+  });
+}
+
+async function confirmOp(opId, currentTime) {
+  const v = prompt('Подтвердить норму Тшт (мин). Текущее: ' + currentTime, currentTime);
+  if (v === null) return;
+  const newTime = parseFloat(v.replace(',', '.'));
+  if (isNaN(newTime) || newTime < 0) { alert('Введите число ≥ 0'); return; }
+  try {
+    const r = await fetch(`/api/operations/${opId}/confirm?new_time=${newTime}`, {
+      method: 'POST',
+      headers: {'X-Requested-With': 'XMLHttpRequest'},
+      credentials: 'same-origin'
+    });
+    if (r.status === 401) { window.location.href = '/login'; return; }
+    const data = await r.json();
+    if (r.ok && data.status === 'ok') {
+      location.reload();
+    } else {
+      alert('Ошибка: ' + JSON.stringify(data));
+    }
+  } catch (e) {
+    alert('Сетевая ошибка: ' + e.message);
+  }
+}
+</script>
+
+{# === ТАБ 2: РЕСУРСНАЯ СПЕЦИФИКАЦИЯ === #}
+<h2 id="rs" style="margin-top: 32px;">Ресурсная спецификация</h2>
+<div class="panel">
+{% if rs_preview and rs_preview.rows %}
+<table class="tbl">
+  <thead>
+    <tr>
+      <th>Цех</th>
+      <th>Профессия</th>
+      <th>Оборудование</th>
+      <th>Операция</th>
+      <th>Тпз, мин</th>
+      <th>Тшт, мин</th>
+      <th>Материал</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rs_preview.rows %}
+    <tr>
+      <td>{{ r.workshop_code or '—' }}</td>
+      <td>{{ r.profession_code or '—' }}</td>
+      <td>{{ r.equipment or '—' }}</td>
+      <td><b>{{ r.name or '—' }}</b></td>
+      <td>{{ r.time_setup_min or 0 }}</td>
+      <td><b>{{ r.time_per_unit_min or 0 }}</b></td>
+      <td>{{ r.material_code or '—' }} {{ r.material_qty or '' }} {{ r.material_unit or '' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <th colspan="5" style="text-align: right;">Итого Тшт, мин:</th>
+      <th><b>{{ rs_preview.summary.total_time_min or rs_preview.total_time_min or '—' }}</b></th>
+      <th></th>
+    </tr>
+  </tfoot>
+</table>
+{% if rs_preview.path %}
+<p class="muted" style="font-size: 12px; margin-top: 8px;">Файл для 1С: <code>{{ rs_preview.path }}</code></p>
+{% endif %}
+{% else %}
+<div class="empty">РС не сгенерирована. Создайте ТК или нажмите «Перегенерировать».</div>
+{% endif %}
+</div>
+
+{# === ТАБ 3: СОСТАВ ИЗДЕЛИЯ === #}
+<h2 id="bom" style="margin-top: 32px;">Состав изделия (BOM)</h2>
+<div class="panel">
+{% if bom_children %}
+<table class="tbl">
+  <thead>
+    <tr>
+      <th>Обозначение</th>
+      <th>Название</th>
+      <th>Уровень</th>
+      <th>Кол-во</th>
+      <th>Масса, кг</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for ch in bom_children %}
+    <tr>
+      <td><a href="/detail/{{ ch.id }}"><b>{{ ch.designation }}</b></a></td>
+      <td>{{ ch.name }}</td>
+      <td><span class="badge">{{ ch.level }}</span></td>
+      <td>{{ ch.qty }}</td>
+      <td>{{ ch.mass_kg or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">Нет дочерних деталей (это деталь без подсборки) или не заполнен BOM.</div>
+{% endif %}
+</div>
+
+{# === ТАБ 4: ДОП. ПАРАМЕТРЫ === #}
+<h2 id="params" style="margin-top: 32px;">Доп. параметры</h2>
+<div class="panel">
+<table class="tbl">
+  <tr><th style="width: 30%;">Обозначение</th><td>{{ item.designation }}</td></tr>
+  <tr><th>Название</th><td>{{ item.name }}</td></tr>
+  <tr><th>Уровень</th><td>{{ item.level }}</td></tr>
+  <tr><th>Масса, кг</th><td>{{ item.mass_kg or '—' }}</td></tr>
+  <tr><th>Кооперация</th><td>{{ item.sourcing or '—' }}</td></tr>
+  <tr><th>Материал (код)</th><td>{{ item.material_code or '—' }}</td></tr>
+  <tr><th>Модель продукта</th><td>{{ item.product_model_designation or '—' }}</td></tr>
+  {% if tech_card %}
+  <tr><th>ТК версия</th><td>v{{ tech_card.version }} ({{ tech_card.status }})</td></tr>
+  <tr><th>Автор ТК</th><td>{{ tech_card.author or '—' }}</td></tr>
+  <tr><th>ref_1c</th><td><code>{{ tech_card.ref_1c or '—' }}</code></td></tr>
+  {% endif %}
+</table>
+</div>
+
+{# === ТАБ 5: ИСТОРИЯ === #}
+<h2 id="history" style="margin-top: 32px;">История изменений</h2>
+<div class="panel">
+{% if history %}
+<table class="tbl">
+  <thead>
+    <tr><th>Дата</th><th>Пользователь</th><th>Действие</th><th>Что изменилось</th></tr>
+  </thead>
+  <tbody>
+    {% for h in history %}
+    <tr>
+      <td><span class="muted" style="font-size: 12px;">{{ h.created_at }}</span></td>
+      <td>{{ h.user }}</td>
+      <td>{{ h.action }}</td>
+      <td><span class="muted" style="font-size: 12px;">{{ h.note }}</span></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">История пуста. ТК не редактировалась после создания.</div>
 {% endif %}
 </div>
 {% endblock %}

@@ -296,8 +296,20 @@ def find_analogs(
                 if any(mat_lower in m.lower() for m in et.materials if m):
                     mat_bonus = 1.0
 
+            # 4. Бонус за массу (если известна, ±50% от эталона)
+            mass_bonus = 0.0
+            if mass_kg and et.mass_kg:
+                ratio = mass_kg / et.mass_kg
+                if 0.5 <= ratio <= 2.0:
+                    mass_bonus = 0.2  # до 20% бонуса за близкую массу
+                elif 0.3 <= ratio <= 3.0:
+                    mass_bonus = 0.1
+                # Если разница > 3x — штраф
+                if ratio > 5 or ratio < 0.2:
+                    continue
+
             # Итоговый score
-            score = 0.6 * tfidf_score + 0.2 * type_bonus + 0.2 * mat_bonus
+            score = 0.5 * tfidf_score + 0.2 * type_bonus + 0.2 * mat_bonus + 0.1 * mass_bonus
             if score < 0.1:
                 continue
 

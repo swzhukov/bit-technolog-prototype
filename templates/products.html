@@ -5,6 +5,21 @@
 <h1>Изделия и состав</h1>
 <p class="lead">{{ items|length }} номенклатурных позиций. Универсальная сущность <code>items</code> (деталь/узел/сборка/покупное/полуфабрикат).</p>
 
+<form method="GET" action="/products" style="margin: 12px 0 16px; display: flex; gap: 8px; flex-wrap: wrap;">
+  <input type="text" name="q" value="{{ q or '' }}" placeholder="Поиск по обозначению или названию"
+         style="padding: 8px 12px; border: 1px solid var(--v8-line); background: var(--v8-panel-2); color: var(--v8-fg); border-radius: 4px; min-width: 280px;">
+  <select name="level" style="padding: 8px 12px; border: 1px solid var(--v8-line); background: var(--v8-panel-2); color: var(--v8-fg); border-radius: 4px;">
+    <option value="">Все уровни</option>
+    <option value="detail" {% if level_filter == 'detail' %}selected{% endif %}>Деталь</option>
+    <option value="assembly" {% if level_filter == 'assembly' %}selected{% endif %}>Узел/Сборка</option>
+    <option value="product" {% if level_filter == 'product' %}selected{% endif %}>Продукт</option>
+    <option value="purchased" {% if level_filter == 'purchased' %}selected{% endif %}>Покупное</option>
+    <option value="semi" {% if level_filter == 'semi' %}selected{% endif %}>Полуфабрикат</option>
+  </select>
+  <button type="submit" class="btn btn-primary">Найти</button>
+  {% if q or level_filter %}<a class="btn btn-ghost" href="/products">Сбросить</a>{% endif %}
+</form>
+
 <div class="panel">
 {% if items %}
 <table class="tbl">

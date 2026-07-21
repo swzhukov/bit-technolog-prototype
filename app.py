@@ -186,7 +186,9 @@ async def logout(request: Request):
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, message: str = ""):
     user = get_user_from_request(request)
-    if user and not (has_permission(user.role, "manage_llm_providers") or has_permission(user.role, "manage_llm_model_assignments")):
+    if not user:
+        return RedirectResponse(url="/login?next=/settings", status_code=303)
+    if not (has_permission(user.role, "manage_llm_providers") or has_permission(user.role, "manage_llm_model_assignments")):
         raise HTTPException(403, "Requires admin role")
     ctx = get_template_context(request, user)
     cur = db.query_one("SELECT name, display_name FROM llm_providers WHERE is_active = 1 LIMIT 1")
@@ -273,6 +275,7 @@ async def dashboard(request: Request):
         "notices": db.query_one("SELECT COUNT(*) AS n FROM change_notices WHERE status='open'")["n"],
         "ai_questions": 3,  # Заглушка
         "evidence_green_pct": 61,  # Из метрик
+        "etalons": db.query_one("SELECT COUNT(*) AS n FROM etalons")["n"],
     }
 
     # Задачи (последние 5)
@@ -305,22 +308,34 @@ async def dashboard(request: Request):
 
 
 @app.get("/products", response_class=HTMLResponse)
-async def products(request: Request):
+async def products(request: Request, q: str = "", level: str = ""):
     user = get_user_from_request(request)
     ctx = get_template_context(request, user)
-    items = db.rows_to_dicts(db.query("""
+    where = []
+    params = []
+    if q:
+        where.append("(i.designation LIKE ? OR i.name LIKE ?)")
+        params.extend([f"%{q}%", f"%{q}%"])
+    if level:
+        where.append("i.level = ?")
+        params.append(level)
+    where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+    items = db.rows_to_dicts(db.query(f"""
         SELECT i.*, p.designation AS product_model_designation
         FROM items i
         LEFT JOIN product_models p ON p.id = i.product_model_id
+        {where_sql}
         ORDER BY i.designation
-        LIMIT 100
-    """))
+        LIMIT 200
+    """, tuple(params)))
     ctx["items"] = items
+    ctx["q"] = q
+    ctx["level_filter"] = level
     return templates.TemplateResponse("products.html", ctx)
 
 
 @app.get("/detail/{item_id}", response_class=HTMLResponse)
-async def detail(request: Request, item_id: int):
+async def detail(request: Request, item_id: int, flash_kind: str = "", flash_message: str = ""):
     user = get_user_from_request(request)
     ctx = get_template_context(request, user)
 
@@ -347,14 +362,263 @@ async def detail(request: Request, item_id: int):
     # Эталоны (для обоснования)
     etalons = db.get_etalons_for_rag(product_type=item.get("product_type") or "", limit=5)
 
+    # Справочники — названия цехов и профессий (для отображения)
+    workshop_names = {w["code"]: w["name"] for w in db.query("SELECT code, name FROM workshops")}
+    profession_names = {p["code"]: p["name"] for p in db.query("SELECT code, name FROM professions")}
+
+    # РС preview (из resource_specs)
+    rs_preview = None
+    if tc:
+        rs_row = db.query_one("SELECT content_json, status FROM resource_specs WHERE tech_card_id = ? ORDER BY id DESC LIMIT 1", (tc["id"],))
+        if rs_row and rs_row["content_json"]:
+            import json as _json
+            rs_preview = _json.loads(rs_row["content_json"])
+
+    # BOM — дочерние детали
+    bom_children = []
+    if item.get("level") in ("assembly", "product"):
+        bom_children = db.rows_to_dicts(db.query("""
+            SELECT c.id, c.designation, c.name, c.level, c.mass_kg, bl.qty
+            FROM bom_links bl
+            JOIN items c ON c.id = bl.child_item_id
+            WHERE bl.parent_item_id = ?
+            ORDER BY c.designation
+        """, (item_id,)))
+
+    # История изменений (edits)
+    history = []
+    if tc:
+        history = db.rows_to_dicts(db.query("""
+            SELECT e.ts AS created_at, e.user, e.reason AS note, e.field, e.old_value, e.new_value
+            FROM edits e
+            WHERE e.operation_id IN (SELECT id FROM operations WHERE tech_card_id = ?)
+            ORDER BY e.ts DESC
+            LIMIT 20
+        """, (tc["id"],)))
+        # Дополнить понятным action
+        for h in history:
+            h["action"] = f"Изменение {h['field']}: {h['old_value']} → {h['new_value']}"
+
+    # Карта доказательств по operation_id
+    evidence_map = {ev.to_dict()["operation_id"]: ev.to_dict() for ev in evidences}
+
+    # Flash
+    flash = None
+    if flash_message:
+        flash = {"kind": flash_kind, "message": flash_message}
+
     ctx.update({
         "item": item,
         "tech_card": tc_full,
         "evidences": evidences,
         "evidence_summary": evidence_summary,
+        "evidence_map": evidence_map,
         "etalons": etalons,
+        "workshop_names": workshop_names,
+        "profession_names": profession_names,
+        "rs_preview": rs_preview,
+        "bom_children": bom_children,
+        "history": history,
+        "flash": flash,
     })
     return templates.TemplateResponse("detail.html", ctx)
+
+
+# ============================================================
+# ГЕНЕРАЦИЯ ТК (Sprint 8+)
+# ============================================================
+
+@app.get("/items/{item_id}/generate", response_class=HTMLResponse)
+async def item_generate_form(request: Request, item_id: int):
+    user = get_user_from_request(request)
+    item = db.get_item_with_bom(item_id)
+    if not item:
+        raise HTTPException(404, "Item not found")
+    ctx = get_template_context(request, user)
+    ctx["item"] = item
+    return templates.TemplateResponse("item_generate.html", ctx)
+
+
+@app.post("/items/{item_id}/generate")
+async def item_generate_post(request: Request, item_id: int):
+    user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(401)
+    item = db.get_item_with_bom(item_id)
+    if not item:
+        raise HTTPException(404, "Item not found")
+
+    # Генерация ТК через LLM (mock) — подбор аналогов + фабрика РС
+    from services.rs_factory import build_rs, to_one_c_spec
+    from services.rag import load_etalons, find_analogs
+
+    load_etalons(force=True)
+
+    # Генерируем операции: берём 1 ближайший эталон по названию
+    operations = []
+    etalon_id = None
+    similar_etalon = db.query_one("""
+        SELECT id, designation, name FROM etalons
+        WHERE name LIKE ? OR designation LIKE ?
+        ORDER BY id LIMIT 1
+    """, (f"%{item.get('name', '')[:15]}%", f"%{item.get('designation', '')[:10]}%"))
+    if not similar_etalon:
+        # Fallback: любой эталон с похожим типом материала
+        similar_etalon = db.query_one("""
+            SELECT id, designation, name FROM etalons
+            WHERE content_json LIKE ?
+            ORDER BY id LIMIT 1
+        """, (f"%{item.get('material_code', '09Г2С')[:5]}%",))
+    if not similar_etalon:
+        # Последний fallback: первый эталон вообще
+        similar_etalon = db.query_one("SELECT id, designation, name FROM etalons ORDER BY id LIMIT 1")
+    if similar_etalon:
+        etalon_id = similar_etalon["id"]
+        # Операции из content_json эталона (для совместимости с PDF-парсерами)
+        et = db.query_one("SELECT content_json FROM etalons WHERE id = ?", (etalon_id,))
+        ops = []
+        if et and et["content_json"]:
+            try:
+                data = json.loads(et["content_json"])
+                ops = data.get("operations", [])
+            except Exception:
+                ops = []
+        operations = ops
+        analogs_for_evidence = [{
+            "etalon_designation": similar_etalon["designation"],
+            "operation_name": (ops[0]["name"] if ops else "—"),
+            "similarity": 0.65 if item.get("name") else 0.40,
+            "time_per_unit_min": (ops[0].get("time_per_unit_min", 0) if ops else 0),
+            "reason": f"На основе {similar_etalon['designation']}",
+        }] if ops else []
+    else:
+        analogs_for_evidence = []
+
+    # Создаём ТК (если уже есть — увеличиваем версию)
+    existing = db.query_one("SELECT MAX(version) AS v FROM tech_cards WHERE item_id = ?", (item_id,))
+    new_version = (existing["v"] or 0) + 1
+    tc_id = db.insert_and_get_id("tech_cards", {
+        "item_id": item_id,
+        "version": new_version,
+        "status": "draft",
+        "is_approved": 0,
+        "author": user.display_name,
+        "created_at": None,
+    })
+
+    # Сохраняем операции (используем реальные FK)
+    # workshops / equipment / professions по коду
+    for i, op in enumerate(operations):
+        ws_code = op.get("workshop_code", "01")
+        prof_code = op.get("profession_code", "")
+        eq_name = op.get("equipment_name", "")
+        # FK lookup
+        ws_row = db.query_one("SELECT id FROM workshops WHERE code = ?", (ws_code,))
+        prof_row = db.query_one("SELECT id FROM professions WHERE code = ?", (prof_code,)) if prof_code else None
+        eq_row = db.query_one("SELECT id FROM equipment WHERE name LIKE ? LIMIT 1", (f"%{eq_name[:20]}%",)) if eq_name else None
+        op_id = db.insert_and_get_id("operations", {
+            "tech_card_id": tc_id,
+            "op_number": op.get("op_number", i + 1),
+            "name": op.get("name", f"Операция {i+1}"),
+            "workshop_id": ws_row["id"] if ws_row else None,
+            "profession_id": prof_row["id"] if prof_row else None,
+            "equipment_id": eq_row["id"] if eq_row else None,
+            "time_setup_min": op.get("time_setup_min", 0),
+            "time_per_unit_min": op.get("time_per_unit_min", 0),
+            "source": "ai_guess",
+        })
+        # Запишем доказательство
+        # Запишем доказательство прямо в operations.evidence_json (Sprint 5 формат)
+        ev_data = {
+            "source": "analog_estimate" if analogs_for_evidence else "ai_guess",
+            "source_label": "Аналог" if analogs_for_evidence else "AI",
+            "note": (f"На основе {analogs_for_evidence[0]['etalon_designation']} "
+                    f"({int(analogs_for_evidence[0]['similarity']*100)}%)" if analogs_for_evidence
+                    else "Догадка AI (нет аналогов)"),
+            "confidence": analogs_for_evidence[0]["similarity"] if analogs_for_evidence else 0.0,
+            "analogs": analogs_for_evidence,
+        }
+        db.execute(
+            "UPDATE operations SET evidence_json = ? WHERE id = ?",
+            (json.dumps(ev_data, ensure_ascii=False), op_id),
+        )
+
+    # Сразу собираем РС
+    tc_full = db.get_tech_card_full(tc_id)
+    if tc_full.get("operations"):
+        report = build_rs(
+            item_designation=item.get("designation", ""),
+            operations=tc_full["operations"],
+            tech_card_id=tc_id,
+        )
+        # Сохраняем preview РС (в resource_specs)
+        db.insert_and_get_id("resource_specs", {
+            "item_id": item_id,
+            "tech_card_id": tc_id,
+            "tech_card_version": 1,
+            "rs_profile_id": None,
+            "status": "draft",
+            "content_json": json.dumps({
+                "rows": [r.to_dict() if hasattr(r, "to_dict") else r for r in report.rows],
+                "summary": report.summary,
+                "ops_count": len(report.rows),
+            }, ensure_ascii=False),
+            "change_reason": "Первичная генерация",
+        })
+
+    return RedirectResponse(
+        url=f"/detail/{item_id}?flash_kind=ok&flash_message=ТК сгенерирована: {len(operations)} операций",
+        status_code=303,
+    )
+
+
+# ============================================================
+# ЭКСПОРТ В 1С (FileGateway, для препилота)
+# ============================================================
+
+@app.post("/api/items/{item_id}/export-to-1c")
+async def api_export_to_1c(request: Request, item_id: int):
+    user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(401)
+    item = db.get_item_with_bom(item_id)
+    if not item:
+        raise HTTPException(404, "Item not found")
+    # Берём текущую ТК
+    tc = db.query_one("SELECT * FROM tech_cards WHERE item_id = ? ORDER BY version DESC LIMIT 1", (item_id,))
+    if not tc:
+        raise HTTPException(400, "Нет ТК для экспорта")
+    tc_full = db.get_tech_card_full(tc["id"])
+    if not tc_full.get("operations"):
+        raise HTTPException(400, "ТК пустая, нечего экспортировать")
+
+    # Строим РС через фабрику
+    from services.rs_factory import build_rs, to_one_c_spec
+    report = build_rs(
+        item_designation=item.get("designation", ""),
+        operations=tc_full["operations"],
+        tech_card_id=tc["id"],
+    )
+    spec = to_one_c_spec(
+        report,
+        item_ref_1c=item.get("ref_1c") or "",
+        tech_card_ref=tc_full.get("ref_1c") or f"TC-{tc['id']:06d}",
+        version=tc["version"] if tc["version"] else 1,
+        change_reason="Экспорт через UI",
+    )
+
+    # Пишем XML в data/one_c_exchange/out/
+    import os
+    out_dir = "data/one_c_exchange/out"
+    os.makedirs(out_dir, exist_ok=True)
+    fname = f"RS_{item.get('designation', 'item')}_{tc['id']:04d}.xml"
+    fname = fname.replace("/", "_").replace(" ", "_")
+    fpath = os.path.join(out_dir, fname)
+    with open(fpath, "w", encoding="utf-8") as f:
+        f.write(spec.to_xml())
+
+    # Регистрируем извещение об изменении (для аудита)
+    return {"status": "ok", "path": fpath, "ops_count": len(report.rows), "total_time_min": sum(r.to_dict().get("time_per_unit_min", 0) for r in report.rows) if report.rows else 0}
 
 
 @app.get("/notices", response_class=HTMLResponse)
@@ -599,31 +863,67 @@ async def api_approve(tech_card_id: int, request: Request):
     # Получить операции как dict
     operations = tc.get("operations", [])
 
-    # Создаём эталон из текущей ТК
-    etalon_id = db.insert_and_get_id("etalons", {
-        "designation": tc.get("designation", "?"),
-        "name": tc.get("name", ""),
-        "product_type": "",
-        "source_doc": f"Утверждена {user.username} из ТК v{tc.get('version', 1)}",
-        "source_pages": 0,
-        "approved_by": user.display_name,
-        "approved_date": None,
-        "is_approved": 1,
-        "is_published": 1,  # Сразу публикуем
-        "content_json": json.dumps({
-            "operations": [
-                {
-                    "op_number": op.get("op_number"),
-                    "name": op.get("name"),
-                    "time_setup_min": op.get("time_setup_min", 0),
-                    "time_per_unit_min": op.get("time_per_unit_min", 0),
-                    "profession_code": op.get("profession_code", ""),
-                    "equipment_name": op.get("equipment_name", ""),
-                }
-                for op in operations
-            ],
-        }, ensure_ascii=False),
-    })
+    # Создаём эталон из текущей ТК (если ещё нет эталона с таким designation)
+    designation = tc.get("designation") or f"TC-{tech_card_id}"
+    existing = db.query_one("SELECT id FROM etalons WHERE designation = ?", (designation,))
+    if existing:
+        # Обновляем существующий эталон
+        etalon_id = existing["id"]
+        db.execute("""
+            UPDATE etalons SET name=?, source_doc=?, approved_by=?, is_approved=1, is_published=1,
+            content_json=?, approved_date=CURRENT_DATE
+            WHERE id=?
+        """, (
+            tc.get("name", ""),
+            f"Утверждена {user.username} из ТК v{tc.get('version', 1)}",
+            user.display_name,
+            json.dumps({
+                "operations": [
+                    {
+                        "op_number": op.get("op_number"),
+                        "name": op.get("name"),
+                        "time_setup_min": op.get("time_setup_min", 0),
+                        "time_per_unit_min": op.get("time_per_unit_min", 0),
+                        "profession_code": op.get("profession_code", ""),
+                        "equipment_name": op.get("equipment_name", ""),
+                    }
+                    for op in operations
+                ],
+            }, ensure_ascii=False),
+            etalon_id,
+        ))
+    else:
+        etalon_id = db.insert_and_get_id("etalons", {
+            "designation": designation,
+            "name": tc.get("name", ""),
+            "product_type": "",
+            "source_doc": f"Утверждена {user.username} из ТК v{tc.get('version', 1)}",
+            "source_pages": 0,
+            "approved_by": user.display_name,
+            "approved_date": None,
+            "is_approved": 1,
+            "is_published": 1,
+            "content_json": json.dumps({
+                "operations": [
+                    {
+                        "op_number": op.get("op_number"),
+                        "name": op.get("name"),
+                        "time_setup_min": op.get("time_setup_min", 0),
+                        "time_per_unit_min": op.get("time_per_unit_min", 0),
+                        "profession_code": op.get("profession_code", ""),
+                        "equipment_name": op.get("equipment_name", ""),
+                    }
+                    for op in operations
+                ],
+            }, ensure_ascii=False),
+        })
+    # Обновим ТК (is_approved, status, approver)
+    db.execute("""
+        UPDATE tech_cards SET is_approved = 1, status = 'approved',
+        approver_chief = ?, approved_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    """, (user.display_name, tech_card_id))
+
     return {"status": "ok", "etalon_id": etalon_id, "message": "ТК утверждена и добавлена в эталоны"}
 
 

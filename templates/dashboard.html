@@ -5,6 +5,12 @@
 <h1>Добрый день{% if current_user %}, {{ current_user.display_name.split()|first }}{% endif %} </h1>
 <p class="lead">У вас {{ counters.drafts }} черновиков, {{ counters.review }} ждут утверждения, {{ counters.notices }} извещений требуют решения.</p>
 
+<div style="display: flex; gap: 12px; margin: 20px 0 24px; flex-wrap: wrap;">
+  <a class="btn btn-primary" href="/products" style="font-size: 14px; padding: 10px 18px;">Создать ТК</a>
+  <a class="btn btn-secondary" href="/notices" style="font-size: 14px; padding: 10px 18px;">Извещения ({{ counters.notices }})</a>
+  <a class="btn btn-ghost" href="/knowledge" style="font-size: 14px; padding: 10px 18px;">База знаний ({{ counters.etalons }})</a>
+</div>
+
 <div class="counters">
  <div class="counter {% if counters.drafts> 0 %}alert{% endif %}">
  <div class="num">{{ counters.drafts }}</div>
@@ -76,7 +82,7 @@
  <td>{{ n.foundation_doc or '—' }}</td>
  <td>{{ n.reason or '—' }}</td>
  <td>{% if n.status == 'open' %}<span class="badge bad">Требует решения</span>{% else %}<span class="badge">{{ n.status }}</span>{% endif %}</td>
- <td><a class="btn btn-primary btn-sm" href="/notices">Разобрать</a></td>
+ <td><a class="btn btn-primary btn-sm" href="/notices/{{ n.id }}">Разобрать</a></td>
  </tr>
  {% endfor %}
  </tbody>
