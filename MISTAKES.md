@@ -528,3 +528,29 @@
 5. Извещения → кнопка "Принять правки" → draft_fast v3 (не подключено)
 6. GitHub Actions CI (PAT без workflow scope)
 7. Большинство операций в БД — мок. Реальные draft'ы есть только для некоторых деталей.
+
+## GitHub push без проверки (2026-07-21, Аудит #2)
+
+**Context:** Сергей спросил "а ты пользовался гитхабом?" и дал ссылку на репо. Я не проверял репо через web/API после push — оказалось, оно было PRIVATE. Все 6 коммитов M34-S8+Audit ушли в недоступное репо. Сергей не мог смотреть что я делал.
+
+**Симптомы:**
+- `git push origin main` → "Everything up-to-date" 
+- `https://github.com/<owner>/<repo>` → 404 Page not found
+- `https://api.github.com/repos/<owner>/<repo>` (без auth) → 404
+
+**Причина:**
+- Репо создано в режиме `private` (возможно при первом push через PAT)
+- Я не проверил visibility после push
+- Локальный git и remote не показывают эту разницу
+
+**Fix:**
+- PATCH `/repos/<owner>/<repo>` с `{"private": false}`
+- Сразу после PATCH: `web_fetch` на главную — должен быть 200
+
+**Reusable ритуал "после push":**
+1. `git push origin main` 
+2. `curl -s https://api.github.com/repos/<owner>/<repo>` (БЕЗ auth) — если 200 и `visibility: public`, OK; если 404 или private — FIX
+3. `curl -s https://api.github.com/repos/<owner>/<repo>/commits?per_page=5` — последние 5 коммитов на месте
+4. `web_fetch` на `<owner>/<repo>` — title содержит `<repo>`
+
+**Lesson:** push прошёл ≠ репо доступно. Всегда проверять через API/web после push, особенно если не настраивал репо сам.
