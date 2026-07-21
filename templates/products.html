@@ -1,0 +1,63 @@
+{% extends "_v6_layout.html" %}
+{% block title %}Изделия и состав — БИТ.Технолог{% endblock %}
+{% block content %}
+<h1>🚒 Изделия и состав</h1>
+<p class="sub">Дерево: модель → исполнение (заводской №) → сборки → детали. Одна деталь может входить в несколько сборок. Состав может отличаться по исполнениям.</p>
+
+<div class="v6-toolbar">
+    <input placeholder="🔍 Поиск по обозначению/наименованию" style="width:280px">
+    <select>
+        <option>Все виды продукции</option>
+        <option>АЦ — автоцистерны</option>
+        <option>ПСС — подъёмники</option>
+        <option>УМК — упоры/растяжки</option>
+    </select>
+    <select>
+        <option>Все исполнения</option>
+        <option>зав. №144–153 (контракт МЧС-2026/31)</option>
+        <option>зав. №147 (спец. исполнение)</option>
+    </select>
+    <select>
+        <option>Любой статус ТК</option>
+        <option>Нет ТК</option>
+        <option>Черновик</option>
+        <option>Утверждена</option>
+    </select>
+</div>
+
+<div class="v6-panel">
+    <div style="font-size:13.5px">
+
+        <div style="padding:6px 8px; font-weight:700">🚒 АЦ-8,0-40 <span class="badge">модель</span> <span class="badge blue">шасси: КАМАЗ 43118 (из модели)</span> <span class="badge">вид: Кузовная техника</span> <span class="badge">профиль РС: КТ-этапы-по-участкам</span></div>
+        <div style="padding:6px 8px; margin-left:22px">📦 Исполнение зав. №144 <span class="badge ok">базовое · контракт МЧС-2026/31</span> <span class="badge blue">ТК: 84% готово</span></div>
+        <div style="padding:6px 8px; margin-left:22px">📦 Исполнение зав. №147 <span class="badge warn">отличия: лебёдка + доп. отсек ПТВ</span> <span class="badge bad">затронуто извещением И-2026-014</span></div>
+        <div style="padding:6px 8px; margin-left:44px">🔩 Цистерна 53-ТВ.05.00.00 <span class="badge">сборка</span> <span class="badge ok">ТК утверждена</span> <span class="badge ok">РС в 1С · v3</span></div>
+        <div style="padding:6px 8px; margin-left:66px">Днище заднее 53-ТВ.05.02.001 <span class="badge">деталь</span> <span class="badge bad">материал меняется (И-2026-014)</span></div>
+        <div style="padding:6px 8px; margin-left:66px">Обечайка 53-ТВ.05.01.000 <span class="badge">узел</span></div>
+        <div style="padding:6px 8px; margin-left:44px">🔩 Каркас КБР 53-ТВ.15.00.00 <span class="badge">сборка</span> <span class="badge ok">ТК утверждена</span> <span class="badge warn">РС не сформирована</span></div>
+        <div style="padding:6px 8px; margin-left:44px">⚙️ Гидрооборудование 53-ТВ.03.00.00 <span class="badge coop">кооперация: давальческая · ООО «ГидроТверь»</span></div>
+
+        <div style="padding:6px 8px; margin-top:14px; font-weight:700">🔗 УМК — упоры и растяжки для АО КАМАЗ <span class="badge">массовая продукция · 9442 шт/год</span> <span class="badge">профиль РС: УМК-одноэтапная</span></div>
+        <div style="padding:6px 8px; margin-left:22px; background:#fbeef0; border-radius:6px">
+            📄 <b>Упор продольный ЛМША.301314.010</b> <span class="badge blue">входит в 3 сборки ↗</span> <span class="badge blue">ТК: черновик v2</span> —
+            <a href="/v6/detail/detail-lmsha-301314-010">открыть карточку →</a>
+        </div>
+        <div style="padding:6px 8px; margin-left:22px">📄 Растяжка пружинная ЛМША.301712.000 <span class="badge warn">вопрос AI</span></div>
+        <div style="padding:6px 8px; margin-left:44px">Пластина ЛМША.301714.006 <span class="badge blue">входит в 4 сборки ↗</span> — пример many-to-many: одна деталь → упор, растяжка, каркас КБР, отсек</div>
+
+        {% if real_details %}
+        <div style="padding:6px 8px; margin-top:14px; font-weight:700">📦 Реальные детали в БД ({{ real_details|length }})</div>
+        {% for d in real_details[:10] %}
+        <div style="padding:4px 8px; margin-left:22px; font-size:12.5px">
+            <a href="/v6/detail/{{ d.id }}">{{ d.designation }}</a> — {{ d.name }} {% if d.material %}<span class="badge">{{ d.material }}</span>{% endif %}
+        </div>
+        {% endfor %}
+        {% endif %}
+    </div>
+</div>
+
+<div class="v6-note ok">
+    🧭 <b>Как читать:</b> шасси указано один раз — в модели (не дублируется в деталях). Исполнение №147 наследует состав модели, храним только отличия.
+    Значок «входит в N сборок» — извещение по такой детали автоматически найдёт все затронутые ТК и РС.
+</div>
+{% endblock %}

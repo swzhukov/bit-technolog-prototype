@@ -1,0 +1,40 @@
+{% extends "_v6_layout.html" %}
+{% block title %}Профили выхода РС — БИТ.Технолог{% endblock %}
+{% block content %}
+<h1>⚙️ Профили выхода РС</h1>
+<p class="sub">Правила, по которым РС-фабрика (алгоритм, без AI) собирает РС из утверждённой ТК. Требования 1С различаются даже внутри одного клиента — поэтому профили привязываются к виду продукции и настраиваются по осям.</p>
+
+{% for p in profiles %}
+<div class="v6-panel">
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px">
+        <b>{{ p.name }}</b>
+        {% if p.is_active %}<span class="badge ok">активен</span>{% else %}<span class="badge warn">черновик</span>{% endif %}
+        <span class="badge">вид продукции: {{ p.product_type or '—' }}</span>
+        <span class="badge">версия {{ p.version }}</span>
+        <span style="margin-left:auto">
+            <button class="v6-btn sec sm">Тестовый прогон</button>
+            <button class="v6-btn sec sm">✏️ Изменить</button>
+            {% if loop.first %}<button class="v6-btn sec sm">Копировать</button>{% endif %}
+        </span>
+    </div>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; font-size:13px">
+        {% set axes = p.axes %}
+        <div style="padding:9px 0; border-bottom:1px dashed var(--v6-line)"><div class="sub" style="margin:0; font-size:12px">Разрез этапов</div><div style="font-weight:600">{{ axes.stage_cut or '—' }}</div></div>
+        <div style="padding:9px 0; border-bottom:1px dashed var(--v6-line)"><div class="sub" style="margin:0; font-size:12px">Детализация операций</div><div style="font-weight:600">{{ axes.op_detail or '—' }}</div></div>
+        <div style="padding:9px 0; border-bottom:1px dashed var(--v6-line)"><div class="sub" style="margin:0; font-size:12px">Нормы времени</div><div style="font-weight:600">{{ axes.time_norm or '—' }}</div></div>
+        <div style="padding:9px 0; border-bottom:1px dashed var(--v6-line)"><div class="sub" style="margin:0; font-size:12px">Материалы</div><div style="font-weight:600">{{ axes.materials or '—' }}</div></div>
+        <div style="padding:9px 0; border-bottom:1px dashed var(--v6-line)"><div class="sub" style="margin:0; font-size:12px">Трудовые ресурсы</div><div style="font-weight:600">{{ axes.labor or '—' }}</div></div>
+        <div style="padding:9px 0; border-bottom:1px dashed var(--v6-line)"><div class="sub" style="margin:0; font-size:12px">Вложенность</div><div style="font-weight:600">{{ axes.nesting or '—' }}</div></div>
+        <div style="padding:9px 0; border-bottom:1px dashed var(--v6-line)"><div class="sub" style="margin:0; font-size:12px">Кооперация</div><div style="font-weight:600">{{ axes.coop or '—' }}</div></div>
+        <div style="padding:9px 0; border-bottom:1px dashed var(--v6-line)"><div class="sub" style="margin:0; font-size:12px">Схема выгрузки</div><div style="font-weight:600">{{ p.export_schema or '—' }} <span class="badge">{{ axes.export_schema or '' }}</span></div></div>
+    </div>
+    {% if p.description %}
+    <div class="sub" style="margin: 8px 0 0 0">{{ p.description }}</div>
+    {% endif %}
+</div>
+{% endfor %}
+
+<div class="v6-note">
+    ⚙️ <b>Переопределение:</b> для <b>исполнения зав. №147</b> (АЦ-8,0-40 спец.) действует профиль «КТ-этапы-по-участкам» с изменённой схемой выгрузки — у заказчика доработанная конфигурация (2 доп. поля). Настроено без программиста — через маппинг полей.
+</div>
+{% endblock %}

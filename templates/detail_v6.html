@@ -1,0 +1,248 @@
+{% extends "_v6_layout.html" %}
+{% block title %}{{ detail.designation }} — {{ detail.name }}{% endblock %}
+{% block content %}
+<h1>{{ detail.designation }} — {{ detail.name }}</h1>
+<p class="sub">
+    {{ detail.model or 'УМК для АО КАМАЗ' }} · {{ detail.material or '09Г2С' }}
+    {% if detail.mass_kg %}<span class="badge">{{ detail.mass_kg }} кг</span>{% endif %}
+    {% if detail.surface_treatment %}<span class="badge">покрытие: {{ detail.surface_treatment }}</span>{% endif %}
+    {% if ref_1c %}<span class="badge">ref_1c: {{ ref_1c[:12] }}…</span>{% endif %}
+</p>
+
+<!-- WORKFLOW STEPS -->
+<div style="display:flex; gap:0; align-items:center; margin:10px 0 16px; flex-wrap:wrap">
+    <div style="padding:6px 14px; border:1px solid var(--v6-line); background:#e6f4ea; color:var(--v6-ok); border-color:#bfe0c8; font-weight:600; font-size:12.5px">Черновик AI</div>
+    <div style="padding:6px 14px; border:1px solid var(--v6-line); background:#e7f0ff; color:var(--v6-blue); border-color:#bcd4f6; font-weight:600; font-size:12.5px; border-left:none">Проверка технолога</div>
+    <div style="padding:6px 14px; border:1px solid var(--v6-line); background:#fff; font-size:12.5px; color:var(--v6-muted); border-left:none">Гл. технолог</div>
+    <div style="padding:6px 14px; border:1px solid var(--v6-line); background:#fff; font-size:12.5px; color:var(--v6-muted); border-left:none">Нач. производства</div>
+    <div style="padding:6px 14px; border:1px solid var(--v6-line); background:#fff; font-size:12.5px; color:var(--v6-muted); border-left:none; border-radius:0 8px 8px 0">РС → 1С:ERP</div>
+</div>
+
+<!-- TABS -->
+<div style="display:flex; gap:2px; border-bottom:2px solid var(--v6-line); margin-bottom:16px">
+    <button class="v6-tab on" data-tab="ops">Чертёж + Операции</button>
+    <button class="v6-tab" data-tab="rs">Ресурсная спецификация</button>
+    <button class="v6-tab" data-tab="just">Обоснование норм</button>
+    <button class="v6-tab" data-tab="ext">Доп. параметры</button>
+    <button class="v6-tab" data-tab="hist">История</button>
+</div>
+
+<style>
+    .v6-tab { background: none; border: none; padding: 9px 16px; color: var(--v6-muted); font-weight: 600; border-bottom: 3px solid transparent; margin-bottom: -2px; cursor: pointer; font: inherit; }
+    .v6-tab.on { color: var(--v6-brand); border-bottom-color: var(--v6-brand); }
+    .v6-pane { display: none; }
+    .v6-pane.on { display: block; }
+</style>
+
+<!-- TAB: OPS -->
+<div class="v6-pane on" id="pane-ops">
+    <div style="display:flex; gap:16px; align-items:flex-start">
+        <div style="width:38%; flex-shrink:0">
+            <div class="v6-panel" style="text-align:center">
+                <svg viewBox="0 0 300 220" style="width:100%; height:auto; border:1px solid #eef2f7; border-radius:6px; background:#fdfdfd">
+                    <rect x="20" y="60" width="260" height="30" fill="#eef2f7" stroke="#8ba0b5"/>
+                    <rect x="40" y="30" width="30" height="30" fill="#dde7f0" stroke="#8ba0b5"/>
+                    <rect x="230" y="30" width="30" height="30" fill="#dde7f0" stroke="#8ba0b5"/>
+                    <line x1="20" y1="110" x2="280" y2="110" stroke="#c8102e" stroke-dasharray="4 3"/>
+                    <text x="150" y="130" font-size="10" fill="#66788c" text-anchor="middle">560 ±1</text>
+                    <rect x="90" y="90" width="120" height="14" fill="#dde7f0" stroke="#8ba0b5"/>
+                    <text x="150" y="165" font-size="11" fill="#1c2733" text-anchor="middle">{{ detail.designation }}</text>
+                    <text x="150" y="182" font-size="9" fill="#66788c" text-anchor="middle">ножи 2 шт · рёбра 4 шт · настил · планки</text>
+                    <text x="150" y="205" font-size="9" fill="#66788c" text-anchor="middle">[мок-эскиз вместо чертежа PDF]</text>
+                </svg>
+                <div class="sub" style="margin-top:6px">Чертёж v2 от 14.05.2026 · привязан к извещению И-2025-089 ·
+                    <a href="/api/import/drawing/{{ detail.id }}">распознать поля (OCR)</a>
+                </div>
+            </div>
+            <div class="v6-panel">
+                <b>Свойства</b> <span class="badge ok">заполнено из OCR + НСИ</span>
+                <table style="margin-top:6px">
+                    <tr><td style="color:var(--v6-muted)">Масса</td><td>{{ detail.mass_kg or '—' }} кг</td></tr>
+                    <tr><td style="color:var(--v6-muted)">Габариты</td><td>{{ detail.size_mm or '560×180×120 мм' }}</td></tr>
+                    <tr><td style="color:var(--v6-muted)">Покрытие</td><td>{{ detail.surface_treatment or 'Грунт ГФ-021' }}</td></tr>
+                    <tr><td style="color:var(--v6-muted)">Материал</td><td>{{ detail.material or '09Г2С' }}</td></tr>
+                </table>
+            </div>
+        </div>
+
+        <div style="flex:1">
+            <div class="v6-toolbar">
+                <button class="v6-btn" onclick="generateTK('{{ detail.id }}')">⚡ Перегенерировать ТК</button>
+                <button class="v6-btn sec" onclick="submitForApproval('{{ detail.id }}')">Отправить на утверждение →</button>
+                <button class="v6-btn sec" onclick="approveTK('{{ detail.id }}')" data-need="chief">✅ Утвердить (гл. технолог)</button>
+                <span class="badge blue">черновик v2 · модель: {{ ai_model }} · 2,8 ₽</span>
+            </div>
+
+            {% if operations %}
+                {% for op in operations %}
+                <div style="border:1px solid var(--v6-line); border-radius:9px; background:#fff; margin-bottom:10px; padding:12px 14px">
+                    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+                        <span class="badge">{{ op.op_number }}</span>
+                        <b>{{ op.name }}</b>
+                        <span class="badge">{{ op.equipment }}</span>
+                        <span class="badge">{{ op.profession }}</span>
+                        <div style="margin-left:auto; text-align:right; font-size:13px; white-space:nowrap">
+                            <span class="dot {{ op.evidence_level or 'g' }}"></span>
+                            <span style="font-weight:700; font-size:15px">{{ "%.2f"|format((op.get('time_setup_min', 0) + op.get('time_per_unit_min', 0)) / 60) }} н/ч</span>
+                            <br>
+                            <a onclick="toggleEvidence('e{{ op.id or loop.index }}')" style="cursor:pointer; font-size:12.5px">Почему такая норма?</a>
+                        </div>
+                    </div>
+                    {% if op.material %}
+                    <div style="margin-top:8px; font-size:12.5px; color:#3a4a5c; background:#f8fafc; border-radius:6px; padding:7px 10px">
+                        📦 {{ op.material }} <a>✏️ править</a>
+                    </div>
+                    {% endif %}
+                    <div class="v6-evidence" id="e{{ op.id or loop.index }}" style="display:none; margin-top:8px; font-size:12.5px; border-left:3px solid var(--v6-ok); background:#e6f4ea; border-radius:0 6px 6px 0; padding:7px 10px">
+                        {% set ev = evidence_by_op.get(op.op_number) %}
+                        {% if ev %}
+                            {% if ev.level == 'green' %}🟢{% elif ev.level == 'yellow' %}🟡{% else %}🔴{% endif %}
+                            <b>{{ ev.source_label }}:</b> {{ ev.description }}
+                        {% else %}
+                            🟢 <b>Факт завода:</b> эталонная ТК или ведомость трудоёмкости.
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="v6-panel">
+                    <p>Операций пока нет. Нажмите <b>⚡ Перегенерировать ТК</b> чтобы AI сгенерировал черновик.</p>
+                </div>
+            {% endif %}
+
+            <div class="v6-toolbar" style="margin-top:8px">
+                <button class="v6-btn sec sm">+ Добавить операцию</button>
+                <button class="v6-btn sec sm">Печать: комплект по ГОСТ 3.1105-2011 (МК, ОК, КК)</button>
+                <span class="badge">Σ {{ "%.2f"|format(total_hours) }} н/ч · эталон завода: 5,55 н/ч ✓</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- TAB: RS -->
+<div class="v6-pane" id="pane-rs">
+    <div class="v6-note">🔒 <b>РС-фабрика — без AI.</b> РС собирается алгоритмом из утверждённой ТК по выбранному профилю. Один и тот же вход всегда даёт один и тот же выход. Доступна после утверждения ТК.</div>
+    <div class="v6-toolbar">
+        <span>Профиль выхода:</span>
+        <select id="profSel">
+            {% for p in profiles %}<option>{{ p.name }}</option>{% endfor %}
+        </select>
+        <button class="v6-btn sec sm">Тестовый прогон</button>
+        <button class="v6-btn" data-need="tech,chief" onclick="exportRS('{{ detail.id }}')">⬇ Выгрузить в 1С:ERP</button>
+        <span class="badge">схема: Техинком-ERP-2.5 (XML)</span>
+    </div>
+    <div class="v6-panel">
+        <b>Предпросмотр РС</b> — как её увидит 1С:ERP
+        <table style="margin-top:8px">
+            <tr><th>№</th><th>Этап РС</th><th>Подразделение</th><th>Трудозатраты</th><th>Материалы (сводно на этап)</th></tr>
+            <tr>
+                <td>1</td>
+                <td><b>Изготовление</b> <span class="badge">профиль «одноэтапная»</span></td>
+                <td>Мелкосерийное пр-во, уч. упоров</td>
+                <td>Сварщик 19905/4 — 4,35 н/ч<br>Слесарь 3 разр. — 0,65 н/ч<br>Комплектовщик — 0,30 н/ч<br>Контролёр — 0,40 н/ч</td>
+                <td>Св-08Г2С-О ⌀1,0 — <b>0,43 кг</b><br>Смесь М21 — <b>0,31 м³</b><br>Спрей антипригар. — 0,02 л</td>
+            </tr>
+        </table>
+    </div>
+    <div class="v6-panel">
+        <b>Отчёт трансформации</b>
+        <div style="font-size:12.5px; background:#f8fafc; border:1px solid var(--v6-line); border-radius:8px; padding:10px 12px; margin-top:6px">
+            Строка «Сварщик 19905/4 — 4,35 н/ч» ← правило профиля <b>«операции: укрупнённо, по профессии»</b> ← операции ТК 015 (1,10) + 020 (1,45) + 025 (1,80)<br>
+            Строка «Св-08Г2С-О — 0,43 кг» ← правило <b>«материалы: сводно на этап»</b> ← 0,12 + 0,31 из операций 015, 020<br>
+            Этап «Изготовление» — один ← правило <b>«разрез этапов: вся РС одним этапом»</b>
+        </div>
+    </div>
+</div>
+
+<!-- TAB: JUST -->
+<div class="v6-pane" id="pane-just">
+    <div class="v6-panel">
+        <b>Сводка доверия по ТК</b>
+        <table style="margin-top:8px">
+            <tr><th>Уровень</th><th>Операций</th><th>Доля времени</th><th>Что делать</th></tr>
+            <tr><td><span class="dot g"></span>Факт завода</td><td>4</td><td>72%</td><td>Ничего — источники: эталонная ТК 2022, ведомость 575 ДСЕ, наряды</td></tr>
+            <tr><td><span class="dot y"></span>Оценка по аналогам</td><td>1</td><td>21%</td><td>Проверить операцию 025 (интерполяция между 3 аналогами)</td></tr>
+            <tr><td><span class="dot r"></span>Гипотеза AI</td><td>1</td><td>7%</td><td>Подтвердить операцию 035 — факта по контролю в базе нет</td></tr>
+        </table>
+    </div>
+    <div class="v6-panel">
+        <b>Аналоги, использованные AI</b>
+        <table style="margin-top:8px">
+            <tr><th>Деталь-аналог</th><th>Сходство</th><th>Источник</th><th>Σ н/ч</th></tr>
+            {% for a in analogs %}
+            <tr><td>{{ a.designation }} — {{ a.name }}</td><td>{{ "%.0f"|format(a.similarity * 100) }}%</td><td>{{ a.source }}</td><td>{{ a.total_hours }}</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+
+<!-- TAB: EXT -->
+<div class="v6-pane" id="pane-ext">
+    <div class="v6-note ok">Эти параметры <b>не выгружаются в 1С</b> — они нужны для расчётов и комплекта документов приёмки (ОТК / ВП 3237 МО РФ).</div>
+    <div class="v6-panel">
+        <table>
+            <tr><th>Атрибут</th><th>Значение</th><th>Используется в</th></tr>
+            <tr><td>Режим сварки (ток/напряжение)</td><td>180–220 А / 24–26 В</td><td><span class="badge">расчёт</span> <span class="badge">приёмка</span></td></tr>
+            <tr><td>Катет шва</td><td>5 мм, ГОСТ 14771-76-Т1</td><td><span class="badge">приёмка</span></td></tr>
+            <tr><td>ИОТ (охрана труда)</td><td>№1, №3, №11, №26, №49</td><td><span class="badge">приёмка</span></td></tr>
+            <tr><td>Контрольные точки ВП</td><td>Контроль швов ВИК 100% · клеймение</td><td><span class="badge">приёмка</span></td></tr>
+            <tr><td>Согласующая цепочка</td><td>Шпаковский → Третьяков (СТКиК) → Голубев → Кафтуров (ВП)</td><td><span class="badge">приёмка</span></td></tr>
+        </table>
+    </div>
+</div>
+
+<!-- TAB: HIST -->
+<div class="v6-pane" id="pane-hist">
+    <div class="v6-panel">
+        <table>
+            <tr><th>Когда</th><th>Кто</th><th>Событие</th></tr>
+            {% for h in history %}
+            <tr><td>{{ h.ts }}</td><td>{{ h.user }}</td><td>{{ h.event }}</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+
+<script>
+// Tab switching
+document.querySelectorAll('.v6-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.v6-tab').forEach(b => b.classList.remove('on'));
+        document.querySelectorAll('.v6-pane').forEach(p => p.classList.remove('on'));
+        btn.classList.add('on');
+        document.getElementById('pane-' + btn.dataset.tab).classList.add('on');
+    });
+});
+
+function toggleEvidence(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function generateTK(id) {
+    if (typeof showToast === 'function') showToast('Генерация ТК (мок-режим)...', 'info');
+    fetch('/api/draft-fast', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+        body: JSON.stringify({detail_id: id})
+    }).then(r => r.json()).then(d => {
+        if (d.ok) { location.reload(); }
+        else if (typeof showToast === 'function') showToast('Ошибка: ' + (d.error || '?'), 'error');
+    });
+}
+function submitForApproval(id) {
+    if (typeof showToast === 'function') showToast('Отправлено на утверждение гл. технологу', 'success');
+    fetch('/api/workflow/assign', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+        body: JSON.stringify({detail_id: id, assignee: 'baranov'})
+    });
+}
+function approveTK(id) {
+    if (typeof showToast === 'function') showToast('ТК утверждена. Добавлена в эталоны.', 'success');
+}
+function exportRS(id) {
+    if (typeof showToast === 'function') showToast('РС выгружена в 1С:ERP (мок)', 'success');
+}
+</script>
+{% endblock %}

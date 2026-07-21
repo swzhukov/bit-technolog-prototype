@@ -1,0 +1,42 @@
+{% extends "_v6_layout.html" %}
+{% block title %}База знаний предприятия — БИТ.Технолог{% endblock %}
+{% block content %}
+<h1>🧠 База знаний предприятия</h1>
+<p class="sub">То, на чём AI «обучается на завод»: эталоны, факт трудоёмкости, правила. Пополняется автоматически с каждой утверждённой ТК.</p>
+
+<div class="v6-cards">
+    {% for m in metrics %}
+    <div class="v6-card"><div class="num">{{ m.value }}</div><div class="lbl">{{ m.text }}</div></div>
+    {% endfor %}
+</div>
+
+<div class="v6-panel">
+    <h2 style="margin-top:0">Загрузка архива</h2>
+    <div class="sub">OCR + AI-разбор, человек проверяет перед добавлением в эталоны</div>
+    <div class="v6-toolbar">
+        <button class="v6-btn sec">⬆ Загрузить архивную ТК (PDF/скан)</button>
+        <button class="v6-btn sec">⬆ Ведомость трудоёмкости (Excel)</button>
+        <button class="v6-btn sec">⬆ Наряды (Excel)</button>
+    </div>
+    <table style="margin-top:10px">
+        <tr><th>Документ</th><th>Разобрано AI</th><th>Статус</th></tr>
+        <tr><td>ТК «Растяжка пружинная» (скан 2022, 31 стр.)</td><td>операции 005–030, состав 18 позиций</td><td><span class="badge warn">ждёт проверки Воробьёва</span></td></tr>
+        <tr><td>Наряды июнь-2026.xlsx</td><td>402 строки, 396 сопоставлено с НСИ</td><td><span class="badge ok">в базе</span> · 6 строк — <a>разобрать вручную</a></td></tr>
+    </table>
+</div>
+
+<div class="v6-panel">
+    <h2 style="margin-top:0">Правила технолога</h2>
+    <div class="sub">Подставляются в контекст AI по типу операции</div>
+    <table style="margin-top:8px">
+        <tr><th>Правило</th><th>Область</th><th>Источник</th></tr>
+        {% for r in rules %}
+        <tr>
+            <td>{{ r.rule_text }}</td>
+            <td><span class="badge">{{ r.scope }}</span></td>
+            <td>{{ r.source or '—' }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "_v6_layout.html" %}
+{% block title %}Извещения об изменениях — БИТ.Технолог{% endblock %}
+{% block content %}
+<h1>📬 Извещения об изменениях (ГОСТ 2.503)</h1>
+<p class="sub">Извещение → система находит ВСЕ затронутые сборки, ТК и РС (через связи состава) → AI предлагает правки → человек решает → РС перегенерируется тем же профилем.</p>
+
+{% if notices %}
+    {% for n in notices %}
+    <div class="v6-panel">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+            <b style="font-size:15px">{{ n.number }}</b>
+            <span class="badge {{ 'bad' if n.status == 'open' else 'ok' }}">{{ 'в работе' if n.status == 'open' else 'закрыто' }}</span>
+            <span class="badge">от {{ n.date }} · {{ n.author or '—' }}</span>
+            <span class="badge">основание: {{ n.foundation_doc or '—' }}</span>
+        </div>
+        <p style="margin:8px 0">{{ n.reason }}</p>
+
+        <h2>Область влияния (найдено автоматически по составу)</h2>
+        <table>
+            <tr><th>Объект</th><th>Связь</th><th>Что затронуто</th></tr>
+            <tr><td>Цистерна 53-ТВ.05.00.00</td><td>деталь входит в сборку</td><td>ТК (утв.) + РС v3 в 1С</td></tr>
+            <tr><td>Обечайка с днищами 53-ТВ.05.01.000</td><td>подсборка</td><td>ТК (утв.)</td></tr>
+            <tr><td>АЦ-8,0-40 · зав. №147</td><td>исполнение</td><td>состав исполнения (отличие от базового)</td></tr>
+        </table>
+
+        <h2>Предложение AI по ТК «Цистерна» <span class="badge blue">модель: {{ ai_model or 'MockLLM-Technologist-v1' }}</span></h2>
+        <table>
+            <tr><th>Операция</th><th>Было</th><th>Станет</th><th>Почему</th></tr>
+            {% for ch in changes %}
+            <tr>
+                <td>{{ ch.op_number }} {{ ch.name }}</td>
+                <td style="background:#fdecea; text-decoration:line-through; color:#8a3b34">{{ ch.was }}</td>
+                <td style="background:#e6f4ea; color:#1a5c2c; font-weight:600">{{ ch.now }}</td>
+                <td>{{ ch.reason }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+
+        <div class="v6-toolbar" style="margin-top:12px">
+            <button class="v6-btn" onclick="alert('Правки приняты → ТК Цистерна v4 (черновик) → после утверждения РС-фабрика перегенерирует РС v4 профилем «КТ-этапы-по-участкам» и подготовит выгрузку в 1С с причиной «{{ n.number }}». (мок)')">Принять правки → новая версия ТК</button>
+            <button class="v6-btn sec">Править вручную</button>
+            <button class="v6-btn sec">Отклонить</button>
+            <span class="badge">после утверждения: РС v3 → v4, причина изменения в 1С = «{{ n.number }}»</span>
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <div class="v6-panel"><p>Нет извещений. Всё под контролем.</p></div>
+{% endif %}
+{% endblock %}

@@ -3883,42 +3883,92 @@ def check_cost_anomaly(window_hours: int = 1) -> dict:
 
 @app.get("/health")
 async def health():
+    """M30: расширенная диагностика — БД таблицы, LLM latency, RAG stats, system info."""
     # OB3 fix: проверяем БД (SELECT 1)
     db_ok = False
     db_error = None
+    db_tables = {}
     try:
         conn = get_conn()
         row = conn.execute("SELECT 1").fetchone()
-        conn.close()
         db_ok = (row is not None and row[0] == 1)
+        if db_ok:
+            # M30: список таблиц с количеством записей
+            for tbl_row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            ).fetchall():
+                tbl = tbl_row[0]
+                try:
+                    count = conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()[0]
+                    db_tables[tbl] = count
+                except Exception:
+                    db_tables[tbl] = "err"
+        conn.close()
     except Exception as e:
         db_error = str(e)[:200]
-    # RAG статус
+
+    # RAG статус + stats
     rag_status = "unknown"
+    rag_stats = {}
     try:
         from rag import get_rag
         rag = get_rag()
         rag_status = "loaded" if rag.loaded else "empty"
+        if rag.loaded:
+            rag_stats = {
+                "indexed_documents": len(rag.ids) if hasattr(rag, 'ids') else 0,
+                "matrix_shape": list(rag.matrix.shape) if hasattr(rag, 'matrix') and rag.matrix is not None else [],
+            }
     except Exception:
         rag_status = "unavailable"
+
+    # LLM latency (ping /models endpoint)
+    llm_latency_ms = None
+    try:
+        from settings import get_setting
+        api_key = get_setting("LLM_API_KEY", LLM_API_KEY)
+        api_url = get_setting("LLM_API_URL", LLM_API_URL)
+        if not DEMO_MODE and api_key:
+            import urllib.request, time as _t
+            t0 = _t.time()
+            models_url = api_url.rstrip("/") + "/models"
+            req = urllib.request.Request(models_url)
+            req.add_header("Authorization", f"Bearer {api_key[:8]}...")
+            try:
+                with urllib.request.urlopen(req, timeout=3) as resp:
+                    resp.read(1)
+                llm_latency_ms = int((_t.time() - t0) * 1000)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # System info
+    import platform
+    sys_info = {
+        "python": platform.python_version(),
+        "platform": platform.platform(),
+    }
+
     return {
         "status": "ok" if db_ok else "degraded",
         "db_ok": db_ok,
         "db_error": db_error,
+        "db_tables": db_tables,  # M30: {table_name: row_count}
         "rag_status": rag_status,
+        "rag_stats": rag_stats,  # M30
+        "llm_latency_ms": llm_latency_ms,  # M30
         "demo_mode": DEMO_MODE,
         "model": LLM_MODEL,
         "api_url": LLM_API_URL if not DEMO_MODE else None,
         "details_count": len(MOCK_DETAILS),
-        # V4-11: version + uptime + build date
         "version": "0.4.18",
         "build_date": "2026-07-19",
-        "git_commit": _GIT_COMMIT,  # V7-2
+        "git_commit": _GIT_COMMIT,
         "uptime_sec": int(time.time() - _APP_START_TS) if '_APP_START_TS' in dir() else 0,
-        # V5-4: проверка внешних зависимостей
         "dependencies": _check_dependencies(),
-        # V5-9: cost anomaly detection
-        "cost_anomaly": check_cost_anomaly()
+        "cost_anomaly": check_cost_anomaly(),
+        "system": sys_info,  # M30
     }
 
 
@@ -4841,6 +4891,379 @@ async def api_economics(detail_id: str):
     </table>
     """
     return HTMLResponse(html)
+
+
+# ===================================================================
+# V0.6 PROTOTYPE ENDPOINTS (Sprint 0-3, 2026-07-21)
+# 8 экранов: /dashboard, /help, /products, /detail/{id}, /notices,
+#            /profiles, /knowledge, /llm-admin
+# Auth-based, mock data + real DB data
+# ===================================================================
+
+# Роли для прототипа (5 ролей + admin)
+V6_ROLES = [
+    {"code": "tech", "name": "Технолог — Тарлецкий А.В."},
+    {"code": "main_technologist", "name": "Гл. технолог — Баранов М.А."},
+    {"code": "workshop_chief", "name": "Нач. производства — Голубев П.В."},
+    {"code": "normirovshchik", "name": "Технолог-админ — Воробьёв Г.И."},
+    {"code": "admin", "name": "Админ LLM — ИТ-служба"},
+]
+
+V6_ROLE_DESCR = {
+    "tech": "технолог Тарлецкий. Ваш день: разобрать задачи ниже, проверить черновик AI, ответить на вопросы AI. Кнопки утверждения вам недоступны.",
+    "main_technologist": "гл. технолог Баранов. Вам доступны утверждение ТК, решения по извещениям и ревизия профилей РС. Утверждённые ТК становятся эталонами.",
+    "workshop_chief": "нач. производства Голубев. Финальная виза после гл. технолога.",
+    "normirovshchik": "технолог-администратор Воробьёв. Настраиваете профили РС и проверяете разобранные AI документы.",
+    "admin": "администратор LLM. Управляете моделями, лимитами и смотрите журнал.",
+}
+
+USER_BY_ROLE = {
+    "tech": "Тарлецкий А.В.",
+    "main_technologist": "Баранов М.А.",
+    "workshop_chief": "Голубев П.В.",
+    "normirovshchik": "Воробьёв Г.И.",
+    "admin": "ИТ-служба",
+}
+
+
+def _v6_context(request: Request, active: str = "dashboard"):
+    """Общий контекст для v0.6 шаблонов: роль, mock-режим, и т.д."""
+    from mock_llm import is_mock_mode
+    role = request.cookies.get("bit_role", "tech")
+    return {
+        "request": request,
+        "active": active,
+        "current_role": role,
+        "current_user_name": USER_BY_ROLE.get(role, "Гость"),
+        "current_role_descr": V6_ROLE_DESCR.get(role, ""),
+        "mock_mode": is_mock_mode(),
+        "roles": V6_ROLES,
+    }
+
+
+@app.post("/api/role/switch-v6")
+async def switch_role_v6(request: Request, role: str = ""):
+    """Переключение роли (v0.6). Cookie bit_role."""
+    if role not in [r["code"] for r in V6_ROLES]:
+        role = "tech"
+    # Возврат на предыдущую страницу или на dashboard
+    referer = request.headers.get("referer", "/dashboard")
+    resp = RedirectResponse(url=referer, status_code=303)
+    resp.set_cookie("bit_role", role, max_age=86400 * 30, httponly=True, samesite="lax")
+    return resp
+
+
+@app.get("/auth/logout")
+async def logout_v6():
+    """Logout: чистим куки и редиректим на /login."""
+    resp = RedirectResponse(url="/login", status_code=303)
+    resp.delete_cookie("bit_role")
+    resp.delete_cookie("session")
+    return resp
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def v6_dashboard(request: Request):
+    """V0.6 Dashboard — Мои задачи."""
+    conn = get_conn()
+    today = datetime.now().strftime("%A, %d %B %Y").lower()
+    months_ru = {"january": "января", "february": "февраля", "march": "марта", "april": "апреля",
+                 "may": "мая", "june": "июня", "july": "июля", "august": "августа",
+                 "september": "сентября", "october": "октября", "november": "ноября", "december": "декабря"}
+    days_ru = {"monday": "понедельник", "tuesday": "вторник", "wednesday": "среда",
+               "thursday": "четверг", "friday": "пятница", "saturday": "суббота", "sunday": "воскресенье"}
+    for en, ru in months_ru.items():
+        today = today.replace(en, ru)
+    for en, ru in days_ru.items():
+        today = today.replace(en, ru)
+
+    role = request.cookies.get("bit_role", "tech")
+
+    # Считаем реальные данные
+    drafts_count = conn.execute("SELECT COUNT(*) FROM drafts WHERE status='draft' OR status IS NULL OR status='new'").fetchone()[0]
+    need_approve = conn.execute("SELECT COUNT(*) FROM drafts WHERE status_ext='review'").fetchone()[0]
+    notices_count = conn.execute("SELECT COUNT(*) FROM change_notices WHERE status='open'").fetchone()[0] if _table_exists(conn, "change_notices") else 0
+    questions_count = 3  # мок — у нас пока нет таблицы вопросов
+    conflicts_count = 1  # мок
+
+    # Задачи для таблицы (5 шт — микс реальных и мок)
+    tasks = []
+    # Реальные черновики
+    real_drafts = conn.execute("""SELECT d.designation, d.name, d.model
+        FROM drafts dr JOIN details d ON d.id = dr.detail_id
+        WHERE dr.status IN ('new', 'draft', 'review') LIMIT 3""").fetchall()
+    for i, (des, name, model) in enumerate(real_drafts):
+        tasks.append({
+            "icon": "📄" if i == 0 else "🔄",
+            "title": name or des,
+            "subtitle": des,
+            "product": model or "—",
+            "action": "Черновик AI готов — проверить нормы и отправить на утверждение",
+            "status_class": "blue",
+            "status_label": "Черновик v2",
+            "deadline": "сегодня",
+            "url": f"/v6/detail/{des}",
+        })
+    # Мок-задачи (пока нет в БД)
+    if notices_count > 0:
+        tasks.append({
+            "icon": "📬", "title": "Извещение И-2026-014", "subtitle": "смена материала",
+            "product": "АЦ-8,0-40 · зав. №147",
+            "action": "Материал днища: 09Г2С → 10ХСНД. Затронуты 3 сборки, 2 ТК, 2 РС",
+            "status_class": "bad", "status_label": "Требует решения",
+            "deadline": "22.07", "url": "/notices",
+        })
+    tasks.append({
+        "icon": "❓", "title": "Растяжка пружинная", "subtitle": "ЛМША.301712.000",
+        "product": "УМК",
+        "action": "AI спрашивает: «Пружина тарельчатая (72 шт) — запрессовка на участке растяжек или в кооперации?»",
+        "status_class": "warn", "status_label": "Вопрос AI",
+        "deadline": "23.07", "url": "/v6/detail/detail-lmsha-301712-000",
+    })
+    if drafts_count == 0:
+        tasks.append({
+            "icon": "✅", "title": "Каркас КБР", "subtitle": "53-ТВ.15.00.00",
+            "product": "АЦ-6,0-40",
+            "action": "Утверждена гл. технологом → сформировать РС и выгрузить в 1С",
+            "status_class": "ok", "status_label": "ТК утверждена",
+            "deadline": "24.07", "url": "/v6/detail/53-ТВ.15.00.00",
+        })
+    conn.close()
+
+    # Метрики пилота
+    pm = {}
+    if _table_exists(None, "pilot_metrics"):
+        for row in _q("SELECT metric_name, metric_value, metric_text FROM pilot_metrics"):
+            pm[row[0]] = {"value": int(row[1]) if row[1] == int(row[1]) else row[1], "text": row[2] or ""}
+    pilot_metrics = [{"value": pm.get(k, {}).get("value", 0), "text": pm.get(k, {}).get("text", k)} for k in [
+        "etalons_count", "vedomost_dse", "work_orders_count", "rules_count", "green_pct"
+    ]]
+
+    return templates.TemplateResponse("dashboard.html", {
+        **_v6_context(request, "dashboard"),
+        "today_str": today,
+        "counts": {
+            "drafts": drafts_count,
+            "need_approve": need_approve,
+            "notices": notices_count,
+            "questions": questions_count,
+            "conflicts": conflicts_count,
+        },
+        "tasks": tasks[:5],
+        "learning": {
+            "approved_4w": 17, "green_now": 61, "green_4w_ago": 42, "bias": True,
+        },
+        "pilot_metrics": pilot_metrics,
+    })
+
+
+def _table_exists(conn, name: str) -> bool:
+    if conn is None:
+        conn = get_conn()
+        own = True
+    else:
+        own = False
+    try:
+        r = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)).fetchone()
+        return r is not None
+    finally:
+        if own:
+            conn.close()
+
+
+def _q(sql, params=()):
+    conn = get_conn()
+    try:
+        return conn.execute(sql, params).fetchall()
+    finally:
+        conn.close()
+
+
+@app.get("/help", response_class=HTMLResponse)
+async def v6_help(request: Request):
+    """V0.6 Help — Как устроена работа."""
+    return templates.TemplateResponse("help_v6.html", _v6_context(request, "help"))
+
+
+@app.get("/products", response_class=HTMLResponse)
+async def v6_products(request: Request):
+    """V0.6 Изделия и состав."""
+    real = []
+    for row in _q("SELECT id, designation, name, material FROM details ORDER BY created_at DESC LIMIT 10"):
+        real.append({"id": row[0], "designation": row[1], "name": row[2], "material": row[3]})
+    return templates.TemplateResponse("products.html", {**_v6_context(request, "products"), "real_details": real})
+
+
+@app.get("/notices", response_class=HTMLResponse)
+async def v6_notices(request: Request):
+    """V0.6 Извещения об изменениях."""
+    from mock_llm import MOCK_NOTICE_DIFF
+    notices = []
+    if _table_exists(None, "change_notices"):
+        for row in _q("SELECT id, number, date, author, status, reason, foundation_doc FROM change_notices ORDER BY date DESC"):
+            notices.append({
+                "id": row[0], "number": row[1], "date": row[2], "author": row[3],
+                "status": row[4], "reason": row[5], "foundation_doc": row[6],
+            })
+    return templates.TemplateResponse("notices.html", {
+        **_v6_context(request, "notices"),
+        "notices": notices,
+        "changes": MOCK_NOTICE_DIFF["operation_changes"],
+        "ai_model": "MockLLM-Technologist-v1",
+    })
+
+
+@app.get("/profiles", response_class=HTMLResponse)
+async def v6_profiles(request: Request):
+    """V0.6 Профили выхода РС."""
+    import json
+    profiles = []
+    if _table_exists(None, "rs_profiles"):
+        for row in _q("SELECT id, code, name, product_type, is_active, version, axes_json, export_schema, description FROM rs_profiles ORDER BY is_active DESC, code"):
+            try:
+                axes = json.loads(row[6]) if row[6] else {}
+            except Exception:
+                axes = {}
+            profiles.append({
+                "id": row[0], "code": row[1], "name": row[2], "product_type": row[3],
+                "is_active": row[4], "version": row[5], "axes": axes,
+                "export_schema": row[7], "description": row[8],
+            })
+    return templates.TemplateResponse("profiles.html", {**_v6_context(request, "profiles"), "profiles": profiles})
+
+
+@app.get("/knowledge", response_class=HTMLResponse)
+async def v6_knowledge(request: Request):
+    """V0.6 База знаний."""
+    metrics = []
+    rules = []
+    if _table_exists(None, "pilot_metrics"):
+        for row in _q("SELECT metric_value, metric_text FROM pilot_metrics WHERE metric_name IN ('etalons_count', 'vedomost_dse', 'work_orders_count', 'rules_count', 'green_pct') ORDER BY metric_name"):
+            metrics.append({"value": int(row[0]), "text": row[1] or ""})
+    if _table_exists(None, "tech_rules"):
+        for row in _q("SELECT name, scope, rule_text, source FROM tech_rules ORDER BY id"):
+            rules.append({"name": row[0], "scope": row[1], "rule_text": row[2], "source": row[3]})
+    return templates.TemplateResponse("knowledge.html", {**_v6_context(request, "knowledge"), "metrics": metrics, "rules": rules})
+
+
+@app.get("/llm-admin", response_class=HTMLResponse)
+async def v6_llm_admin(request: Request):
+    """V0.6 LLM admin."""
+    from mock_llm import is_mock_mode
+    role = request.cookies.get("bit_role", "tech")
+    is_llm_admin = role in ("admin", "normirovshick", "main_technologist") or role == "admin"
+    is_llm_admin = role in ("admin",)  # только admin
+    pm = {}
+    for row in _q("SELECT metric_name, metric_value FROM pilot_metrics WHERE metric_name LIKE 'cost_%' OR metric_name = 'avg_draft_cost_rub'"):
+        pm[row[0]] = row[1]
+    return templates.TemplateResponse("llm_admin.html", {
+        **_v6_context(request, "llm"),
+        "is_llm_admin": is_llm_admin,
+        "current_model": "yandexgpt" if not is_mock_mode() else "mock",
+        "llm_model": LLM_MODEL,
+        "llm_url": LLM_API_URL,
+        "llm_latency_ms": "—",
+        "cost_today": int(pm.get("cost_today_rub", 0)),
+        "cost_month": int(pm.get("cost_month_rub", 0)),
+        "avg_draft": pm.get("avg_draft_cost_rub", 0),
+    })
+
+
+@app.get("/v6/detail/{detail_id:path}", response_class=HTMLResponse)
+async def v6_detail(request: Request, detail_id: str):
+    """V0.6 Карточка детали с 5 табами."""
+    from mock_llm import MOCK_OPS_UPOR_PRODOLNYI, MOCK_ANALOGS_UPOR, MOCK_EVIDENCE_BY_OP, is_mock_mode
+    import json
+    conn = get_conn()
+    row = conn.execute("SELECT id, designation, name, model, material, mass_kg, size_mm, surface_treatment, chassis FROM details WHERE id=? OR designation=?",
+                       (detail_id, detail_id)).fetchone()
+    if not row:
+        # Если деталь не найдена, но это "ЛМША.301314.010" — мок-данные
+        if detail_id in ("ЛМША.301314.010", "ЛМША.301314.020", "ЛМША.301712.000"):
+            detail = {
+                "id": detail_id, "designation": detail_id, "name": "Упор продольный (мок)",
+                "model": "УМК для АО КАМАЗ", "material": "09Г2С", "mass_kg": 38.2,
+                "size_mm": "560×180×120", "surface_treatment": "Грунт ГФ-021", "chassis": None,
+            }
+        else:
+            conn.close()
+            return HTMLResponse(f"<h1>Деталь не найдена: {detail_id}</h1>", status_code=404)
+    else:
+        detail = {
+            "id": row[0], "designation": row[1], "name": row[2], "model": row[3],
+            "material": row[4], "mass_kg": row[5], "size_mm": row[6], "surface_treatment": row[7],
+            "chassis": row[8],
+        }
+    # Draft
+    draft = conn.execute("SELECT llm_output FROM drafts WHERE detail_id=?", (detail["id"],)).fetchone()
+    operations = []
+    if draft and draft[0]:
+        try:
+            data = json.loads(draft[0])
+            operations = data.get("operations", [])
+        except Exception:
+            pass
+    if not operations:
+        # Используем мок-операции
+        operations = [{"id": i+1, **op} for i, op in enumerate(MOCK_OPS_UPOR_PRODOLNYI)]
+    conn.close()
+
+    # Evidence
+    evidence_by_op = {}
+    for op in operations:
+        op_num = op.get("op_number", "")
+        ev = MOCK_EVIDENCE_BY_OP.get(op_num, MOCK_EVIDENCE_BY_OP["005"])
+        if ev["level"] == "green":
+            source_label = "Факт завода"
+        elif ev["level"] == "yellow":
+            source_label = "Оценка по аналогам"
+        else:
+            source_label = "Гипотеза AI"
+        evidence_by_op[op_num] = {
+            "source_label": source_label,
+            "level": ev["level"],
+            "description": ev["description"],
+        }
+        # Добавим evidence_level для светофора
+        op["evidence_level"] = ev["level"]
+
+    total_hours = sum((op.get("time_setup_min", 0) + op.get("time_per_unit_min", 0)) for op in operations) / 60.0
+
+    # Профили РС
+    profiles = []
+    if _table_exists(None, "rs_profiles"):
+        import json as _json
+        for row in _q("SELECT name FROM rs_profiles WHERE is_active=1 ORDER BY code"):
+            profiles.append({"name": row[0]})
+    if not profiles:
+        profiles = [{"name": "УМК-одноэтапная"}, {"name": "КТ-этапы-по-участкам"}]
+
+    # История
+    history = [
+        {"ts": "21.07 10:42", "user": "AI (MockLLM-Technologist-v1)", "event": "Черновик v2: учтены ответы на вопросы (тип сварки — механизированная, М21)"},
+        {"ts": "21.07 10:38", "user": "Тарлецкий А.В.", "event": "Ответ на вопросы AI; правка операции 030 (0,50 → 0,65, причина: правило зачистки)"},
+        {"ts": "21.07 10:31", "user": "AI (MockLLM-Lite)", "event": "2 уточняющих вопроса (задача «вопросы» работает на дешёвой модели)"},
+        {"ts": "21.07 10:30", "user": "Тарлецкий А.В.", "event": "Запуск генерации. Контекст: эталон 4c85941a, 3 аналога, правила сварки, структура предприятия"},
+    ]
+
+    return templates.TemplateResponse("detail_v6.html", {
+        **_v6_context(request, "detail"),
+        "detail": detail,
+        "ref_1c": "4c85941a...",
+        "operations": operations,
+        "evidence_by_op": evidence_by_op,
+        "analogs": MOCK_ANALOGS_UPOR,
+        "total_hours": total_hours,
+        "profiles": profiles,
+        "history": history,
+        "ai_model": "MockLLM-Technologist-v1",
+    })
+
+
+@app.post("/api/role/switch-v6-redirect")
+async def switch_role_v6_redirect():
+    """DEPRECATED: используйте /api/role/switch-v6."""
+    return RedirectResponse(url="/dashboard", status_code=303)
 
 
 if __name__ == "__main__":

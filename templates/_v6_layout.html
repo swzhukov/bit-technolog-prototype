@@ -1,0 +1,172 @@
+<!-- _v6_layout.html — v0.6 layout с header, nav, role switcher
+     Используется всеми экранами прототипа: dashboard, products, detail, notices, profiles, knowledge, llm
+     Вдохновлён прототипом из вложения.
+     -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}БИТ.Технолог v0.6{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='28'%3E🔥%3C/text%3E%3C/svg%3E">
+    <link rel="stylesheet" href="/static/design-system.css?v=22">
+    <link rel="stylesheet" href="/static/v6.css?v=1">
+    <script src="/static/htmx.min.js"></script>
+    <style>
+        /* v0.6 специфичные стили — header + nav из прототипа */
+        :root {
+            --v6-brand: #c8102e;
+            --v6-brand-2: #8f0c21;
+            --v6-bg: #f4f6f9;
+            --v6-panel: #fff;
+            --v6-line: #dde3ea;
+            --v6-text: #1c2733;
+            --v6-muted: #66788c;
+            --v6-blue: #1f6feb;
+            --v6-ok: #1a7f37;
+            --v6-warn: #9a6700;
+            --v6-bad: #c62828;
+            --v6-chip: #eef2f7;
+        }
+        body { font: 14px/1.5 "Segoe UI", system-ui, Arial, sans-serif; background: var(--v6-bg); color: var(--v6-text); margin: 0; }
+        a { color: var(--v6-blue); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        /* HEADER (тёмный) */
+        .v6-header { background: #22303f; color: #fff; display: flex; align-items: center; gap: 16px; padding: 0 20px; height: 52px; position: sticky; top: 0; z-index: 50; }
+        .v6-logo { font-weight: 700; font-size: 16px; }
+        .v6-logo span { color: #ff5a6e; }
+        .v6-env { background: #394a5e; font-size: 11px; padding: 2px 8px; border-radius: 4px; color: #c3d0de; }
+        .v6-spacer { flex: 1; }
+        .v6-header form { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+        .v6-header select { background: #394a5e; color: #fff; border: 1px solid #4d6076; border-radius: 6px; padding: 5px 10px; font: inherit; }
+        .v6-user { font-size: 13px; color: #c3d0de; }
+        .v6-mock-badge { background: #e6a700; color: #000; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+        .v6-mock-badge.real { background: #1a7f37; color: #fff; }
+
+        /* LAYOUT */
+        .v6-layout { display: flex; min-height: calc(100vh - 52px); }
+        .v6-nav { width: 220px; background: #fff; border-right: 1px solid var(--v6-line); padding: 14px 0; flex-shrink: 0; }
+        .v6-nav .item { display: flex; align-items: center; gap: 8px; padding: 9px 18px; color: var(--v6-text); cursor: pointer; border-left: 3px solid transparent; font-size: 13.5px; }
+        .v6-nav .item:hover { background: #f0f4f8; }
+        .v6-nav .item.active { border-left-color: var(--v6-brand); background: #fbeef0; font-weight: 600; }
+        .v6-nav .item.hidden { display: none; }
+        .v6-nav .item .cnt { margin-left: auto; background: var(--v6-brand); color: #fff; border-radius: 9px; font-size: 11px; padding: 0 7px; }
+        .v6-nav .sect { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--v6-muted); padding: 14px 18px 4px; }
+        .v6-main { flex: 1; padding: 20px 26px; max-width: 1250px; }
+
+        /* COMMON */
+        h1 { font-size: 20px; margin: 0 0 4px; }
+        h2 { font-size: 16px; margin: 18px 0 8px; }
+        .sub { color: var(--v6-muted); margin-bottom: 16px; font-size: 13px; }
+        .v6-rolebar { background: #e7f0ff; border: 1px solid #bcd4f6; border-radius: 8px; padding: 10px 14px; margin-bottom: 18px; font-size: 13px; }
+        .v6-rolebar b { color: var(--v6-blue); }
+        .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; background: var(--v6-chip); color: var(--v6-muted); white-space: nowrap; }
+        .badge.ok { background: #e6f4ea; color: var(--v6-ok); }
+        .badge.warn { background: #fff8e1; color: var(--v6-warn); }
+        .badge.bad { background: #fdecea; color: var(--v6-bad); }
+        .badge.blue { background: #e7f0ff; color: var(--v6-blue); }
+        .badge.coop { background: #f3e8ff; color: #7c3aed; }
+        .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: baseline; }
+        .dot.g { background: var(--v6-ok); } .dot.y { background: #e6a700; } .dot.r { background: var(--v6-bad); }
+
+        /* CARDS */
+        .v6-cards { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+        .v6-card { background: var(--v6-panel); border: 1px solid var(--v6-line); border-radius: 10px; padding: 14px 18px; box-shadow: 0 1px 3px rgba(16,24,40,.08); min-width: 150px; flex: 1; }
+        .v6-card .num { font-size: 26px; font-weight: 700; }
+        .v6-card .lbl { color: var(--v6-muted); font-size: 12.5px; }
+        .v6-card.alert .num { color: var(--v6-bad); }
+        .v6-panel { background: var(--v6-panel); border: 1px solid var(--v6-line); border-radius: 10px; box-shadow: 0 1px 3px rgba(16,24,40,.08); padding: 16px 18px; margin-bottom: 18px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { text-align: left; color: var(--v6-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .3px; padding: 8px 10px; border-bottom: 2px solid var(--v6-line); }
+        td { padding: 9px 10px; border-bottom: 1px solid var(--v6-line); vertical-align: top; }
+        tr:hover td { background: #f8fafc; }
+        .v6-btn { background: var(--v6-brand); color: #fff; border: none; border-radius: 7px; padding: 8px 16px; font-weight: 600; cursor: pointer; font: inherit; }
+        .v6-btn:hover { background: var(--v6-brand-2); }
+        .v6-btn.sec { background: #fff; color: var(--v6-text); border: 1px solid var(--v6-line); }
+        .v6-btn.sec:hover { background: #f0f4f8; }
+        .v6-btn.sm { padding: 4px 10px; font-size: 12.5px; }
+        .v6-btn:disabled { opacity: .45; cursor: not-allowed; }
+        .v6-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+        .v6-toolbar input, .v6-toolbar select { padding: 7px 10px; border: 1px solid var(--v6-line); border-radius: 7px; background: #fff; font: inherit; }
+        .v6-note { background: #fff8e1; border: 1px solid #f0dca0; border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px; }
+        .v6-note.ok { background: #e6f4ea; border-color: #bfe0c8; }
+        .v6-note.warn { background: #fff8e1; border-color: #f0dca0; }
+        .v6-note.info { background: #e7f0ff; border-color: #bcd4f6; color: #1a3a5c; }
+        .hidden { display: none !important; }
+        footer { color: var(--v6-muted); font-size: 12px; padding: 20px 26px; border-top: 1px solid var(--v6-line); margin-top: 30px; }
+    </style>
+</head>
+<body>
+
+<header class="v6-header">
+    <div class="v6-logo">БИТ.<span>Технолог</span></div>
+    <span class="v6-env">v0.6 · пилот 27.07</span>
+    {% if mock_mode %}<span class="v6-mock-badge" title="LLM в мок-режиме (ключ не задан)">MOCK LLM</span>{% else %}<span class="v6-mock-badge real">REAL LLM</span>{% endif %}
+    <div class="v6-spacer"></div>
+    <span class="v6-user">Роль:</span>
+    <form method="post" action="/api/role/switch-v6" id="roleForm">
+        <select name="role" onchange="document.getElementById('roleForm').submit()">
+            {% for r in roles %}
+            <option value="{{ r.code }}" {% if r.code == current_role %}selected{% endif %}>
+                {{ r.name }}
+            </option>
+            {% endfor %}
+        </select>
+    </form>
+    <span class="v6-user" style="margin-left:8px">👤 {{ current_user_name }}</span>
+    <a href="/auth/logout" style="color:#c3d0de; margin-left:14px; font-size:12px">Выход</a>
+</header>
+
+<div class="v6-layout">
+<nav class="v6-nav" id="v6nav">
+    <div class="item" data-scr="help" data-roles="tech,chief,prod,techadmin,llmadmin" onclick="window.location='/help'">📖 Как это работает</div>
+    <div class="sect">Работа</div>
+    <div class="item {% if active == 'dashboard' %}active{% endif %}" data-roles="tech,chief,prod" onclick="window.location='/dashboard'">🗂 Мои задачи <span class="cnt" id="cntTasks">5</span></div>
+    <div class="item {% if active == 'products' %}active{% endif %}" data-roles="tech,chief,prod,techadmin" onclick="window.location='/products'">🚒 Изделия и состав</div>
+    <div class="item {% if active == 'detail' %}active{% endif %}" data-roles="tech,chief,prod,techadmin" onclick="window.location='/v6/detail/detail-lmsha-301314-010'">📄 Упор продольный</div>
+    <div class="item {% if active == 'notices' %}active{% endif %}" data-roles="tech,chief" onclick="window.location='/notices'">📬 Извещения <span class="cnt">1</span></div>
+    <div class="sect">Настройка</div>
+    <div class="item {% if active == 'profiles' %}active{% endif %}" data-roles="techadmin,chief" onclick="window.location='/profiles'">⚙️ Профили выхода РС</div>
+    <div class="item {% if active == 'knowledge' %}active{% endif %}" data-roles="tech,chief,techadmin" onclick="window.location='/knowledge'">🧠 База знаний</div>
+    <div class="item {% if active == 'llm' %}active{% endif %}" data-roles="llmadmin,admin" onclick="window.location='/llm-admin'">🤖 Модели LLM</div>
+    <div class="sect">Система</div>
+    <div class="item" data-roles="tech,chief,prod,techadmin,llmadmin,admin" onclick="window.location='/admin'">⚙ Админка</div>
+</nav>
+
+<main class="v6-main">
+{% block content %}{% endblock %}
+</main>
+</div>
+
+<footer>БИТ.Технолог v0.6 — пилот 27.07.2026 · данные мок + реальные БД · <a href="/health">health</a> · <a href="/admin">admin</a></footer>
+
+<script>
+// Role-based nav (показать только пункты для текущей роли)
+const ROLE_NAV = {
+    'tech': ['dashboard', 'products', 'detail', 'notices', 'knowledge'],
+    'chief': ['dashboard', 'products', 'detail', 'notices', 'profiles', 'knowledge'],
+    'prod': ['dashboard', 'products', 'detail'],
+    'techadmin': ['products', 'detail', 'profiles', 'knowledge'],
+    'llmadmin': ['llm'],
+    'admin': ['dashboard', 'products', 'detail', 'notices', 'profiles', 'knowledge', 'llm'],
+    'normirovshchik': ['detail', 'knowledge', 'profiles'],
+    'workshop_chief': ['dashboard', 'products', 'detail'],
+    'main_technologist': ['dashboard', 'products', 'detail', 'notices', 'profiles', 'knowledge'],
+    'constructor': ['detail'],
+    'quality': ['detail', 'knowledge'],
+};
+const role = '{{ current_role }}';
+const allowed = ROLE_NAV[role] || ['help'];
+document.querySelectorAll('.v6-nav .item').forEach(el => {
+    const scr = el.dataset.scr;
+    if (scr === 'help') return; // help виден всем
+    if (allowed.includes(scr) || el.classList.contains('active')) {
+        el.classList.remove('hidden');
+    } else {
+        el.classList.add('hidden');
+    }
+});
+</script>
+</body>
+</html>

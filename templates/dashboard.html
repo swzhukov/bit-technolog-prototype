@@ -1,0 +1,88 @@
+{% extends "_v6_layout.html" %}
+{% block title %}Мои задачи — БИТ.Технолог{% endblock %}
+{% block content %}
+<h1>Мои задачи</h1>
+<p class="sub">Рабочий стол: всё, что требует вашего действия. {{ today_str }}</p>
+
+<div class="v6-rolebar">
+    👤 <b>{{ current_user_name }}</b> — {{ current_role_descr }}
+</div>
+
+<div class="v6-cards">
+    <div class="v6-card">
+        <div class="num">{{ counts.drafts }}</div>
+        <div class="lbl">Черновики в работе</div>
+    </div>
+    <div class="v6-card">
+        <div class="num">{{ counts.need_approve }}</div>
+        <div class="lbl">Ждут моего утверждения</div>
+    </div>
+    <div class="v6-card alert">
+        <div class="num">{{ counts.notices }}</div>
+        <div class="lbl">Извещения к обработке</div>
+    </div>
+    <div class="v6-card">
+        <div class="num">{{ counts.questions }}</div>
+        <div class="lbl">Вопросы AI без ответа</div>
+    </div>
+    <div class="v6-card alert">
+        <div class="num">{{ counts.conflicts }}</div>
+        <div class="lbl">РС: конфликт с 1С</div>
+    </div>
+</div>
+
+<div class="v6-panel">
+<table>
+    <tr>
+        <th></th>
+        <th>Объект</th>
+        <th>Изделие / исполнение</th>
+        <th>Что требуется</th>
+        <th>Статус</th>
+        <th>Срок</th>
+        <th></th>
+    </tr>
+    {% for task in tasks %}
+    <tr>
+        <td>{{ task.icon }}</td>
+        <td>
+            <b>{{ task.title }}</b>
+            {% if task.subtitle %}<br><span class="badge">{{ task.subtitle }}</span>{% endif %}
+        </td>
+        <td>{{ task.product }}</td>
+        <td>{{ task.action }}</td>
+        <td><span class="badge {{ task.status_class }}">{{ task.status_label }}</span></td>
+        <td>{{ task.deadline }}</td>
+        <td>
+            <a href="{{ task.url }}" class="v6-btn sm">Открыть</a>
+        </td>
+    </tr>
+    {% endfor %}
+    {% if not tasks %}
+    <tr><td colspan="7" style="text-align:center; color: var(--v6-muted); padding: 30px">Нет задач. Всё под контролем 🎉</td></tr>
+    {% endif %}
+</table>
+</div>
+
+{% if learning %}
+<div class="v6-note ok">
+    💡 <b>Петля обучения:</b> за последние 4 недели утверждено <b>{{ learning.approved_4w }}</b> ТК → они стали эталонами.
+    Доля норм «зелёного» уровня выросла с <b>{{ learning.green_4w_ago }}%</b> до <b>{{ learning.green_now }}%</b>.
+    {% if learning.bias %}<br>AI систематически занижал время зачистки после сварки на ~25% — добавлено правило технолога, расхождение устранено.{% endif %}
+</div>
+{% endif %}
+
+{% if pilot_metrics %}
+<div class="v6-panel">
+    <h2 style="margin-top:0">📊 Метрики пилота</h2>
+    <div class="v6-cards">
+        {% for m in pilot_metrics %}
+        <div class="v6-card">
+            <div class="num">{{ m.value }}</div>
+            <div class="lbl">{{ m.text }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
