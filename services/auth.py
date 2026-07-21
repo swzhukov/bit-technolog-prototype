@@ -69,6 +69,8 @@ ROLES = {
             "view_all",
             "edit_all",
             "manage_rs_profiles",
+            "manage_llm_providers",
+            "manage_llm_model_assignments",
             "manage_changelog",
             "view_audit_logins",
             "view_llm_calls",

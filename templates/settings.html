@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% set active_page = 'settings' %}
+{% block title %}Настройки — БИТ.Технолог{% endblock %}
+{% block content %}
+<h1>Настройки системы</h1>
+<p class="lead">Доступно только роли <code>tech_admin</code> или <code>llm_admin</code>.</p>
+
+{% if message %}
+<div class="panel success">
+  <div class="panel-body">{{ message }}</div>
+</div>
+{% endif %}
+
+<h2>LLM провайдеры</h2>
+<div class="panel">
+  <div class="panel-body">
+    <p style="margin-top: 0;">Текущий провайдер: <b>{{ current_provider or 'mock (не настроен)' }}</b></p>
+    <p>Назначение моделей на типы задач:</p>
+    <table class="tbl">
+      <thead>
+        <tr><th>Тип задачи</th><th>Провайдер</th><th>Модель</th><th>Температура</th><th>max_tokens</th></tr>
+      </thead>
+      <tbody>
+        {% for a in assignments %}
+        <tr>
+          <td><code>{{ a.task_type }}</code></td>
+          <td>{{ a.provider_display }}</td>
+          <td><code style="font-size: 12px;">{{ a.model_name }}</code></td>
+          <td>{{ a.temperature }}</td>
+          <td>{{ a.max_tokens }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<h2>Добавить/обновить LLM провайдер</h2>
+<div class="panel" style="max-width: 720px;">
+  <form method="post" action="/settings/llm" class="panel-body">
+    <div style="margin-bottom: 12px;">
+      <label>Имя провайдера <span class="muted">(yandexgpt, gigachat, deepseek, openai)</span></label>
+      <input type="text" name="name" required style="width: 100%;">
+    </div>
+    <div style="margin-bottom: 12px;">
+      <label>Display name (отображение в UI)</label>
+      <input type="text" name="display_name" required style="width: 100%;">
+    </div>
+    <div style="margin-bottom: 12px;">
+      <label>Endpoint / URL модели</label>
+      <input type="text" name="endpoint" style="width: 100%;">
+      <div class="muted" style="font-size: 12px; margin-top: 4px;">
+        Например: gpt://b1gj791m9sc92argfa0q/yandexgpt/latest
+      </div>
+    </div>
+    <div style="margin-bottom: 12px;">
+      <label>API ключ</label>
+      <input type="password" name="api_key" style="width: 100%;">
+      <div class="muted" style="font-size: 12px; margin-top: 4px;">
+        Будет зашифрован (Fernet) и сохранён в БД
+      </div>
+    </div>
+    <div style="margin-bottom: 12px;">
+      <label>Стоимость (₽ за 1K токенов, input / output)</label>
+      <input type="text" name="cost" placeholder="0.40 / 1.20" style="width: 200px;">
+    </div>
+    <div style="display: flex; gap: 8px; margin-top: 16px;">
+      <button type="submit" class="btn btn-primary">Сохранить</button>
+      <a href="/llm-admin" class="btn btn-secondary">Назад</a>
+    </div>
+  </form>
+</div>
+
+<div class="panel" style="margin-top: 16px;">
+  <div class="panel-body">
+    <b>Важно:</b> В препилоте все ключи хранятся в БД (зашифрованы). В пилоте — будут перенесены в .env (через настройки systemd).
+    <br><br>
+    Подробнее в <a href="/help">Помощи</a>.
+  </div>
+</div>
+{% endblock %}

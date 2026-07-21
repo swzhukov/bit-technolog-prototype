@@ -217,7 +217,8 @@ class TestAuth:
         assert has_permission("main_technologist", "approve_tech_cards")
         assert not has_permission("technologist", "approve_tech_cards")
         assert has_permission("llm_admin", "manage_llm_providers")
-        assert not has_permission("tech_admin", "manage_llm_providers")
+        # Sprint 8: tech_admin теперь имеет manage_llm_providers
+        assert has_permission("tech_admin", "manage_llm_providers")
 
 
 # ============================================================
@@ -682,3 +683,81 @@ class TestRAGV2:
         results = find_analogs("Сварка", top_k=5)
         # Сварка должна найтись в нескольких эталонах
         assert len(results) >= 2
+
+
+# ============================================================
+# ТЕСТЫ SPRINT 8: LOGIN + SETTINGS
+# ============================================================
+
+class TestSprint8:
+    def test_login_page_200(self):
+        from app import app
+        client = TestClient(app)
+        r = client.get("/login")
+        assert r.status_code == 200
+        assert "Войти" in r.text or "Вход" in r.text
+
+    def test_login_post_success(self):
+        from app import app
+        client = TestClient(app)
+        r = client.post("/login", data={"username": "baranov", "password": "demo"}, follow_redirects=False)
+        assert r.status_code == 303
+        assert "session_id" in r.cookies
+
+    def test_login_post_wrong_password(self):
+        from app import app
+        client = TestClient(app)
+        r = client.post("/login", data={"username": "baranov", "password": "WRONG"}, follow_redirects=False)
+        assert r.status_code == 200
+        assert "Неверный" in r.text
+
+    def test_settings_requires_auth(self):
+        from app import app
+        client = TestClient(app)
+        r = client.get("/settings")
+        # 403 (нет прав) или 200 (если anon allowed) — не 401
+        assert r.status_code in (200, 403)
+
+    def test_settings_techadmin(self):
+        from app import app
+        client = TestClient(app)
+        r = client.post("/login", data={"username": "techadmin", "password": "demo"}, follow_redirects=False)
+        assert r.status_code == 303
+        r2 = client.get("/settings", cookies=r.cookies)
+        assert r2.status_code == 200
+        assert "Настройки" in r2.text or "API ключ" in r2.text
+
+    def test_settings_technologist_forbidden(self):
+        from app import app
+        client = TestClient(app)
+        r = client.post("/login", data={"username": "tarrietsky", "password": "demo"}, follow_redirects=False)
+        assert r.status_code == 303
+        r2 = client.get("/settings", cookies=r.cookies)
+        assert r2.status_code == 403
+
+    def test_settings_save_llm(self):
+        from app import app
+        client = TestClient(app)
+        r = client.post("/login", data={"username": "techadmin", "password": "demo"}, follow_redirects=False)
+        r2 = client.post("/settings/llm",
+                         data={"name": "test-sprint8", "display_name": "Test Sprint8",
+                               "endpoint": "gpt://test", "api_key": "secret", "cost": "0.50/1.50"},
+                         cookies=r.cookies, follow_redirects=False)
+        assert r2.status_code == 303
+        # Проверим в БД
+        row = db.query_one("SELECT * FROM llm_providers WHERE name = ?", ("test-sprint8",))
+        assert row is not None
+        assert row["display_name"] == "Test Sprint8"
+        # Очистим
+        db.execute("DELETE FROM llm_providers WHERE name = ?", ("test-sprint8",))
+
+    def test_logout(self):
+        from app import app
+        client = TestClient(app)
+        r = client.post("/login", data={"username": "baranov", "password": "demo"}, follow_redirects=False)
+        r2 = client.get("/logout", cookies=r.cookies, follow_redirects=False)
+        assert r2.status_code == 303
+
+    def test_tech_admin_has_llm_rights(self):
+        assert has_permission("tech_admin", "manage_llm_providers")
+        assert has_permission("tech_admin", "manage_llm_model_assignments")

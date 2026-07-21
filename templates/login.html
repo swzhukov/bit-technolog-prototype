@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Вход — БИТ.Технолог{% endblock %}
+{% block content %}
+<div style="max-width: 360px; margin: 64px auto;">
+<h1 style="text-align: center;">Вход</h1>
+<p class="lead" style="text-align: center;">Введите логин и пароль для доступа к системе</p>
+
+<div class="panel">
+  <form method="post" action="/login" class="panel-body">
+    {% if error %}
+    <div class="evidence bad" style="margin-bottom: 12px;">
+      {{ error }}
+    </div>
+    {% endif %}
+    <div style="margin-bottom: 12px;">
+      <label>Логин</label>
+      <input type="text" name="username" required autofocus style="width: 100%;">
+    </div>
+    <div style="margin-bottom: 16px;">
+      <label>Пароль</label>
+      <input type="password" name="password" required style="width: 100%;">
+    </div>
+    <button type="submit" class="btn btn-primary" style="width: 100%;">Войти</button>
+  </form>
+</div>
+
+<div class="panel" style="margin-top: 16px;">
+  <div class="panel-body">
+    <b>Демо-учётки</b>
+    <table class="tbl" style="margin-top: 8px;">
+      <thead><tr><th>Логин</th><th>Пароль</th><th>Роль</th></tr></thead>
+      <tbody>
+        <tr><td>baranov</td><td>demo</td><td>Главный технолог</td></tr>
+        <tr><td>vorobyev</td><td>demo</td><td>Главный технолог</td></tr>
+        <tr><td>golubev</td><td>demo</td><td>Начальник цеха</td></tr>
+        <tr><td>tarrietsky</td><td>demo</td><td>Технолог</td></tr>
+        <tr><td>techadmin</td><td>demo</td><td>Тех. администратор</td></tr>
+        <tr><td>llmadmin</td><td>demo</td><td>LLM администратор</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

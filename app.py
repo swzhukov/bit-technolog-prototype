@@ -87,29 +87,49 @@ seed_users(verbose=False)
 
 
 # ============================================================
-# AUTH (Basic)
+# AUTH (Cookie + Basic fallback)
 # ============================================================
 
+# Простая in-memory сессия (для препилота)
+_sessions: Dict[str, str] = {}
+
+
+def _create_session(username: str) -> str:
+    import secrets as _sec
+    sid = _sec.token_urlsafe(32)
+    _sessions[sid] = username
+    return sid
+
+
 def get_current_user(request: Request) -> Optional[User]:
+    # 1. Cookie (нормальная авторизация через login-форму)
+    session_id = request.cookies.get("session_id")
+    if session_id and session_id in _sessions:
+        username = _sessions[session_id]
+        row = db.query_one("SELECT * FROM pilot_users WHERE username = ? AND is_active = 1", (username,))
+        if row:
+            return User(
+                id=row["id"],
+                username=row["username"],
+                role=row["role"],
+                display_name=row["display_name"],
+                email=row["email"] or "",
+                is_active=bool(row["is_active"]),
+            )
+    # 2. Basic Auth (для curl/тестов)
     auth = request.headers.get("authorization", "")
-    if not auth.startswith("Basic "):
-        # Для UI — попробуем cookie
-        return None
-    try:
-        creds = base64.b64decode(auth[6:]).decode()
-        username, password = creds.split(":", 1)
-        return authenticate(username, password)
-    except Exception:
-        return None
+    if auth.startswith("Basic "):
+        try:
+            creds = base64.b64decode(auth[6:]).decode()
+            username, password = creds.split(":", 1)
+            return authenticate(username, password)
+        except Exception:
+            return None
+    return None
 
 
 def get_user_from_request(request: Request) -> Optional[User]:
-    """Получить user (из Basic Auth или form)."""
-    user = get_current_user(request)
-    if user:
-        return user
-    # TODO: из cookie / session
-    return None
+    return get_current_user(request)
 
 
 def require_user(request: Request) -> User:
@@ -118,6 +138,101 @@ def require_user(request: Request) -> User:
         raise HTTPException(401, "Authentication required",
                             headers={"WWW-Authenticate": 'Basic realm="bit-technolog"'})
     return user
+
+
+# ============================================================
+# LOGIN / LOGOUT
+# ============================================================
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, error: str = ""):
+    ctx = get_template_context(request, None)
+    ctx["error"] = error
+    return templates.TemplateResponse("login.html", ctx)
+
+
+@app.post("/login")
+async def login_post(request: Request):
+    form = await request.form()
+    username = form.get("username", "").strip()
+    password = form.get("password", "")
+    user = authenticate(username, password)
+    if not user:
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "error": "Неверный логин или пароль", "is_mock_mode": True,
+             "app_env": "ПРОТОТИП", "app_version": "0.8.0", "daily_cost": 0, "cost_budget": 500},
+        )
+    sid = _create_session(username)
+    response = RedirectResponse(url="/", status_code=303)
+    response.set_cookie("session_id", sid, max_age=7*24*3600, httponly=True, samesite="lax")
+    return response
+
+
+@app.get("/logout")
+async def logout(request: Request):
+    sid = request.cookies.get("session_id")
+    if sid and sid in _sessions:
+        del _sessions[sid]
+    response = RedirectResponse(url="/login", status_code=303)
+    response.delete_cookie("session_id")
+    return response
+
+
+# ============================================================
+# SETTINGS (под tech_admin / llm_admin)
+# ============================================================
+
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request, message: str = ""):
+    user = get_user_from_request(request)
+    if user and not (has_permission(user.role, "manage_llm_providers") or has_permission(user.role, "manage_llm_model_assignments")):
+        raise HTTPException(403, "Requires admin role")
+    ctx = get_template_context(request, user)
+    cur = db.query_one("SELECT name, display_name FROM llm_providers WHERE is_active = 1 LIMIT 1")
+    ctx["current_provider"] = cur["display_name"] if cur else ""
+    ctx["assignments"] = db.rows_to_dicts(db.query("""
+        SELECT ma.*, p.display_name AS provider_display
+        FROM llm_model_assignments ma
+        JOIN llm_providers p ON p.id = ma.llm_provider_id
+        WHERE ma.is_active = 1
+    """))
+    ctx["message"] = message
+    return templates.TemplateResponse("settings.html", ctx)
+
+
+@app.post("/settings/llm")
+async def settings_save_llm(request: Request):
+    user = get_user_from_request(request)
+    if not user or not has_permission(user.role, "manage_llm_providers"):
+        raise HTTPException(403)
+    form = await request.form()
+    name = form.get("name", "").strip()
+    display_name = form.get("display_name", "").strip()
+    endpoint = form.get("endpoint", "").strip()
+    api_key = form.get("api_key", "").strip()
+    cost_str = form.get("cost", "0.40 / 1.20").strip()
+    try:
+        cost_in, cost_out = [float(x.strip()) for x in cost_str.split("/")]
+    except (ValueError, AttributeError):
+        cost_in, cost_out = 0.40, 1.20
+    from domain.llm_provider import encrypt_api_key
+    api_key_enc = encrypt_api_key(api_key) if api_key else ""
+    existing = db.query_one("SELECT id FROM llm_providers WHERE name = ?", (name,))
+    if existing:
+        db.execute("""
+            UPDATE llm_providers SET display_name=?, endpoint=?, api_key_enc=?, cost_per_1k_input=?, cost_per_1k_output=?, is_active=1
+            WHERE id=?
+        """, (display_name, endpoint, api_key_enc, cost_in, cost_out, existing["id"]))
+    else:
+        db.insert_and_get_id("llm_providers", {
+            "name": name, "display_name": display_name, "endpoint": endpoint,
+            "api_key_enc": api_key_enc, "cost_per_1k_input": cost_in, "cost_per_1k_output": cost_out,
+            "is_active": 1,
+        })
+    from domain.llm_provider import get_registry
+    get_registry().__init__()
+    return RedirectResponse(url=f"/settings?message=Сохранено: {display_name}", status_code=303)
 
 
 # ============================================================

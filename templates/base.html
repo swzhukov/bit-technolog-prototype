@@ -147,8 +147,16 @@
  <div class="nav-section">Конфигурация</div>
  <a href="/profiles" class="nav-item {% if active_page == 'profiles' %}active{% endif %}">Профили выхода РС</a>
  <a href="/llm-admin" class="nav-item {% if active_page == 'llm-admin' %}active{% endif %}">Модели LLM</a>
+ {% if current_user and (current_user.role == 'tech_admin' or current_user.role == 'llm_admin') %}
+ <a href="/settings" class="nav-item {% if active_page == 'settings' %}active{% endif %}">Настройки</a>
+ {% endif %}
  <div class="nav-section">Система</div>
  <a href="/help" class="nav-item {% if active_page == 'help' %}active{% endif %}">Помощь</a>
+ {% if current_user %}
+ <a href="/logout" class="nav-item">Выход</a>
+ {% else %}
+ <a href="/login" class="nav-item">Войти</a>
+ {% endif %}
  </nav>
  <main class="main">
  {% block content %}{% endblock %}
