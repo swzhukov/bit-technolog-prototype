@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% set active_page = 'notices' %}
+{% block title %}{{ notice.number }} — Извещение — БИТ.Технолог{% endblock %}
+{% block content %}
+<div class="breadcrumbs"><a href="/notices">Извещения</a> →</div>
+<h1>Извещение {{ notice.number }} <span class="muted" style="font-size:14px; font-weight:400;">от {{ notice.date }}</span></h1>
+<p class="lead">
+  {% if notice.status == 'open' %}<span class="badge bad">Требует решения</span>
+  {% elif notice.status == 'in_progress' %}<span class="badge warn">В работе</span>
+  {% elif notice.status == 'resolved' %}<span class="badge ok">Решено</span>
+  {% else %}<span class="badge">{{ notice.status }}</span>{% endif %}
+  <span class="muted">· Автор: {{ notice.author }}</span>
+</p>
+
+<div class="grid2" style="grid-template-columns: 1fr 1fr; gap: 16px;">
+  <div class="panel" style="margin: 0;">
+    <div class="panel-head"><span class="ttl">Основание и причина</span></div>
+    <div class="panel-body">
+      <p style="margin: 0 0 8px;"><b>Основание:</b><br>{{ notice.foundation_doc or '—' }}</p>
+      <p style="margin: 0 0 8px;"><b>Причина:</b><br>{{ notice.reason or '—' }}</p>
+      <p style="margin: 0;"><b>Описание:</b><br>{{ notice.description or '—' }}</p>
+    </div>
+  </div>
+  <div class="panel" style="margin: 0;">
+    <div class="panel-head"><span class="ttl">Затронуто деталей: {{ notice.affected_items|length }}</span></div>
+    <div class="panel-body" style="padding: 0;">
+      {% if notice.affected_items %}
+      <table class="tbl">
+        <thead>
+          <tr><th>Обозначение</th><th>Название</th><th>Тип</th></tr>
+        </thead>
+        <tbody>
+          {% for a in notice.affected_items %}
+          <tr>
+            <td><b>{{ a.designation }}</b></td>
+            <td>{{ a.name }}</td>
+            <td>
+              {% if a.impact_type == 'direct' %}<span class="badge brand">Прямое</span>
+              {% elif a.impact_type == 'parent' %}<span class="badge">Сборка</span>
+              {% else %}<span class="badge">Составная</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty">Нет затронутых деталей</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<h2>AI diff</h2>
+<div class="panel">
+  <div class="panel-body">
+    {% if ai_diff and ai_diff.changes %}
+      <table class="tbl">
+        <thead>
+          <tr><th>Поле</th><th>Было</th><th>Стало</th><th>Влияние</th></tr>
+        </thead>
+        <tbody>
+          {% for c in ai_diff.changes %}
+          <tr>
+            <td><b>{{ c.field }}</b></td>
+            <td>{{ c.was }}</td>
+            <td>{{ c.now }}</td>
+            <td class="muted" style="font-size: 12px;">{{ c.impact }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if ai_diff.recommendation %}
+      <div class="evidence" style="margin-top: 12px;">
+        <b>Рекомендация AI:</b> {{ ai_diff.recommendation }}
+      </div>
+      {% endif %}
+    {% else %}
+      <p class="muted" style="font-size: 13px;">AI diff не сгенерирован. Нажмите кнопку «Сгенерировать diff».</p>
+    {% endif %}
+  </div>
+</div>
+
+{% if notice.status in ('open', 'in_progress') %}
+<h2>Решение</h2>
+<div class="panel">
+  <div class="panel-body">
+    <form method="post" action="/notices/{{ notice.id }}/resolve" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end;">
+      <div style="flex: 1; min-width: 200px;">
+        <label>Ваше решение</label>
+        <select name="decision" style="width: 100%;">
+          <option value="accept_ai">Принять AI (пересчитать РС)</option>
+          <option value="manual_review">Ручная проверка (пометить в работе)</option>
+          <option value="reject">Отклонить</option>
+        </select>
+      </div>
+      <div style="flex: 2; min-width: 200px;">
+        <label>Комментарий</label>
+        <input type="text" name="notes" style="width: 100%;">
+      </div>
+      <button type="submit" class="btn btn-primary">Подтвердить</button>
+    </form>
+  </div>
+</div>
+{% else %}
+<div class="panel success">
+  <div class="panel-body">
+    <b>Решение:</b> {{ notice.user_decision }}<br>
+    <b>Кем:</b> {{ notice.decided_by or '—' }}<br>
+    <b>Когда:</b> {{ notice.decided_at or '—' }}
+  </div>
+</div>
+{% endif %}
+
+{% if rs_count > 0 %}
+<div class="panel" style="background: var(--v8-ok-bg); border-color: #bbf7d0;">
+  <div class="panel-body">
+    <b>Создано РС по этому извещению: {{ rs_count }}</b>
+    <div class="muted" style="font-size: 12px; margin-top: 4px;">
+      В каждой РС в поле change_reason указан номер извещения — трассировка
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

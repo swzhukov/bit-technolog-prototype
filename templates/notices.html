@@ -2,53 +2,64 @@
 {% set active_page = 'notices' %}
 {% block title %}Извещения — БИТ.Технолог{% endblock %}
 {% block content %}
-<h1>Извещения (ГОСТ 2.503)</h1>
-<p class="lead">{{ notices|length }} извещений. Каждое запускает автопоиск затронутых деталей через <code>bom_links</code> и AI diff.</p>
+<h1>Извещения об изменениях</h1>
+<p class="lead">Регистрация изменений в техпроцессах. По извещению автоматически находятся затронутые детали, AI строит diff, технолог принимает решение и РС пересчитывается.</p>
+
+<div style="display: flex; gap: 8px; margin-bottom: 16px;">
+  <a href="/notices/new" class="btn btn-primary">Создать извещение</a>
+</div>
 
 <div class="panel">
 {% if notices %}
 <table class="tbl">
- <thead>
- <tr><th>Номер</th><th>Дата</th><th>Основание</th><th>Причина</th><th>Автор</th><th>Статус</th><th></th></tr>
- </thead>
- <tbody>
- {% for n in notices %}
- <tr>
- <td><b>{{ n.number }}</b></td>
- <td>{{ n.date }}</td>
- <td>{{ n.foundation_doc or '—' }}</td>
- <td>{{ n.reason or '—' }}</td>
- <td>{{ n.author or '—' }}</td>
- <td>
- {% if n.status == 'open' %}<span class="badge bad">Требует решения</span>
- {% elif n.status == 'in_progress' %}<span class="badge warn">В работе</span>
- {% elif n.status == 'resolved' %}<span class="badge ok">Решено</span>
- {% else %}<span class="badge">{{ n.status }}</span>{% endif %}
- </td>
- <td><a class="btn btn-ghost" href="#">Разобрать →</a></td>
- </tr>
- {% endfor %}
- </tbody>
+  <thead>
+    <tr>
+      <th>Номер</th>
+      <th>Дата</th>
+      <th>Основание</th>
+      <th>Причина</th>
+      <th>Автор</th>
+      <th>Статус</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for n in notices %}
+    <tr>
+      <td><b>{{ n.number }}</b></td>
+      <td>{{ n.date }}</td>
+      <td>{{ n.foundation_doc or '—' }}</td>
+      <td>{{ n.reason or '—' }}</td>
+      <td>{{ n.author or '—' }}</td>
+      <td>
+        {% if n.status == 'open' %}<span class="badge bad">Требует решения</span>
+        {% elif n.status == 'in_progress' %}<span class="badge warn">В работе</span>
+        {% elif n.status == 'resolved' %}<span class="badge ok">Решено</span>
+        {% else %}<span class="badge">{{ n.status }}</span>{% endif %}
+      </td>
+      <td><a class="btn btn-ghost" href="/notices/{{ n.id }}">Открыть</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
 </table>
 {% else %}
 <div class="empty">
- <div class="ico"> </div>
- <div>Нет извещений. Создайте новое: <a href="#">+ Извещение</a></div>
+  <div style="font-size: 13px; color: var(--v8-muted); padding: 24px;">Нет извещений. Создайте новое: <a href="/notices/new">Создать извещение</a></div>
 </div>
 {% endif %}
 </div>
 
 <div class="panel">
- <div class="panel-body">
- <b> Алгоритм обработки извещения:</b>
- <ol style="margin: 8px 0 0 0; padding-left: 20px; font-size: 13px;">
- <li>Регистрация извещения (номер, дата, основание, причина)</li>
- <li>Автопоиск затронутых деталей через <code>bom_links</code> (вниз по дереву)</li>
- <li>AI diff «было → стало» (через LLM, тип задачи <code>notice_diff</code>)</li>
- <li>Подтверждение технологом</li>
- <li>Пересчёт РС через <code>rs_factory.regenerate_for_notice()</code> для всех затронутых</li>
- <li>Трассировка причины в <code>resource_specs.change_reason = № извещения</code></li>
- </ol>
- </div>
+  <div class="panel-body">
+    <b>Алгоритм обработки извещения:</b>
+    <ol style="margin: 8px 0 0 0; padding-left: 20px; font-size: 13px;">
+      <li>Регистрация извещения (номер, дата, основание, причина)</li>
+      <li>Автопоиск затронутых деталей через bom_links (вниз по дереву)</li>
+      <li>AI строит diff (было - стало) и рекомендацию</li>
+      <li>Технолог принимает решение: принять AI / вручную / отклонить</li>
+      <li>При принятии: автоматический пересчёт РС для всех затронутых</li>
+      <li>В РС сохраняется причина (номер извещения) — трассировка</li>
+    </ol>
+  </div>
 </div>
 {% endblock %}

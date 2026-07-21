@@ -308,7 +308,7 @@ class TestLLMProvider:
         assert "title" in r2.content
         # Извещение
         r3 = m.generate("Извещение И-2026", system="diff")
-        assert "diff" in r3.content
+        assert "changes" in r3.content
 
     def test_parse_llm_json_safe(self):
         # JSON в строке
@@ -504,3 +504,104 @@ class TestEvidence:
         assert r.status_code == 200
         # Светофор в HTML
         assert "Светофор норм" in r.text or "Светофор" in r.text
+
+
+# ============================================================
+# ТЕСТЫ SPRINT 6: NOTICES (ИЗВЕЩЕНИЯ)
+# ============================================================
+
+class TestNotices:
+    def test_create_notice(self):
+        from services.notices import create_notice
+        nid = create_notice(
+            number="И-2026-TEST-CREATE",
+            date="2026-07-21",
+            foundation_doc="Test",
+            reason="Test create",
+            author="TestUser",
+            affected_item_designation="ЛМША.301314.010",
+        )
+        assert nid > 0
+        # Очистим
+        db.execute("DELETE FROM change_notices WHERE id = ?", (nid,))
+
+    def test_find_affected_items(self):
+        from services.notices import find_affected_items
+        affected = find_affected_items("ЛМША.301314.010")
+        assert len(affected) >= 1
+        # Корневая деталь — direct
+        direct = [a for a in affected if a["impact_type"] == "direct"]
+        assert len(direct) == 1
+        assert direct[0]["designation"] == "ЛМША.301314.010"
+
+    def test_find_affected_not_found(self):
+        from services.notices import find_affected_items
+        affected = find_affected_items("ЛМША.999999.999")
+        assert affected == []
+
+    def test_generate_ai_diff(self):
+        from services.notices import create_notice, generate_ai_diff
+        nid = create_notice(
+            number="И-2026-TEST-DIFF",
+            date="2026-07-21",
+            foundation_doc="Test",
+            reason="Test diff",
+            author="TestUser",
+        )
+        diff = generate_ai_diff(nid)
+        assert "changes" in diff or "error" in diff
+        # Очистим
+        db.execute("DELETE FROM change_notices WHERE id = ?", (nid,))
+
+    def test_resolve_notice_creates_rs(self):
+        from services.notices import create_notice, resolve_notice
+        nid = create_notice(
+            number="И-2026-TEST-RESOLVE",
+            date="2026-07-21",
+            foundation_doc="Test",
+            reason="Test resolve",
+            author="TestUser",
+            affected_item_designation="ЛМША.301314.010",
+        )
+        result = resolve_notice(nid, "TestUser", "accept_ai", "test")
+        assert result["status"] == "ok"
+        assert result["rs_regenerated"] >= 1
+        # Проверим, что РС создана
+        rs = db.query_one(
+            "SELECT * FROM resource_specs WHERE change_reason LIKE ?",
+            (f"%И-2026-TEST-RESOLVE%",)
+        )
+        assert rs is not None
+        # Очистим
+        db.execute("DELETE FROM change_notices WHERE id = ?", (nid,))
+        db.execute("DELETE FROM resource_specs WHERE change_reason LIKE ?", (f"%И-2026-TEST-RESOLVE%",))
+
+    def test_notice_pages_200(self):
+        from app import app
+        client = TestClient(app)
+        for path in ["/notices", "/notices/new"]:
+            r = client.get(path)
+            assert r.status_code == 200, f"{path} -> {r.status_code}"
+        # Если есть хотя бы одно извещение — проверяем деталь
+        n = db.query_one("SELECT id FROM change_notices LIMIT 1")
+        if n:
+            r = client.get(f"/notices/{n['id']}")
+            assert r.status_code == 200
+
+    def test_create_notice_via_form(self):
+        from app import app
+        client = TestClient(app)
+        r = client.post("/notices/new", data={
+            "number": "И-2026-TEST-FORM",
+            "date": "2026-07-21",
+            "foundation_doc": "Form test",
+            "reason": "Form test reason",
+            "description": "Test",
+            "author": "TestUser",
+            "affected_item_designation": "ЛМША.301314.010",
+        }, follow_redirects=False)
+        assert r.status_code == 303
+        # Очистим
+        n = db.query_one("SELECT id FROM change_notices WHERE number = 'И-2026-TEST-FORM'")
+        if n:
+            db.execute("DELETE FROM change_notices WHERE id = ?", (n["id"],))

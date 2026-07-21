@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% set active_page = 'notices' %}
+{% block title %}Новое извещение — БИТ.Технолог{% endblock %}
+{% block content %}
+<div class="breadcrumbs"><a href="/notices">Извещения</a> →</div>
+<h1>Создать извещение</h1>
+<p class="lead">По ГОСТ 2.503. После создания система автоматически найдёт затронутые детали и предложит diff.</p>
+
+<div class="panel" style="max-width: 720px;">
+  <form method="post" action="/notices/new" class="panel-body">
+    <div style="margin-bottom: 12px;">
+      <label>Номер извещения <span class="muted">(например, И-2026-015)</span></label>
+      <input type="text" name="number" required style="width: 100%;">
+    </div>
+    <div style="margin-bottom: 12px;">
+      <label>Дата</label>
+      <input type="date" name="date" required style="width: 100%;">
+    </div>
+    <div style="margin-bottom: 12px;">
+      <label>Основание <span class="muted">(приказ, решение, протокол)</span></label>
+      <input type="text" name="foundation_doc" style="width: 100%;">
+    </div>
+    <div style="margin-bottom: 12px;">
+      <label>Причина изменения</label>
+      <input type="text" name="reason" required style="width: 100%;">
+    </div>
+    <div style="margin-bottom: 12px;">
+      <label>Описание</label>
+      <textarea name="description" rows="3" style="width: 100%; font-family: inherit;"></textarea>
+    </div>
+    <div style="margin-bottom: 12px;">
+      <label>Затронутая деталь <span class="muted">(обозначение, например ЛМША.301314.010)</span></label>
+      <input type="text" name="affected_item_designation" style="width: 100%;" required>
+      <div class="muted" style="font-size: 12px; margin-top: 4px;">
+        Система автоматически найдёт все детали, связанные через bom_links
+      </div>
+    </div>
+    <div style="margin-bottom: 12px;">
+      <label>Автор</label>
+      <input type="text" name="author" value="Технолог" style="width: 100%;">
+    </div>
+    <div style="display: flex; gap: 8px; margin-top: 16px;">
+      <button type="submit" class="btn btn-primary">Создать и обработать</button>
+      <a href="/notices" class="btn btn-secondary">Отмена</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

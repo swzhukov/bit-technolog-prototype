@@ -161,17 +161,17 @@ class MockLLMProvider(LLMProvider):
         """Генерирует ответ на основе типа задачи (определяем по system/prompt)."""
         p = (prompt + " " + system).lower()
 
+        # Извещение diff (ПЕРВЫМ — иначе "техкарт" ниже срабатывает)
+        if "извещен" in p and "diff" in p:
+            return json.dumps(self._mock_notice_diff(), ensure_ascii=False, indent=2)
+
         # Техкарта генерация
-        if "сгенерируй" in p or "создай" in p and "техкарт" in p:
+        if "сгенерируй" in p or ("создай" in p and "техкарт" in p):
             return json.dumps(self._mock_tech_card(), ensure_ascii=False, indent=2)
 
         # Чертёж OCR
         if "распознай" in p or "ocr" in p:
             return json.dumps(self._mock_ocr_result(), ensure_ascii=False, indent=2)
-
-        # Извещение diff
-        if "извещен" in p and "diff" in p:
-            return json.dumps(self._mock_notice_diff(), ensure_ascii=False, indent=2)
 
         # Уточняющий вопрос
         if "уточни" in p or "вопрос" in p:
@@ -221,13 +221,14 @@ class MockLLMProvider(LLMProvider):
 
     def _mock_notice_diff(self) -> Dict[str, Any]:
         return {
-            "diff": [
+            "changes": [
                 {"field": "material", "was": "09Г2С", "now": "10ХСНД",
                  "impact": "Увеличилась масса на 8%, пересмотр Тпз на 5%"},
                 {"field": "welding_mode", "was": "режим 1", "now": "режим 2",
                  "impact": "Тпз операции 015 увеличить на 8%"},
             ],
             "affected_operations": [15, 20],
+            "recommendation": "Проверьте операции 015 и 020 (сварка). Возможно увеличение Тпз на 8% и пересмотр Тшт по аналогам 10ХСНД.",
         }
 
     def _mock_clarification(self) -> Dict[str, Any]:

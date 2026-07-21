@@ -54,6 +54,10 @@ from services.evidence import (  # noqa
     collect_evidence_for_tech_card, tech_card_evidence_summary,
     update_operation_evidence,
 )
+from services.notices import (  # noqa
+    create_notice, list_notices, get_notice, generate_ai_diff,
+    resolve_notice as resolve_notice_svc, find_affected_items,
+)
 from gateways.one_c_gateway import get_gateway, OneCResourceSpec  # noqa
 
 # === Инициализация ===
@@ -242,11 +246,82 @@ async def detail(request: Request, item_id: int):
 async def notices(request: Request):
     user = get_user_from_request(request)
     ctx = get_template_context(request, user)
-    n = db.rows_to_dicts(db.query("""
-        SELECT * FROM change_notices ORDER BY date DESC LIMIT 50
-    """))
+    n = list_notices(limit=50)
     ctx["notices"] = n
     return templates.TemplateResponse("notices.html", ctx)
+
+
+@app.get("/notices/new", response_class=HTMLResponse)
+async def notice_new(request: Request):
+    user = get_user_from_request(request)
+    ctx = get_template_context(request, user)
+    return templates.TemplateResponse("notice_form.html", ctx)
+
+
+@app.post("/notices/new")
+async def notice_create(request: Request):
+    form = await request.form()
+    user = get_user_from_request(request)
+    author = user.display_name if user else form.get("author", "Технолог")
+    nid = create_notice(
+        number=form.get("number", "").strip(),
+        date=form.get("date", ""),
+        foundation_doc=form.get("foundation_doc", ""),
+        reason=form.get("reason", ""),
+        description=form.get("description", ""),
+        author=author,
+        affected_item_designation=form.get("affected_item_designation", "").strip(),
+    )
+    return RedirectResponse(url=f"/notices/{nid}", status_code=303)
+
+
+@app.get("/notices/{notice_id}", response_class=HTMLResponse)
+async def notice_detail(request: Request, notice_id: int):
+    user = get_user_from_request(request)
+    ctx = get_template_context(request, user)
+    notice = get_notice(notice_id)
+    if not notice:
+        raise HTTPException(404, "Notice not found")
+    # AI diff
+    ai_diff = generate_ai_diff(notice_id)
+    # Кол-во созданных РС
+    rs_count_row = db.query_one(
+        "SELECT COUNT(*) AS n FROM resource_specs WHERE change_reason LIKE ?",
+        (f"%{notice['number']}%",)
+    )
+    rs_count = rs_count_row["n"] if rs_count_row else 0
+    ctx.update({
+        "notice": notice,
+        "ai_diff": ai_diff,
+        "rs_count": rs_count,
+    })
+    return templates.TemplateResponse("notice_detail.html", ctx)
+
+
+@app.post("/notices/{notice_id}/resolve")
+async def notice_resolve(request: Request, notice_id: int):
+    form = await request.form()
+    user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(401)
+    decision = form.get("decision", "manual_review")
+    notes = form.get("notes", "")
+    result = resolve_notice_svc(notice_id, user.display_name, decision, notes)
+    return RedirectResponse(url=f"/notices/{notice_id}", status_code=303)
+
+
+@app.get("/api/change-notices")
+async def api_list_notices(status: Optional[str] = None):
+    return {"notices": list_notices(status=status)}
+
+
+@app.get("/api/change-notices/{notice_id}")
+async def api_notice(notice_id: int):
+    n = get_notice(notice_id)
+    if not n:
+        raise HTTPException(404)
+    n["ai_diff"] = generate_ai_diff(notice_id)
+    return n
 
 
 @app.get("/profiles", response_class=HTMLResponse)
@@ -443,17 +518,9 @@ async def api_process_notice(notice_id: int, request: Request):
     user = get_user_from_request(request)
     if not user:
         raise HTTPException(401)
-    notice = db.query_one("SELECT * FROM change_notices WHERE id = ?", (notice_id,))
-    if not notice:
-        raise HTTPException(404)
-
-    # Mock AI diff
-    result = call_llm("notice_diff", prompt=f"Извещение {notice['number']}: {notice.get('reason', '')}")
-    return {
-        "status": "ok",
-        "notice_id": notice_id,
-        "ai_diff": result.parse_json(),
-    }
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    decision = body.get("decision", "manual_review")
+    return resolve_notice_svc(notice_id, user.display_name, decision, "")
 
 
 # ============================================================
