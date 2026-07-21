@@ -150,3 +150,15 @@
 - 4 роли → 6 → 7
 - 28 → 35 → 87 → 119 → 130 тестов
 - Развёрнут на Beget VPS, production-ready
+
+## M31 (2026-07-21) — v0.6 prototype
+
+**4 спринта за один коммит** (Sprint 0+1+2+3):
+- mock_llm.py (11KB) — обёртка для 6 типов задач
+- 5 пользователей (tech_pilot, baranov, golubev, vorobyev, itadmin), все с паролем `demo`
+- 5 новых таблиц: change_notices, tech_rules, rs_profiles, etalons, pilot_metrics
+- 1 извещение (И-2026-014), 4 правила технолога, 3 профиля РС
+- 9 экранов: /dashboard, /help, /products, /v6/detail/{id}, /notices, /profiles, /knowledge, /llm-admin
+- Дизайн: тёмный header #22303f, красный brand #c8102e, BEM-классы
+- Production: 247f469, Basic Auth user:pass
+- 290/290 tests passing

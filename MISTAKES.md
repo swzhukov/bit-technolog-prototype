@@ -485,3 +485,46 @@
 - LLM-семантическая экстракция (нужен API key, Сергей не дал)
 - MCP-сервер для AI agents (graphify serve)
 - Git hook auto-update (graphify hook install)
+
+## M31 (2026-07-21): v0.6 prototype — 9 экранов, 4 спринта за 1 коммит
+
+**Контекст:** Сергей дал прототип v0.6 (gptunnel) и попросил сделать полный редизайн по рекомендациям. Реализовал все 4 спринта за один заход.
+
+**Сделано (4 спринта):**
+- Sprint 0: mock_llm.py (11KB), 5 пользователей в БД, 5 новых таблиц (change_notices, tech_rules, rs_profiles, etalons, pilot_metrics)
+- Sprint 1: /dashboard + /help + переключатель ролей
+- Sprint 2: /v6/detail/{id} — 5 табов (Чертёж/РС/Обоснование/Доп.параметры/История)
+- Sprint 3: /products /notices /profiles /knowledge /llm-admin
+
+**Ключевые решения:**
+- Новый URL для детали: `/v6/detail/{id}` (старый `/detail/{id}` НЕ тронут, чтоб не сломать)
+- Mock-детали в БД: `ЛМША.301314.010`, `ЛМША.301314.020`, `ЛМША.301712.000`, `53-ТВ.15.00.00`
+- Слаг-IDs: `detail-lmsha-301314-010` (транслит)
+- 6 операций в mock_llm с evidence_level (green/yellow/red)
+- Профили РС: 3 шт (УМК-одноэтапная, КТ-этапы-по-участкам, ВТ-по-цехозаходам)
+- 4 правила технолога
+- 9 метрик пилота
+
+**Грабли (closed):**
+1. `PRAGMA wal_checkpoint(TRUNCATE)` ОБЯЗАТЕЛЕН перед scp БД. Без этого scp получает inconsistent snapshot — таблицы есть в Python, нет в sqlite3 CLI.
+2. Jinja2 не поддерживает `obj.attr` для dict — только `obj['attr']` или `obj.get('attr', default)`. Переписал `op.time_setup_min` → `op.get('time_setup_min', 0)`.
+3. `:path` в FastAPI route принимает кириллицу, но slug-IDs читать проще. Использую `detail-lmsha-301314-010`.
+4. CSP middleware "No response returned" — это normal warning при ошибке handler'а. Не блокер для работающих endpoints.
+5. SQLite3 CLI НЕТ на prod (Beget), только Python. Используй `python3 -c "import sqlite3; ..."` для миграций.
+6. `/v6/detail/` — отдельный route потому что старый `/detail/{id}` конфликтовал. Минимальный риск.
+7. `git pull` на prod отказался из-за untracked `mock_llm.py` (был от M28). `rm -f mock_llm.py && git pull` решил.
+
+**Production состояние:**
+- commit: 247f469
+- /health: 200, db_ok=true, pilot_users=5, change_notices=1, rs_profiles=3, pilot_metrics=9
+- Basic Auth: user:pass (из .env)
+- 9 экранов все возвращают 200 с правильным title
+
+**Что НЕ сделано (открыто):**
+1. Реальный LLM ключ (auth_error)
+2. Login-страница для 5 пользователей (сейчас только cookie + Basic Auth)
+3. Inline-edit операций (только UI placeholder)
+4. Кнопка "Сгенерировать ТК" → mock_llm возвращает 6 операций (нужно API)
+5. Извещения → кнопка "Принять правки" → draft_fast v3 (не подключено)
+6. GitHub Actions CI (PAT без workflow scope)
+7. Большинство операций в БД — мок. Реальные draft'ы есть только для некоторых деталей.

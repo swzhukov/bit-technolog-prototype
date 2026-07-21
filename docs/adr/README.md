@@ -52,3 +52,9 @@ ADR (Architecture Decision Records) — это способ документир
 ## Когда пересматривать
 Триггеры для пересмотра решения
 ```
+
+| 0010 | v0.6 prototype — 9 экранов (Sprint 0+1+2+3) | Принято | 2026-07-21 |
+| 0011 | Редизайн БД (product_models, bom_links) | Pending | после пилота |
+| 0012 | Реальный LLM с ключом | Pending | после пилота |
+| 0013 | Login-форма + bcrypt + сессии | Pending | после пилота |
+| 0014 | Inline-edit операций | Pending | после пилота |
