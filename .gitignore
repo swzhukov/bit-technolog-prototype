@@ -54,3 +54,7 @@ backups/
 
 # GitHub Actions — нужно PAT с workflow scope
 .github/workflows/
+
+# SQLite WAL mode — never commit (causes db corruption on git pull)
+data/*.db-shm
+data/*.db-wal
