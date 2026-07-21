@@ -1,82 +1,127 @@
 {% extends "base.html" %}
-{% block title %}Главная — БИТ.Технолог{% endblock %}
+{% block title %}Мои задачи — БИТ.Технолог{% endblock %}
 {% block content %}
 
-<div class="page-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
-    <div>
-        <h1>Добрый день 👋</h1>
-        <p class="lead">AI-помощник технолога для создания техкарт в 1С:ERP</p>
-    </div>
-    <a href="/details/new" class="btn btn-primary btn-lg">＋ Новая деталь</a>
+<h1>Мои задачи</h1>
+<p class="sub">Рабочий стол: всё, что требует вашего действия. {{ today_str }}</p>
+
+<div class="v7-rolebar">
+    👤 <b>{{ current_user_name }}</b> — {{ current_role_descr }}
 </div>
 
-{% if demo_mode %}
-<div class="alert alert-warning">
-    <strong>⚠ Демо-режим:</strong> реальные вызовы LLM отключены. Используются эвристические mock-ответы.
+{# 5 counters (4 KPI + 1 конфликт РС) #}
+<div class="v7-cards">
+    <a href="/?status=draft" class="v7-card" style="text-decoration:none; color:inherit">
+        <div class="num">{{ counts.drafts }}</div>
+        <div class="lbl">Черновики в работе</div>
+    </a>
+    <a href="/?status=review" class="v7-card" style="text-decoration:none; color:inherit">
+        <div class="num">{{ counts.need_approve }}</div>
+        <div class="lbl">Ждут моего утверждения</div>
+    </a>
+    <a href="/notices" class="v7-card alert" style="text-decoration:none; color:inherit">
+        <div class="num">{{ counts.notices }}</div>
+        <div class="lbl">Извещения к обработке</div>
+    </a>
+    <a href="/?status=questions" class="v7-card" style="text-decoration:none; color:inherit">
+        <div class="num">{{ counts.questions }}</div>
+        <div class="lbl">Вопросы AI без ответа</div>
+    </a>
+    <a href="#conflict-rs" class="v7-card alert" style="text-decoration:none; color:inherit" title="В 1С поправили этап «Сварка» +2 н/ч. Принять из 1С или перезаписать?">
+        <div class="num">{{ counts.conflicts }}</div>
+        <div class="lbl">РС: конфликт с 1С</div>
+    </a>
+</div>
+
+{# 5. Конфликт РС с 1С — отдельная секция #}
+{% if counts.conflicts > 0 %}
+<div class="v7-panel alert" id="conflict-rs">
+    <h2 style="margin-top:0">🔄 Конфликт РС с 1С:ERP <span class="badge bad">требует решения</span></h2>
+    <table>
+        <tr><th>Деталь</th><th>Изделие</th><th>Что случилось в 1С</th><th>Действия</th></tr>
+        <tr>
+            <td><b>Цистерна</b> <span class="badge">53-ТВ.05.00.00</span></td>
+            <td>АЦ-6,0-40 · зав. №151</td>
+            <td>Этап <b>«Сварка»</b> поправлен вручную: <code style="background:#fdecea; padding:1px 6px; border-radius:3px">+2 н/ч</code> в нашу РС v3.<br>
+                Наша РС: <b>3,20 н/ч</b> → В 1С: <b>5,20 н/ч</b> (вручную).</td>
+            <td>
+                <button class="v7-btn sm" onclick="alert('Принято из 1С → РС v4 создана в нашей системе, история изменений сохранена, причина = «правка начальника смены 18.07»')">Принять из 1С</button>
+                <button class="v7-btn sec sm" onclick="alert('Перезаписано → РС v3 повторно выгружена в 1С с нашим значением 3,20 н/ч, конфликт закрыт')">Перезаписать</button>
+                <br><span class="sub" style="font-size:11px">↳ создаст РС v4 или перезапишет v3</span>
+            </td>
+        </tr>
+    </table>
 </div>
 {% endif %}
 
-{# M22: Quick role buttons — 3 крупные карточки, не выпирающая плашка #}
-{% set _cur = current_role_from_request(request) %}
-<div class="card" style="margin-bottom:24px;">
-    <div class="card-header">
-        <h3 class="card-title">🎬 Быстрая смена роли</h3>
-        <span style="font-size:12px; color:var(--c-text-muted);">для показа клиенту</span>
-    </div>
-    <div class="quick-roles">
-        <button type="button" class="quick-role {% if _cur == 'technologist' %}active{% endif %}" data-role="technologist">
-            <div class="quick-role-icon">👨‍🔧</div>
-            <div class="quick-role-name">Технолог</div>
-            <div class="quick-role-desc">создаёт ТК</div>
-        </button>
-        <button type="button" class="quick-role {% if _cur == 'main_technologist' %}active{% endif %}" data-role="main_technologist">
-            <div class="quick-role-icon">👑</div>
-            <div class="quick-role-name">Гл. технолог</div>
-            <div class="quick-role-desc">утверждает ТК</div>
-        </button>
-        <button type="button" class="quick-role {% if _cur == 'admin' %}active{% endif %}" data-role="admin">
-            <div class="quick-role-icon">🛡</div>
-            <div class="quick-role-name">Админ</div>
-            <div class="quick-role-desc">управляет системой</div>
-        </button>
-    </div>
+{# 6. Таблица задач (5 шт — приоритетные) #}
+<div class="v7-panel">
+<h2 style="margin-top:0">Приоритетные задачи</h2>
+<table>
+    <tr>
+        <th></th>
+        <th>Объект</th>
+        <th>Изделие / исполнение</th>
+        <th>Что требуется</th>
+        <th>Статус</th>
+        <th>Срок</th>
+        <th></th>
+    </tr>
+    {% for task in tasks %}
+    <tr>
+        <td style="font-size:18px">{{ task.icon }}</td>
+        <td>
+            <b>{{ task.title }}</b>
+            {% if task.subtitle %}<br><span class="badge">{{ task.subtitle }}</span>{% endif %}
+        </td>
+        <td>{{ task.product }}</td>
+        <td>{{ task.action }}</td>
+        <td><span class="badge {{ task.status_class }}">{{ task.status_label }}</span></td>
+        <td>{{ task.deadline }}</td>
+        <td>
+            <a href="{{ task.url }}" class="v7-btn sm">{{ task.action_label or 'Открыть' }}</a>
+        </td>
+    </tr>
+    {% endfor %}
+    {% if not tasks %}
+    <tr><td colspan="7" style="text-align:center; color: var(--v7-muted); padding: 30px">Нет задач. Всё под контролем 🎉</td></tr>
+    {% endif %}
+</table>
 </div>
 
-{# M22: KPI-карточки — кликабельные, ведут на отфильтрованный список #}
-{% set new_n = details | selectattr('status', 'equalto', 'new') | list | length %}
-{% set draft_n = details | selectattr('status', 'equalto', 'draft') | list | length %}
-{% set approved_n = details | selectattr('status', 'equalto', 'approved') | list | length %}
-<div class="kpi-grid">
-    <a href="/?status=new" class="kpi-card kpi-new">
-        <div class="kpi-label">🔴 Новых</div>
-        <div class="kpi-value">{{ new_n }}</div>
-        <div class="kpi-sub">ждут техкарту</div>
-    </a>
-    <a href="/?status=draft" class="kpi-card kpi-draft">
-        <div class="kpi-label">🟡 Проектов</div>
-        <div class="kpi-value">{{ draft_n }}</div>
-        <div class="kpi-sub">ждут утверждения</div>
-    </a>
-    <a href="/?status=approved" class="kpi-card kpi-approved">
-        <div class="kpi-label">🟢 Утверждено</div>
-        <div class="kpi-value">{{ approved_n }}</div>
-        <div class="kpi-sub">в архиве</div>
-    </a>
-    <a href="/" class="kpi-card kpi-total">
-        <div class="kpi-label">🔵 Всего</div>
-        <div class="kpi-value">{{ total }}</div>
-        <div class="kpi-sub">деталей в базе</div>
-    </a>
+{# 7. Петля обучения — конкретный кейс #}
+<div class="v7-note ok">
+    💡 <b>Петля обучения:</b> за последние 4 недели утверждено <b>{{ learning.approved_4w }}</b> ТК → они стали эталонами.
+    Доля норм «зелёного» уровня выросла с <b>{{ learning.green_4w_ago }}%</b> до <b>{{ learning.green_now }}%</b>.
+    {% if learning.bias %}
+    <br><br>
+    <b>Кейс «{{ learning.case_title }}»:</b>
+    AI ставил <code>{{ learning.case_old }}</code>, наряды показывали <code>0,62–0,70</code>.
+    <br>→ Добавлено правило технолога: <i>{{ learning.case_rule }}</i>
+    <br>→ Теперь AI выдаёт <code>{{ learning.case_new }}</code> ✓ (зелёный уровень)
+    {% endif %}
 </div>
 
-{# M22: фильтры + таблица #}
-<div class="card">
-    <div class="card-header">
-        <h3 class="card-title">Детали</h3>
-        <span style="font-size:12px; color:var(--c-text-muted);">Показано {{ details | length }} из {{ total }}</span>
+{# 8. Метрики пилота (внизу) #}
+{% if pilot_metrics %}
+<div class="v7-panel">
+    <h2 style="margin-top:0">📊 Метрики пилота</h2>
+    <div class="v7-cards">
+        {% for m in pilot_metrics %}
+        <div class="v7-card">
+            <div class="num">{{ m.value }}</div>
+            <div class="lbl">{{ m.text }}</div>
+        </div>
+        {% endfor %}
     </div>
-    <form hx-get="/index/table" hx-target="#details-table" hx-trigger="keyup changed delay:300ms from:input[name='q'], change from:select[name='status'], change from:select[name='model']" hx-swap="innerHTML" hx-push-url="true" class="filter-bar">
-        <input type="search" name="q" value="{{ q or '' }}" placeholder="🔍 Поиск по обозначению, названию..." autocomplete="off" id="filter-q">
+</div>
+{% endif %}
+
+{# 9. Ссылка на детали (внизу — для удобства) #}
+<div class="v7-panel">
+    <h2 style="margin-top:0">📦 Детали в базе</h2>
+    <form hx-get="/" hx-target="#details-table" hx-trigger="keyup changed delay:300ms from:input[name='q'], change from:select[name='status'], change from:select[name='model']" hx-swap="innerHTML" hx-push-url="true" class="v7-toolbar">
+        <input type="search" name="q" value="{{ q or '' }}" placeholder="🔍 Поиск по обозначению, названию..." autocomplete="off" id="filter-q" style="min-width:280px">
         <select name="status" id="filter-status">
             <option value="">Все статусы</option>
             <option value="new" {% if status == 'new' %}selected{% endif %}>🔴 Новые</option>
@@ -89,37 +134,12 @@
             <option value="{{ m }}" {% if model == m %}selected{% endif %}>{{ m }}</option>
             {% endfor %}
         </select>
-        <button type="submit" class="btn">Применить</button>
-        {% if q or status or model %}<a href="/" class="btn btn-ghost">Сбросить</a>{% endif %}
+        <button type="submit" class="v7-btn">Применить</button>
+        {% if q or status or model %}<a href="/" class="v7-btn sec">Сбросить</a>{% endif %}
     </form>
 
     <div id="details-table">
 {% include "_index_table.html" %}
     </div>
 </div>
-
-<script>
-// M22 + V6-7: сохранение фильтров в localStorage
-(function() {
-    const KEY = 'bit_filter_v1';
-    const q = document.getElementById('filter-q');
-    const status = document.getElementById('filter-status');
-    const model = document.getElementById('filter-model');
-    if (!q) return;
-    // Load
-    try {
-        const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
-        if (saved.q) q.value = saved.q;
-        if (saved.status) status.value = saved.status;
-        if (saved.model) model.value = saved.model;
-    } catch (e) {}
-    // Save
-    function save() {
-        try { localStorage.setItem(KEY, JSON.stringify({q: q.value, status: status.value, model: model.value})); } catch (e) {}
-    }
-    q.addEventListener('input', save);
-    status.addEventListener('change', save);
-    model.addEventListener('change', save);
-})();
-</script>
 {% endblock %}

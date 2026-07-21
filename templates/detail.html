@@ -55,24 +55,84 @@
     </div>
 </div>
 
-{# M25: Tabs — единственный способ навигации по детали. Без свалок блоков. #}
-{% set active_tab = active_tab or 'route' %}
+{# M33: 5 табов по макету из gptunnel #}
+{% set active_tab = active_tab or 'ops' %}
 <nav class="tabs" role="tablist">
-    <button type="button" class="tab {% if active_tab == 'route' %}active{% endif %}" data-tab="route" role="tab">
-        📋 Маршрут
+    <button type="button" class="tab {% if active_tab == 'ops' %}active{% endif %}" data-tab="ops" role="tab">
+        Чертёж + Операции
         {% if draft and draft.operations %}<span class="tab-count">{{ draft.operations|length }}</span>{% endif %}
     </button>
-    <button type="button" class="tab {% if active_tab == 'economics' %}active{% endif %}" data-tab="economics" role="tab">💰 Экономика</button>
+    <button type="button" class="tab {% if active_tab == 'rs' %}active{% endif %}" data-tab="rs" role="tab">Ресурсная спецификация</button>
+    <button type="button" class="tab {% if active_tab == 'just' %}active{% endif %}" data-tab="just" role="tab">Обоснование норм</button>
+    <button type="button" class="tab {% if active_tab == 'more' %}active{% endif %}" data-tab="more" role="tab">Доп. параметры</button>
     {% if versions and versions|length > 0 %}
     <button type="button" class="tab {% if active_tab == 'versions' %}active{% endif %}" data-tab="versions" role="tab">
-        📜 Версии <span class="tab-count">{{ versions|length }}</span>
+        История <span class="tab-count">{{ versions|length }}</span>
     </button>
     {% endif %}
-    <button type="button" class="tab {% if active_tab == 'more' %}active{% endif %}" data-tab="more" role="tab">🔧 Ещё</button>
 </nav>
 
+{# TAB: РС (перед route) #}
+<section class="tab-panel {% if active_tab == 'rs' %}active{% endif %}" id="panel-rs" role="tabpanel">
+    <div class="v7-note info">🔒 <b>РС-фабрика — без AI.</b> РС собирается алгоритмом из утверждённой ТК по выбранному профилю. Один и тот же вход всегда даёт один и тот же выход.</div>
+    <div class="v7-toolbar">
+        <span>Профиль выхода:</span>
+        <select>
+            <option>УМК-одноэтапная (по виду продукции — по умолчанию)</option>
+            <option>КТ-этапы-по-участкам</option>
+            <option>ВТ-по-цехозаходам (ВРЦ)</option>
+        </select>
+        <button class="v7-btn sec sm">Тестовый прогон</button>
+        <button class="v7-btn" onclick="alert('Сформирован файл RS по схеме «Техинком-ERP-2.5». Передан через OneCGateway. (мок)')">⬇ Выгрузить в 1С:ERP</button>
+        <span class="badge">схема: Техинком-ERP-2.5 (XML)</span>
+    </div>
+    <div class="v7-panel">
+        <b>Предпросмотр РС</b>
+        <table style="margin-top:8px">
+            <tr><th>№</th><th>Этап РС</th><th>Подразделение</th><th>Трудозатраты</th><th>Материалы (сводно на этап)</th></tr>
+            <tr>
+                <td>1</td>
+                <td><b>Изготовление</b> <span class="badge">профиль «одноэтапная»</span></td>
+                <td>Мелкосерийное пр-во, уч. упоров</td>
+                <td>Сварщик 19905/4 — 4,35 н/ч<br>Слесарь 3 разр. — 0,65 н/ч<br>Комплектовщик — 0,30 н/ч<br>Контролёр — 0,40 н/ч</td>
+                <td>Св-08Г2С-О ⌀1,0 — <b>0,43 кг</b><br>Смесь М21 — <b>0,31 м³</b><br>Спрей антипригар. — 0,02 л</td>
+            </tr>
+        </table>
+    </div>
+    <div class="v7-panel">
+        <b>Отчёт трансформации</b>
+        <div style="font-size:12.5px; background:#f8fafc; border:1px solid var(--v7-line); border-radius:8px; padding:10px 12px; margin-top:6px">
+            Строка «Сварщик 19905/4 — 4,35 н/ч» ← правило профиля <b>«операции: укрупнённо, по профессии»</b> ← операции ТК 015 (1,10) + 020 (1,45) + 025 (1,80)<br>
+            Строка «Св-08Г2С-О — 0,43 кг» ← правило <b>«материалы: сводно на этап»</b> ← 0,12 + 0,31 из операций 015, 020<br>
+            Этап «Изготовление» — один ← правило <b>«разрез этапов: вся РС одним этапом»</b>
+        </div>
+    </div>
+</section>
+
+{# TAB: Обоснование норм #}
+<section class="tab-panel {% if active_tab == 'just' %}active{% endif %}" id="panel-just" role="tabpanel">
+    <div class="v7-panel">
+        <b>Сводка доверия по ТК</b>
+        <table style="margin-top:8px">
+            <tr><th>Уровень</th><th>Операций</th><th>Доля времени</th><th>Что делать</th></tr>
+            <tr><td><span class="dot g"></span>Факт завода</td><td>4</td><td>72%</td><td>Ничего — источники: эталонная ТК 2022, ведомость 575 ДСЕ, наряды</td></tr>
+            <tr><td><span class="dot y"></span>Оценка по аналогам</td><td>1</td><td>21%</td><td>Проверить операцию 025 (интерполяция между 3 аналогами)</td></tr>
+            <tr><td><span class="dot r"></span>Гипотеза AI</td><td>1</td><td>7%</td><td>Подтвердить операцию 035 — факта по контролю в базе нет</td></tr>
+        </table>
+    </div>
+    <div class="v7-panel">
+        <b>Аналоги, использованные AI</b>
+        <table style="margin-top:8px">
+            <tr><th>Деталь-аналог</th><th>Сходство</th><th>Источник</th><th>Σ н/ч</th></tr>
+            <tr><td>Упор продольный ЛМША.301314.020</td><td>97%</td><td>Эталонная ТК (утв. Баранов, 2022)</td><td>5,55</td></tr>
+            <tr><td>Кронштейн замка 53Б-ТВ.01.21.00</td><td>71%</td><td>Ведомость трудоёмкости</td><td>4,50</td></tr>
+            <tr><td>Основа растяжки ЛМША.302400.001</td><td>64%</td><td>Наряды 2025–26</td><td>6,2 (факт, n=118)</td></tr>
+        </table>
+    </div>
+</section>
+
 {# ===== Вкладка: МАРШРУТ ===== #}
-<section class="tab-panel {% if active_tab == 'route' %}active{% endif %}" id="panel-route" role="tabpanel">
+<section class="tab-panel {% if active_tab == 'route' %}active{% endif %}" id="panel-ops" role="tabpanel">
     {% if not draft %}
         <div class="empty empty-lg">
             <div class="empty-icon">📋</div>

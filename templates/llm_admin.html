@@ -1,14 +1,14 @@
-{% extends "_v6_layout.html" %}
+{% extends "base.html" %}
 {% block title %}Модели LLM — БИТ.Технолог{% endblock %}
 {% block content %}
 <h1>🤖 Модели LLM</h1>
 <p class="sub">Доступно роли с правом <b>llm_admin</b>. Разные задачи — разные модели: дорогая там, где важно качество; дешёвая — на рутине. РС-фабрика в списке отсутствует — она не использует LLM.</p>
 
 {% if not is_llm_admin %}
-<div class="v6-note warn">⚠️ У вас нет права <b>llm_admin</b>. Показано в режиме чтения. Для управления войдите как <code>itadmin</code> / <code>admin</code>.</div>
+<div class="v7-note warn">⚠️ У вас нет права <b>llm_admin</b>. Показано в режиме чтения. Для управления войдите как <code>admin</code>.</div>
 {% endif %}
 
-<div class="v6-panel">
+<div class="v7-panel">
     <h2 style="margin-top:0">Назначение моделей на задачи</h2>
     <table style="margin-top:8px">
         <tr><th>Тип задачи</th><th>Модель</th><th>Ср. стоимость</th><th>Кач-во (acceptance)</th><th></th></tr>
@@ -16,13 +16,13 @@
             <td>Генерация ТК</td>
             <td>
                 <select {% if not is_llm_admin %}disabled{% endif %}>
-                    <option {% if current_model == 'gigachat_max' %}selected{% endif %}>GigaChat-Max (mock)</option>
-                    <option {% if current_model == 'yandexgpt' %}selected{% endif %}>YandexGPT-Pro (реальный)</option>
+                    <option>MockLLM-Technologist-v1</option>
+                    <option>YandexGPT-Pro (реальный)</option>
                 </select>
             </td>
             <td>2,8 ₽</td>
             <td>78% ▲</td>
-            <td><button class="v6-btn sec sm" {% if not is_llm_admin %}disabled{% endif %}>A/B-тест</button></td>
+            <td><button class="v7-btn sec sm" {% if not is_llm_admin %}disabled{% endif %}>A/B-тест</button></td>
         </tr>
         <tr>
             <td>Уточняющие вопросы</td>
@@ -57,13 +57,13 @@
     </table>
 </div>
 
-<div class="v6-cards">
-    <div class="v6-card"><div class="num">{{ cost_today }} ₽</div><div class="lbl">Расход сегодня (лимит 500 ₽)</div></div>
-    <div class="v6-card"><div class="num">{{ cost_month }} ₽</div><div class="lbl">Расход за месяц</div></div>
-    <div class="v6-card"><div class="num">{{ avg_draft }} ₽</div><div class="lbl">Средняя цена черновика ТК</div></div>
+<div class="v7-cards">
+    <div class="v7-card"><div class="num">{{ cost_today }} ₽</div><div class="lbl">Расход сегодня (лимит 500 ₽)</div></div>
+    <div class="v7-card"><div class="num">{{ cost_month }} ₽</div><div class="lbl">Расход за месяц</div></div>
+    <div class="v7-card"><div class="num">{{ avg_draft }} ₽</div><div class="lbl">Средняя цена черновика ТК</div></div>
 </div>
 
-<div class="v6-panel">
+<div class="v7-panel">
     <h2 style="margin-top:0">Текущее состояние LLM</h2>
     <table>
         <tr><td>Режим</td><td>{% if mock_mode %}<span class="badge warn">MOCK</span> ключ не задан{% else %}<span class="badge ok">REAL</span>{% endif %}</td></tr>
@@ -73,7 +73,7 @@
     </table>
 </div>
 
-<div class="v6-panel">
+<div class="v7-panel">
     <h2 style="margin-top:0">Журнал изменений</h2>
     <table style="margin-top:8px">
         <tr><th>Когда</th><th>Кто</th><th>Что</th><th>Эффект</th></tr>

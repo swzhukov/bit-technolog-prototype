@@ -1,22 +1,22 @@
-{% extends "_v6_layout.html" %}
+{% extends "base.html" %}
 {% block title %}База знаний предприятия — БИТ.Технолог{% endblock %}
 {% block content %}
 <h1>🧠 База знаний предприятия</h1>
 <p class="sub">То, на чём AI «обучается на завод»: эталоны, факт трудоёмкости, правила. Пополняется автоматически с каждой утверждённой ТК.</p>
 
-<div class="v6-cards">
+<div class="v7-cards">
     {% for m in metrics %}
-    <div class="v6-card"><div class="num">{{ m.value }}</div><div class="lbl">{{ m.text }}</div></div>
+    <div class="v7-card"><div class="num">{{ m.value }}</div><div class="lbl">{{ m.text }}</div></div>
     {% endfor %}
 </div>
 
-<div class="v6-panel">
+<div class="v7-panel">
     <h2 style="margin-top:0">Загрузка архива</h2>
     <div class="sub">OCR + AI-разбор, человек проверяет перед добавлением в эталоны</div>
-    <div class="v6-toolbar">
-        <button class="v6-btn sec">⬆ Загрузить архивную ТК (PDF/скан)</button>
-        <button class="v6-btn sec">⬆ Ведомость трудоёмкости (Excel)</button>
-        <button class="v6-btn sec">⬆ Наряды (Excel)</button>
+    <div class="v7-toolbar">
+        <button class="v7-btn sec">⬆ Загрузить архивную ТК (PDF/скан)</button>
+        <button class="v7-btn sec">⬆ Ведомость трудоёмкости (Excel)</button>
+        <button class="v7-btn sec">⬆ Наряды (Excel)</button>
     </div>
     <table style="margin-top:10px">
         <tr><th>Документ</th><th>Разобрано AI</th><th>Статус</th></tr>
@@ -25,7 +25,7 @@
     </table>
 </div>
 
-<div class="v6-panel">
+<div class="v7-panel">
     <h2 style="margin-top:0">Правила технолога</h2>
     <div class="sub">Подставляются в контекст AI по типу операции</div>
     <table style="margin-top:8px">

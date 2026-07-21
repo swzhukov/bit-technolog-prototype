@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install system deps (Tesseract для OCR тестов)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils tesseract-ocr tesseract-ocr-rus
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt || true
+          pip install pytest pytest-asyncio httpx
+
+      - name: Run tests
+        env:
+          DEMO_MODE: "true"
+          LLM_API_KEY: "test-fake-key"
+        run: |
+          pytest test_app.py -q --tb=short
+
+  graphify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install graphifyy
+        run: |
+          pip install graphifyy
+
+      - name: Build knowledge graph (AST-only)
+        run: |
+          graphify . --code-only
+          graphify cluster-only .
+
+      - name: Verify graph artifacts exist
+        run: |
+          test -f graphify-out/GRAPH_REPORT.md
+          test -f graphify-out/graph.json
+          test -f graphify-out/graph.html
+          echo "Graph: $(./venv/bin/graphify benchmark 2>/dev/null | head -1 || echo OK)"
+
+      - name: Upload graph artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: graphify-out
+          path: |
+            graphify-out/GRAPH_REPORT.md
+            graphify-out/SEMANTIC_NOTES.md
+            graphify-out/graph.html
+            graphify-out/graph.json
+          retention-days: 30

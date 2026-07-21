@@ -4,12 +4,109 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}БИТ.Технолог{% endblock %}</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='28'%3E🔥%3C/text%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='28'%3E🔥%3Ctext%3E%3C/svg%3E">
     <link rel="stylesheet" href="/static/design-system.css?v=22">
+    <link rel="stylesheet" href="/static/v7.css?v=1">
     <script src="/static/htmx.min.js"></script>
+    <style>
+        /* v0.7 — редизайн по макету из gptunnel (M33) */
+        :root {
+            --v7-brand: #c8102e;
+            --v7-brand-2: #8f0c21;
+            --v7-bg: #f4f6f9;
+            --v7-panel: #fff;
+            --v7-line: #dde3ea;
+            --v7-text: #1c2733;
+            --v7-muted: #66788c;
+            --v7-blue: #1f6feb;
+            --v7-ok: #1a7f37;
+            --v7-warn: #9a6700;
+            --v7-bad: #c62828;
+            --v7-header: #22303f;
+            --v7-header-2: #2c3e50;
+        }
+        body { font: 14px/1.5 "Segoe UI", system-ui, Arial, sans-serif; background: var(--v7-bg); color: var(--v7-text); margin: 0; }
+        a { color: var(--v7-blue); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        /* HEADER (тёмный — из вложенного прототипа) */
+        .app-header { background: var(--v7-header); color: #fff; height: 52px; display: flex; align-items: center; padding: 0 20px; gap: 16px; position: sticky; top: 0; z-index: 50; }
+        .app-brand { font-weight: 700; font-size: 16px; color: #fff; display: flex; align-items: center; gap: 6px; text-decoration: none; }
+        .app-brand:hover { text-decoration: none; }
+        .app-brand .emoji { color: #ff5a6e; }
+        .app-brand span:not(.emoji) { color: #fff; }
+        .app-env { background: #394a5e; font-size: 11px; padding: 2px 8px; border-radius: 4px; color: #c3d0de; }
+        .app-spacer { flex: 1; }
+        .app-user-label { font-size: 13px; color: #c3d0de; }
+        .app-role-select { background: #394a5e; color: #fff; border: 1px solid #4d6076; border-radius: 6px; padding: 5px 10px; font: inherit; }
+        .app-cost-pill { background: #394a5e; font-size: 12px; padding: 4px 10px; border-radius: 4px; color: #c3d0de; }
+        .app-cost-pill.warn { background: #e6a700; color: #000; }
+        .app-cost-pill.exceeded { background: #c62828; color: #fff; }
+        .app-mock-badge { background: #e6a700; color: #000; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+        .app-mock-badge.real { background: #1a7f37; color: #fff; }
+
+        /* LAYOUT — header + nav (left) + main */
+        .app-layout { display: flex; min-height: calc(100vh - 52px); }
+        .app-nav { width: 220px; background: #fff; border-right: 1px solid var(--v7-line); padding: 14px 0; flex-shrink: 0; }
+        .app-nav .item { display: flex; align-items: center; gap: 8px; padding: 9px 18px; color: var(--v7-text); border-left: 3px solid transparent; font-size: 13.5px; cursor: pointer; text-decoration: none; }
+        .app-nav .item:hover { background: #f0f4f8; text-decoration: none; }
+        .app-nav .item.active { border-left-color: var(--v7-brand); background: #fbeef0; font-weight: 600; }
+        .app-nav .item.hidden { display: none; }
+        .app-nav .item .cnt { margin-left: auto; background: var(--v7-brand); color: #fff; border-radius: 9px; font-size: 11px; padding: 0 7px; }
+        .app-nav .sect { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--v7-muted); padding: 14px 18px 4px; }
+        .app-main { flex: 1; padding: 20px 26px; max-width: 1250px; }
+
+        /* COMMON */
+        h1 { font-size: 20px; margin: 0 0 4px; }
+        h2 { font-size: 16px; margin: 18px 0 8px; }
+        .sub { color: var(--v7-muted); margin-bottom: 16px; font-size: 13px; }
+        .v7-rolebar { background: #e7f0ff; border: 1px solid #bcd4f6; border-radius: 8px; padding: 10px 14px; margin-bottom: 18px; font-size: 13px; }
+        .v7-rolebar b { color: var(--v7-blue); }
+        .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; background: #eef2f7; color: var(--v7-muted); white-space: nowrap; }
+        .badge.ok { background: #e6f4ea; color: var(--v7-ok); }
+        .badge.warn { background: #fff8e1; color: var(--v7-warn); }
+        .badge.bad { background: #fdecea; color: var(--v7-bad); }
+        .badge.blue { background: #e7f0ff; color: var(--v7-blue); }
+        .badge.coop { background: #f3e8ff; color: #7c3aed; }
+        .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: baseline; }
+        .dot.g { background: var(--v7-ok); } .dot.y { background: #e6a700; } .dot.r { background: var(--v7-bad); }
+
+        /* CARDS */
+        .v7-cards { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+        .v7-card { background: var(--v7-panel); border: 1px solid var(--v7-line); border-radius: 10px; padding: 14px 18px; box-shadow: 0 1px 3px rgba(16,24,40,.08); min-width: 150px; flex: 1; }
+        .v7-card .num { font-size: 26px; font-weight: 700; }
+        .v7-card .lbl { color: var(--v7-muted); font-size: 12.5px; }
+        .v7-card.alert .num { color: var(--v7-bad); }
+        .v7-card.alert { border-color: #f0a8a8; background: #fef6f6; }
+        .v7-panel { background: var(--v7-panel); border: 1px solid var(--v7-line); border-radius: 10px; box-shadow: 0 1px 3px rgba(16,24,40,.08); padding: 16px 18px; margin-bottom: 18px; }
+        .v7-panel.alert { border-left: 4px solid var(--v7-bad); background: #fef6f6; }
+        .v7-panel.warn { border-left: 4px solid #e6a700; background: #fffaf0; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { text-align: left; color: var(--v7-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .3px; padding: 8px 10px; border-bottom: 2px solid var(--v7-line); }
+        td { padding: 9px 10px; border-bottom: 1px solid var(--v7-line); vertical-align: top; }
+        tr:hover td { background: #f8fafc; }
+        .v7-btn { background: var(--v7-brand); color: #fff; border: none; border-radius: 7px; padding: 8px 16px; font-weight: 600; cursor: pointer; font: inherit; text-decoration: none; display: inline-block; }
+        .v7-btn:hover { background: var(--v7-brand-2); text-decoration: none; color: #fff; }
+        .v7-btn.sec { background: #fff; color: var(--v7-text); border: 1px solid var(--v7-line); }
+        .v7-btn.sec:hover { background: #f0f4f8; }
+        .v7-btn.sm { padding: 4px 10px; font-size: 12.5px; }
+        .v7-btn:disabled { opacity: .45; cursor: not-allowed; }
+        .v7-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+        .v7-toolbar input, .v7-toolbar select { padding: 7px 10px; border: 1px solid var(--v7-line); border-radius: 7px; background: #fff; font: inherit; }
+        .v7-note { background: #fff8e1; border: 1px solid #f0dca0; border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px; }
+        .v7-note.ok { background: #e6f4ea; border-color: #bfe0c8; }
+        .v7-note.warn { background: #fff8e1; border-color: #f0dca0; }
+        .v7-note.info { background: #e7f0ff; border-color: #bcd4f6; color: #1a3a5c; }
+        .hidden { display: none !important; }
+        footer { color: var(--v7-muted); font-size: 12px; padding: 20px 26px; border-top: 1px solid var(--v7-line); margin-top: 30px; }
+
+        /* Совместимость со старым дизайн-системой — оставляем */
+        .app-header-old { display: none; }
+    </style>
 </head>
 <body>
-{# F16.7: глобальный тост для feedback'а о сохранении и ошибках #}
+
+{# Тост для feedback #}
 <div id="bit-toast" style="display:none; position:fixed; top:20px; right:20px; z-index:9999; padding:12px 20px; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,0.15); font-weight:500; max-width:340px;"></div>
 <script>
 window.showToast = function(message, type) {
@@ -29,212 +126,116 @@ window.showToast = function(message, type) {
     toast.style.display = 'block';
     setTimeout(() => { toast.style.display = 'none'; }, 3500);
 };
-
-// V6-15: глобальный JS error handler — показывает тост с сообщением об ошибке
-window.addEventListener('error', function(e) {
-    if (typeof showToast === 'function') {
-        showToast('JS Error: ' + (e.message || 'unknown'), 'error');
-    }
-    console.error('Global error:', e.error || e.message);
-});
-window.addEventListener('unhandledrejection', function(e) {
-    if (typeof showToast === 'function') {
-        showToast('Promise Error: ' + (e.reason && e.reason.message || e.reason), 'error');
-    }
-    console.error('Unhandled rejection:', e.reason);
-});
-
-// F16.9: A4-16 — глобальные keyboard shortcuts
-document.addEventListener('keydown', function(e) {
-    if (!e.ctrlKey && !e.metaKey) return;
-    // Ctrl+N — новая деталь
-    if (e.key === 'n' || e.key === 'N') {
-        e.preventDefault();
-        window.location.href = '/details/new';
-    }
-    // Ctrl+P — печать (если на странице детали)
-    if (e.key === 'p' || e.key === 'P') {
-        // Не перехватываем — браузер сам откроет диалог
-    }
-    // Ctrl+L — список
-    if (e.key === 'l' || e.key === 'L') {
-        e.preventDefault();
-        window.location.href = '/';
-    }
-});
-
-async function applyOcrToDetail(result) {
-    if (!result || !result.ok) return;
-    const fields = result.extracted || {};
-    const detailId = window.location.pathname.split('/').pop();
-    if (!detailId || !/^[\w\-]+$/.test(detailId)) {
-        showToast('Не удалось определить ID детали', 'error');
-        return;
-    }
-    const btn = event.target;
-    btn.disabled = true;
-    btn.textContent = '⏳ Применяю...';
-    try {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-        const r = await fetch(`/api/details/${detailId}/apply-ocr`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': csrfToken,
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({fields: fields})
-        });
-        const data = await r.json();
-        if (data.ok) {
-            showToast(`✅ Применено: ${data.applied_fields.join(', ')}`, 'success');
-            setTimeout(() => window.location.reload(), 1200);
-        } else {
-            showToast('❌ Ошибка: ' + (data.error || 'unknown'), 'error');
-            btn.disabled = false;
-            btn.textContent = '✨ Применить к детали';
-        }
-    } catch (e) {
-        showToast('❌ Ошибка сети: ' + e.message, 'error');
-        btn.disabled = false;
-        btn.textContent = '✨ Применить к детали';
-    }
-}
-
-function showToast(msg, type) {
-    const t = document.createElement('div');
-    t.className = `toast toast-${type || 'info'}`;
-    t.textContent = msg;
-    document.body.appendChild(t);
-    setTimeout(() => t.classList.add('toast-show'), 50);
-    setTimeout(() => { t.classList.remove('toast-show'); setTimeout(() => t.remove(), 300); }, 3500);
-}
 </script>
-    <header class="app-header">
-        <div class="app-header-inner">
-            <a href="/" class="app-brand">
-                <span class="app-brand-icon">🔥</span>
-                <span>БИТ.Технолог</span>
-            </a>
-            <nav class="app-nav">
-                <a href="/details/new" class="primary">＋ Деталь</a>
-                <a href="/pilot">📊 Пилот</a>
-                <a href="/help" class="help">❓ Помощь</a>
-                <details class="dropdown">
-                    <summary class="dropdown-trigger">📚 Справочники</summary>
-                    <div class="dropdown-menu">
-                        <a href="/equipment">🔧 Оборудование</a>
-                        <a href="/materials">📋 Материалы</a>
-                        <a href="/iot">⚠ ИОТ</a>
-                        <a href="/benchmarks">📊 Бенчмарки</a>
-                        <a href="/learning">🎓 Обучение</a>
-                    </div>
-                </details>
-                <details class="dropdown">
-                    <summary class="dropdown-trigger">📈 Отчёты</summary>
-                    <div class="dropdown-menu">
-                        <a href="/pilot/learning">📈 Обучение</a>
-                        <a href="/pilot/report">📈 Отчёт пилота</a>
-                        <a href="/audit">📋 Audit</a>
-                        <a href="/demo">🎯 Demo</a>
-                    </div>
-                </details>
-                {% if is_admin_from_request(request) %}
-                <details class="dropdown">
-                    <summary class="dropdown-trigger" style="color:var(--c-role-admin);">🛡 Админ</summary>
-                    <div class="dropdown-menu">
-                        <a href="/admin">📊 Дашборд</a>
-                        <a href="/admin/users">👥 Пользователи</a>
-                        <a href="/admin/llm-calls">⚠️ LLM-вызовы</a>
-                        <a href="/admin/errors">🐛 Ошибки</a>
-                        <a href="/admin/settings">⚙ Настройки</a>
-                        <a href="/admin/backup">💾 Бэкап</a>
-                        <a href="/admin/system">🖥 Система</a>
-                        <a href="/admin/login-log">🔐 Лог входов</a>
-                    </div>
-                </details>
-                {% endif %}
-            </nav>
-            <div class="app-header-right">
-                {% set _cur = current_role_from_request(request) %}
-                <span class="role-chip" data-role="{{ _cur }}">
-                    {{ {'technologist': '👨‍🔧', 'main_technologist': '👑', 'admin': '🛡', 'workshop_chief': '🏭'}.get(_cur, '👤') }}
-                    {{ role_name_lookup(_cur) }}
-                </span>
-                <select id="role-switcher" aria-label="Переключить роль" title="Переключить роль">
-                    <option value="technologist">👨‍🔧 Технолог</option>
-                    <option value="main_technologist">👑 Гл. технолог</option>
-                    <option value="workshop_chief">🏭 Нач. цеха</option>
-                    <option value="admin">🛡 Админ</option>
-                </select>
-                {% set dc = daily_cost() %}
-                {% if dc.total_rub >= dc.limit_rub %}
-                <span class="cost-pill exceeded" title="Лимит превышен!">⛔ {{ "%.0f"|format(dc.total_rub) }}₽/{{ "%.0f"|format(dc.limit_rub) }}₽</span>
-                {% elif dc.total_rub >= dc.limit_rub * 0.8 %}
-                <span class="cost-pill warn" title="Осталось {{ "%.0f"|format(dc.remaining_rub) }}₽">⚠ {{ "%.0f"|format(dc.total_rub) }}₽/{{ "%.0f"|format(dc.limit_rub) }}₽</span>
-                {% else %}
-                <span class="cost-pill" title="Потрачено сегодня">💰 {{ "%.0f"|format(dc.total_rub) }}₽/{{ "%.0f"|format(dc.limit_rub) }}₽</span>
-                {% endif %}
-                {% if demo_mode %}
-                <span class="llm-pill">⚠ DEMO</span>
-                {% endif %}
-            </div>
-        </div>
-    </header>
-    <main>
-        <div class="shell">{% block content %}{% endblock %}</div>
-    </main>
-    <footer>
-        <small>БИТ.Технолог · 2026 · Сергей Жуков, Первый БИТ</small>
-    </footer>
+
+{# ============================================================
+   HEADER (тёмный — в стиле вложенного прототипа)
+   ============================================================ #}
+<header class="app-header">
+    <a href="/" class="app-brand">
+        <span class="emoji">🔥</span><span>БИТ.Технолог</span>
+    </a>
+    <span class="app-env">{% block env_label %}БИТ.Технолог · v0.7 · пилот 27.07{% endblock %}</span>
+    {% if demo_mode %}<span class="app-mock-badge" title="LLM в мок-режиме (ключ не задан)">MOCK LLM</span>{% else %}<span class="app-mock-badge real">REAL LLM</span>{% endif %}
+    <div class="app-spacer"></div>
+    {% set _cur = current_role_from_request(request) %}
+    <span class="app-user-label">Роль:</span>
+    <select id="role-switcher" class="app-role-select" aria-label="Переключить роль">
+        <option value="technologist">👨‍🔧 Технолог</option>
+        <option value="main_technologist">👑 Гл. технолог</option>
+        <option value="workshop_chief">🏭 Нач. цеха</option>
+        <option value="admin">🛡 Админ</option>
+    </select>
+    {% set dc = daily_cost() %}
+    {% if dc.total_rub >= dc.limit_rub %}
+    <span class="app-cost-pill exceeded">⛔ {{ "%.0f"|format(dc.total_rub) }}₽/{{ "%.0f"|format(dc.limit_rub) }}₽</span>
+    {% elif dc.total_rub >= dc.limit_rub * 0.8 %}
+    <span class="app-cost-pill warn">⚠ {{ "%.0f"|format(dc.total_rub) }}₽/{{ "%.0f"|format(dc.limit_rub) }}₽</span>
+    {% else %}
+    <span class="app-cost-pill">💰 {{ "%.0f"|format(dc.total_rub) }}₽/{{ "%.0f"|format(dc.limit_rub) }}₽</span>
+    {% endif %}
+    <a href="/help" style="color:#c3d0de; margin-left:14px; font-size:12px">Помощь</a>
+</header>
+
+<div class="app-layout">
+{# ============================================================
+   NAV (left sidebar)
+   ============================================================ #}
+<nav class="app-nav" id="app-nav">
+    <a href="/help" class="item {% if active == 'help' %}active{% endif %}">📖 Как это работает</a>
+
+    <div class="sect">Работа</div>
+    <a href="/" class="item {% if active == 'dashboard' %}active{% endif %}">🗂 Мои задачи <span class="cnt" id="cntTasks">5</span></a>
+    <a href="/products" class="item {% if active == 'products' %}active{% endif %}">🚒 Изделия и состав</a>
+    <a href="/detail/detail-lmsha-301314-010" class="item {% if active == 'detail' %}active{% endif %}">📄 Упор продольный</a>
+    <a href="/notices" class="item {% if active == 'notices' %}active{% endif %}">📬 Извещения <span class="cnt" id="cntNotices">1</span></a>
+
+    <div class="sect">Настройка</div>
+    <a href="/profiles" class="item {% if active == 'profiles' %}active{% endif %}">⚙️ Профили выхода РС</a>
+    <a href="/knowledge" class="item {% if active == 'knowledge' %}active{% endif %}">🧠 База знаний</a>
+    <a href="/llm-admin" class="item {% if active == 'llm' %}active{% endif %}">🤖 Модели LLM</a>
+
+    <div class="sect">Система</div>
+    <a href="/admin" class="item">⚙ Админка</a>
+    <a href="/pilot" class="item">📊 Пилот</a>
+    <a href="/audit" class="item">📋 Audit</a>
+</nav>
+
+<main class="app-main">
+{% block content %}{% endblock %}
+</main>
+</div>
+
+<footer>БИТ.Технолог v0.7 — пилот 27.07.2026 · <a href="/health">health</a> · <a href="/help">помощь</a></footer>
+
 <script>
-// Role switcher (F16.9: A4-17 — тост при смене роли)
-const ROLE_NAMES = {
-    technologist: 'Технолог',
-    main_technologist: 'Гл. технолог',
-    normirovshchik: 'Нормировщик',
-    constructor: 'Конструктор',
-    workshop_chief: 'Нач. цеха',
-    quality: 'Контролёр ОТК',
-    admin: 'Администратор'
-};
+// Role switcher (сохраняем в cookie)
 document.getElementById('role-switcher')?.addEventListener('change', async (e) => {
     const role = e.target.value;
-    // BUG-2026-07-20-03: X-Requested-With: XMLHttpRequest — обязательно для CSRF check
-    // (в production PILOT_CSRF_DISABLED=false, без этого заголовка POST 403)
     await fetch('/api/role/switch', {
         method: 'POST',
-        credentials: 'same-origin',  // отправлять cookies (нужно для set-cookie)
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'  // ← CSRF-обход (htmx-стиль)
-        },
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         body: JSON.stringify({role: role})
     }).then(r => {
-        if (!r.ok) {
-            console.error('role switch failed:', r.status, r.statusText);
-            showToast('Ошибка переключения роли: ' + r.status, 'error');
-            return;
-        }
+        if (!r.ok) { showToast('Ошибка переключения роли: ' + r.status, 'error'); return; }
         return r.json();
     }).then(data => {
-        if (data) {
-            showToast('Роль: ' + (ROLE_NAMES[role] || role), 'success');
-            setTimeout(() => location.reload(), 400);
-        }
-    }).catch(e => {
-        console.error('role switch error:', e);
-        showToast('Сетевая ошибка', 'error');
+        if (data) { showToast('Роль: ' + role, 'success'); setTimeout(() => location.reload(), 400); }
     });
 });
-// Load current role — теперь cookie не httponly (BUG-2026-07-20-01 fix)
 (function() {
     const sel = document.getElementById('role-switcher');
     if (!sel) return;
     const match = document.cookie.match(/bit_role=([^;]+)/);
     if (match) sel.value = match[1];
 })();
+
+// Показ/скрытие nav по роли
+const ROLE_NAV = {
+    'technologist': ['dashboard', 'products', 'detail', 'notices', 'knowledge'],
+    'main_technologist': ['dashboard', 'products', 'detail', 'notices', 'profiles', 'knowledge'],
+    'workshop_chief': ['dashboard', 'products', 'detail'],
+    'admin': ['dashboard', 'products', 'detail', 'notices', 'profiles', 'knowledge', 'llm'],
+    'normirovshchik': ['detail', 'knowledge', 'profiles'],
+};
+const role = document.cookie.match(/bit_role=([^;]+)/)?.[1] || 'technologist';
+const allowed = ROLE_NAV[role] || ['help'];
+document.querySelectorAll('.app-nav .item').forEach(el => {
+    const href = el.getAttribute('href') || '';
+    if (href === '/help') return;
+    const scr = href === '/' ? 'dashboard' :
+                href === '/products' ? 'products' :
+                href.startsWith('/detail/') ? 'detail' :
+                href === '/notices' ? 'notices' :
+                href === '/profiles' ? 'profiles' :
+                href === '/knowledge' ? 'knowledge' :
+                href === '/llm-admin' ? 'llm' : null;
+    if (!scr) return;
+    if (!allowed.includes(scr) && !el.classList.contains('active')) {
+        el.classList.add('hidden');
+    }
+});
 </script>
 </body>
 </html>

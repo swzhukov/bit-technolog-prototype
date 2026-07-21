@@ -1,11 +1,11 @@
-{% extends "_v6_layout.html" %}
+{% extends "base.html" %}
 {% block title %}Изделия и состав — БИТ.Технолог{% endblock %}
 {% block content %}
 <h1>🚒 Изделия и состав</h1>
 <p class="sub">Дерево: модель → исполнение (заводской №) → сборки → детали. Одна деталь может входить в несколько сборок. Состав может отличаться по исполнениям.</p>
 
-<div class="v6-toolbar">
-    <input placeholder="🔍 Поиск по обозначению/наименованию" style="width:280px">
+<div class="v7-toolbar">
+    <input placeholder="🔍 Поиск по обозначению/наименованию" style="min-width:280px">
     <select>
         <option>Все виды продукции</option>
         <option>АЦ — автоцистерны</option>
@@ -25,14 +25,14 @@
     </select>
 </div>
 
-<div class="v6-panel">
+<div class="v7-panel">
     <div style="font-size:13.5px">
 
         <div style="padding:6px 8px; font-weight:700">🚒 АЦ-8,0-40 <span class="badge">модель</span> <span class="badge blue">шасси: КАМАЗ 43118 (из модели)</span> <span class="badge">вид: Кузовная техника</span> <span class="badge">профиль РС: КТ-этапы-по-участкам</span></div>
         <div style="padding:6px 8px; margin-left:22px">📦 Исполнение зав. №144 <span class="badge ok">базовое · контракт МЧС-2026/31</span> <span class="badge blue">ТК: 84% готово</span></div>
         <div style="padding:6px 8px; margin-left:22px; background:#fff8e1; border-radius:6px; cursor:pointer" onclick="document.getElementById('cfg147').style.display = document.getElementById('cfg147').style.display === 'none' ? 'block' : 'none'">
             📦 <b>Исполнение зав. №147</b> <span class="badge warn">отличия: лебёдка + доп. отсек ПТВ</span> <span class="badge bad">затронуто извещением И-2026-014</span>
-            <span style="color:var(--v6-muted); font-size:11px; margin-left:6px">▼ раскрыть отличия</span>
+            <span style="color:var(--v7-muted); font-size:11px; margin-left:6px">▼ раскрыть отличия</span>
         </div>
         <div id="cfg147" style="display:none; margin-left:44px; margin-top:4px; background:#fff8e1; padding:10px; border-left:3px solid #e6a700; border-radius:6px; font-size:12.5px">
             <b>Отличия исполнения №147 от базового №144</b>
@@ -58,7 +58,7 @@
         <div style="padding:6px 8px; margin-top:14px; font-weight:700">🔗 УМК — упоры и растяжки для АО КАМАЗ <span class="badge">массовая продукция · 9442 шт/год</span> <span class="badge">профиль РС: УМК-одноэтапная</span></div>
         <div style="padding:6px 8px; margin-left:22px; background:#fbeef0; border-radius:6px">
             📄 <b>Упор продольный ЛМША.301314.010</b> <span class="badge blue">входит в 3 сборки ↗</span> <span class="badge blue">ТК: черновик v2</span> —
-            <a href="/v6/detail/detail-lmsha-301314-010">открыть карточку →</a>
+            <a href="/detail/detail-lmsha-301314-010">открыть карточку →</a>
         </div>
         <div style="padding:6px 8px; margin-left:22px">📄 Растяжка пружинная ЛМША.301712.000 <span class="badge warn">вопрос AI</span></div>
         <div style="padding:6px 8px; margin-left:44px">Пластина ЛМША.301714.006 <span class="badge blue">входит в 4 сборки ↗</span> — пример many-to-many: одна деталь → упор, растяжка, каркас КБР, отсек</div>
@@ -67,14 +67,14 @@
         <div style="padding:6px 8px; margin-top:14px; font-weight:700">📦 Реальные детали в БД ({{ real_details|length }})</div>
         {% for d in real_details[:10] %}
         <div style="padding:4px 8px; margin-left:22px; font-size:12.5px">
-            <a href="/v6/detail/{{ d.id }}">{{ d.designation }}</a> — {{ d.name }} {% if d.material %}<span class="badge">{{ d.material }}</span>{% endif %}
+            <a href="/detail/{{ d.id }}">{{ d.designation }}</a> — {{ d.name }} {% if d.material %}<span class="badge">{{ d.material }}</span>{% endif %}
         </div>
         {% endfor %}
         {% endif %}
     </div>
 </div>
 
-<div class="v6-note ok">
+<div class="v7-note ok">
     🧭 <b>Как читать:</b> шасси указано один раз — в модели (не дублируется в деталях). Исполнение №147 наследует состав модели, храним только отличия.
     Значок «входит в N сборок» — извещение по такой детали автоматически найдёт все затронутые ТК и РС.
 </div>

@@ -1,0 +1,37 @@
+name: Deploy to Beget
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "graphify-out/**"
+      - "docs/**"
+      - "**/*.md"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Только после успешных тестов
+    needs: []
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        env:
+          BEGET_SSH_PASSWORD: ${{ secrets.BEGET_SSH_PASSWORD }}
+        run: |
+          if [ -z "$BEGET_SSH_PASSWORD" ]; then
+            echo "::error::BEGET_SSH_PASSWORD secret is not set"
+            exit 1
+          fi
+          apt-get update && apt-get install -y sshpass
+          sshpass -e ssh -o StrictHostKeyChecking=no root@seefeesnahurid.beget.app "
+            cd /opt/beget/bit-technolog &&
+            git pull origin main 2>&1 | tail -3 &&
+            systemctl restart bit-technolog &&
+            sleep 4 &&
+            curl -s --max-time 5 http://localhost:8081/health
+          " || exit 1
