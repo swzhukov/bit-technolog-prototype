@@ -64,7 +64,7 @@ from gateways.one_c_gateway import get_gateway, OneCResourceSpec  # noqa
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="БИТ.Технолог", version="0.8.0")
+app = FastAPI(title="БИТ.Технолог", version="0.8.5")
 templates = Jinja2Templates(directory=str(ROOT / "templates"))
 
 # Jinja2 filters
@@ -171,7 +171,7 @@ async def login_post(request: Request):
         return templates.TemplateResponse(
             "login.html",
             {"request": request, "error": "Неверный логин или пароль", "is_mock_mode": True,
-             "app_env": "ПРОТОТИП", "app_version": "0.8.0", "daily_cost": 0, "cost_budget": 500},
+             "app_env": "ПРОТОТИП", "app_version": "0.8.5", "daily_cost": 0, "cost_budget": 500},
         )
     sid = _create_session(username)
     response = RedirectResponse(url="/", status_code=303)
@@ -262,7 +262,7 @@ def get_template_context(request: Request, user: Optional[User] = None) -> Dict[
         "is_mock_mode": registry.is_mock_mode(),
         "daily_cost": registry.daily_cost_estimate(),
         "cost_budget": 500.0,
-        "app_version": "0.8.0",
+        "app_version": "0.8.5",
         "app_env": "ПРОТОТИП",
         "ROLES": ROLES,
         "counters": {"notices": n_open_notices},  # для nav
@@ -822,7 +822,7 @@ async def health():
         n_etalons = result["n"] if result else 0
         return {
             "status": "ok",
-            "version": "0.8.0",
+            "version": "0.8.5",
             "db": "ok",
             "items": n_items,
             "etalons": n_etalons,
