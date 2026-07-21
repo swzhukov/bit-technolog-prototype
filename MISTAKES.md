@@ -554,3 +554,27 @@
 4. `web_fetch` на `<owner>/<repo>` — title содержит `<repo>`
 
 **Lesson:** push прошёл ≠ репо доступно. Всегда проверять через API/web после push, особенно если не настраивал репо сам.
+
+## 2026-07-21: PAT без `workflow` scope блокирует push с .github/workflows/
+
+**Ситуация:** После REPO_AUDIT закоммитил M35 (REPO_CLEANUP). Push застрял:
+```
+! [remote rejected] main -> main (refusing to allow a Personal Access Token 
+to create or update workflow `.github/workflows/ci.yml` without `workflow` scope)
+```
+
+**Причина:** GitHub теперь требует `workflow` scope в PAT для push'а workflow-файлов. Это защита от утечки секретных tokens через malicious PR.
+
+**Решение (3 шага):**
+1. `git rm -r --cached .github/` — убрать workflows из индекса (но оставить на диске для справки)
+2. Добавить `.github/workflows/` в `.gitignore`
+3. `git commit --amend --no-edit` — перезаписать последний коммит
+4. `git push origin main` — теперь пройдёт
+
+**Проверка:** `git ls-remote origin main` → должен показать SHA последнего коммита.
+
+**Альтернатива:** Создать новый PAT с галочкой `workflow` при создании. Но для прототипа (пока нет CI) проще workflows держать локально.
+
+**Когда workflows понадобятся по-настоящему** (Sprint 11+):
+- Запросить у Сергея новый PAT с `workflow` scope, ИЛИ
+- Использовать GitHub App вместо PAT
