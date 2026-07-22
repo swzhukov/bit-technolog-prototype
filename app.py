@@ -850,6 +850,9 @@ async def api_export_to_1c(request: Request, item_id: int):
     user = get_user_from_request(request)
     if not user:
         raise HTTPException(401)
+    normalize_user_role(user)
+    if user.role not in ("admin", "main_technologist", "technologist"):
+        raise HTTPException(403, "Недостаточно прав")
     item = db.get_item_with_bom(item_id)
     if not item:
         raise HTTPException(404, "Item not found")
@@ -966,6 +969,13 @@ async def notice_resolve(request: Request, notice_id: int):
     user = get_user_from_request(request)
     if not user:
         raise HTTPException(401)
+    normalize_user_role(user)
+    if user.role not in ("admin", "main_technologist", "technologist"):
+        raise HTTPException(403, "Только технолог может решать извещения")
+    # F-008: 404 check
+    n = get_notice(notice_id)
+    if not n:
+        raise HTTPException(404, "Извещение не найдено")
     decision = form.get("decision", "manual_review")
     notes = form.get("notes", "")
     result = resolve_notice_svc(notice_id, user.display_name, decision, notes)
@@ -1193,6 +1203,9 @@ async def api_confirm_operation(operation_id: int, request: Request, new_time: f
     user = get_user_from_request(request)
     if not user:
         raise HTTPException(401)
+    normalize_user_role(user)
+    if user.role not in ("admin", "main_technologist", "technologist"):
+        raise HTTPException(403, "Недостаточно прав")
     if new_time is None:
         try:
             body = await request.json()
@@ -1219,6 +1232,7 @@ async def api_update_operation(operation_id: int, request: Request):
     user = get_user_from_request(request)
     if not user:
         raise HTTPException(401)
+    normalize_user_role(user)
     # M38-fix A21: RBAC — только редакторы (не workshop_chief)
     if user.role not in ("admin", "main_technologist", "technologist"):
         raise HTTPException(403, "Недостаточно прав для редактирования")
@@ -1282,6 +1296,9 @@ async def api_regenerate(tech_card_id: int, request: Request):
     user = get_user_from_request(request)
     if not user:
         raise HTTPException(401)
+    normalize_user_role(user)
+    if user.role not in ("admin", "main_technologist", "technologist"):
+        raise HTTPException(403, "Недостаточно прав")
     tc = db.get_tech_card_full(tech_card_id)
     if not tc:
         raise HTTPException(404)
@@ -1298,6 +1315,9 @@ async def api_approve(tech_card_id: int, request: Request):
     user = get_user_from_request(request)
     if not user:
         raise HTTPException(401)
+    normalize_user_role(user)
+    if user.role not in ("admin", "main_technologist"):
+        raise HTTPException(403, "Только главный технолог или администратор может утвердить ТК")
     tc = db.get_tech_card_full(tech_card_id)
     if not tc:
         raise HTTPException(404)
@@ -1386,6 +1406,9 @@ async def api_process_notice(notice_id: int, request: Request):
     user = get_user_from_request(request)
     if not user:
         raise HTTPException(401)
+    normalize_user_role(user)
+    if user.role not in ("admin", "main_technologist", "technologist"):
+        raise HTTPException(403, "Недостаточно прав")
     try:
         body = await request.json() if request.headers.get("content-type") == "application/json" else {}
     except Exception:

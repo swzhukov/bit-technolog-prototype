@@ -1647,3 +1647,34 @@ except Exception:
 ### Цикл 4 итог
 
 С **чистого листа** найдено 3 реальных проблемы (1 perf + 1 missing feature + 1 duplicate), все закрыты. 0 проблем после фиксов.
+
+## M38-final (2026-07-22, 19:30) — ПОЛНЫЙ аудит за один проход
+
+**Контекст:** Сергей дал промт "полный аудит за один проход". Сделал инвентаризацию (38 endpoints, 18 templates, 31 FK), 4 viewpoints × curl testing = 164 теста.
+
+### Найдено 13 проблем (1 проход)
+
+**F-001..F-006 (HIGH): 6 endpoints не вызывали `normalize_user_role`**
+- api_export_to_1c, api_confirm_operation, api_update_operation, api_regenerate, api_approve, api_process_notice
+- Регресс M38-c3-fix: добавил normalize только в 3 endpoints, забыл 6 других
+- Admin (techadmin) получал 403 на эти endpoints
+
+**F-007..F-011 (HIGH): нет RBAC enforcement**
+- /notices/{id}/resolve — workshop_chief мог решать
+- /api/change-notices/{id}/process — workshop_chief мог обработать
+- /api/tech-cards/.../regenerate — workshop_chief мог перегенерировать
+- /api/tech-cards/.../approve — workshop_chief мог утвердить
+
+**F-008 (MEDIUM): нет 404 check**
+- /notices/999/resolve → 303 (вместо 404)
+
+### Фиксы (один коммит, 23 строки)
+
+Все 11 правок в app.py: добавлен `normalize_user_role` + RBAC + 404.
+
+### Lesson
+
+1. **Не делать "точечные" фиксы — делать "полный sweep"**. В M38-c3 я добавил normalize только в 3 endpoint, нашёл ещё 6 только в полном аудите.
+2. **Worktree для каждого аудита** — изолировал фиксы в `audit/m38-final`.
+3. **Перед каждым большим коммитом — карта ВСЕХ endpoints** (CARTE.md).
+4. **Multi-role curl matrix обязательно** — 26 GET × 4 роли + 15 POST × 4 роли = 164 теста.
