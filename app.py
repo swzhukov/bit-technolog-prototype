@@ -349,6 +349,7 @@ def get_template_context(request: Request, user: Optional[User] = None) -> Dict[
     return {
         "request": request,
         "current_user": user,
+        "user": user,  # M38-fix: alias for templates using {{ user.role }}
         "is_mock_mode": registry.is_mock_mode(),
         "daily_cost": registry.daily_cost_estimate(),
         "cost_budget": 500.0,
