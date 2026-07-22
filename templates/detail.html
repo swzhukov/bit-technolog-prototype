@@ -71,7 +71,127 @@
   </div>
 </div>
 
+<div class="panel">
+<table class="tbl">
+  <thead>
+    <tr>
+      <th>№</th>
+      <th>Операция</th>
+      <th>Цех/Участок</th>
+      <th>Профессия</th>
+      <th>Тшт, мин</th>
+      <th>Тпз, мин</th>
+      <th>Доказательство</th>
+      <th>Действие</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for op in tech_card.operations %}
+      {% set ev = evidence_map.get(op.id) %}
+      <tr>
+        <td>{{ op.op_number }}</td>
+        <td>
+          <b><span {% if user_can_edit %}class="editable"{% endif %} data-op="{{ op.id }}" data-field="name" title="Клик для редактирования">{{ op.name }}</span></b>
+          {% if ev and ev.analogs and ev.evidence_level == "red" %}<br><span class="muted" style="font-size: 11.5px;">Проверьте вручную</span>{% endif %}
+        </td>
+        <td>
+          <b>{{ workshop_names.get(op.workshop_code, op.workshop_code) or '—' }}</b>
+          {% if op.workshop_code and workshop_names.get(op.workshop_code) %}<br><span class="muted" style="font-size: 11px;">{{ op.workshop_code }}/{{ op.site_code or '—' }}</span>{% endif %}
+        </td>
+        <td>
+          <b>{{ profession_names.get(op.profession_code, op.profession_code) or '—' }}</b>
+          {% if op.profession_code %}<br><span class="muted" style="font-size: 11px;">{{ op.profession_code }}</span>{% endif %}
+        </td>
+        <td><b><span {% if user_can_edit %}class="editable"{% endif %} data-op="{{ op.id }}" data-field="time_per_unit_min" data-type="number" title="Клик для редактирования">{{ op.time_per_unit_min or 0 }}</span></b></td>
+        <td><span {% if user_can_edit %}class="editable"{% endif %} data-op="{{ op.id }}" data-field="time_setup_min" data-type="number" title="Клик для редактирования">{{ op.time_setup_min or 0 }}</span></td>
+        <td>
+          {% if ev %}
+            {% if ev.source == 'factory_data' %}<span class="badge ok">{{ ev.source_label }}</span>
+            {% elif ev.source == 'analog_estimate' %}<span class="badge warn">{{ ev.source_label }}</span>
+            {% elif ev.source == 'ai_guess' %}<span class="badge bad">{{ ev.source_label }}</span>
+            {% else %}<span class="badge">{{ ev.source_label }}</span>{% endif %}
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td>
+          {% if ev and ev.analogs %}
 
+            <a class="btn btn-ghost" onclick="document.getElementById('ev-{{ ev.operation_id }}').style.display = (document.getElementById('ev-{{ ev.operation_id }}').style.display === 'none' ? 'block' : 'none')"title="Показать эталонные операции, похожие на эту">Аналоги</a>
+          {% endif %}
+          <button class="btn btn-ghost" id="confirm-btn-{{ op.id }}" onclick="showConfirmInput({{ op.id }}, {{ op.time_per_unit_min or 0 }})"title="Подтвердить норму (помечает операцию как проверенную технологом)">Подтвердить</button>
+          <span id="confirm-input-{{ op.id }}" style="display:none; margin-left:8px;">
+            <input type="number" step="0.1" min="0" id="confirm-val-{{ op.id }}" value="{{ op.time_per_unit_min or 0 }}" style="width: 70px; padding: 4px 6px; border: 1px solid var(--v8-line); background: var(--v8-panel-2); color: var(--v8-fg); border-radius: 4px;">
+            <button class="btn btn-primary btn-sm" onclick="submitConfirm({{ op.id }})">OK</button>
+            <button class="btn btn-ghost btn-sm" onclick="hideConfirmInput({{ op.id }})">Отмена</button>
+          </span>
+        </td>
+      </tr>
+      {% if ev and ev.analogs %}
+      <tr id="ev-{{ ev.operation_id }}" style="display: none;">
+        <td colspan="9" style="background: var(--v8-panel-2); padding: 12px 18px;">
+          <b style="font-size: 12px;">Топ-{{ ev.analogs|length }} аналогов из эталонов:</b>
+          <table class="tbl" style="margin-top: 8px;">
+            <thead>
+              <tr>
+                <th>Эталон</th>
+                <th>Операция</th>
+                <th>Сходство</th>
+                <th>Тшт, мин</th>
+                <th>Причина</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for a in ev.analogs %}
+              <tr>
+                <td><b>{{ a.etalon_designation }}</b></td>
+                <td>{{ a.operation_name }}</td>
+                <td>
+                  {% if a.similarity >= 0.9 %}<span class="badge ok">{{ (a.similarity * 100)|round|int }}%</span>
+                  {% elif a.similarity >= 0.5 %}<span class="badge warn">{{ (a.similarity * 100)|round|int }}%</span>
+                  {% else %}<span class="badge bad">{{ (a.similarity * 100)|round|int }}%</span>{% endif %}
+                </td>
+                <td>{{ a.time_per_unit_min }}</td>
+                <td class="muted" style="font-size: 12px;">{{ a.reason }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </td>
+      </tr>
+      {% endif %}
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="empty">
+  <div style="font-size: 13px; color: var(--v8-muted); padding: 24px;">
+    Нет ТК для этой детали. Нажмите «Сгенерировать ТК» — система подберёт аналоги и предложит нормы.
+  </div>
+</div>
+{% endif %}
+
+<h2>Эталоны в базе знаний ({{ etalons|length }})</h2>
+<div class="panel">
+{% if etalons %}
+<table class="tbl">
+  <thead>
+    <tr><th>Обозначение</th><th>Название</th><th>Продукт</th><th>Утверждено</th><th>Дата</th></tr>
+  </thead>
+  <tbody>
+    {% for e in etalons %}
+    <tr>
+      <td><b>{{ e.designation }}</b></td>
+      <td>{{ e.name }}</td>
+      <td><span class="badge">{{ e.product_type or '—' }}</span></td>
+      <td>{{ e.approved_by or '—' }}</td>
+      <td>{{ e.approved_date or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">Эталоны не найдены.</div>
+{% endif %}
 </div>
 
 <script>
