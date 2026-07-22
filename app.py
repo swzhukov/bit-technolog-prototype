@@ -507,6 +507,17 @@ async def detail(request: Request, item_id: int, flash_kind: str = "", flash_mes
 # ГЕНЕРАЦИЯ ТК (Sprint 8+)
 # ============================================================
 
+@app.get("/details/new")
+async def detail_new_placeholder(request: Request):
+    """M36-fix2: кнопка 'Новая деталь' в пустой выдаче вела на 404.
+    До пилота 27.07: полноценная форма создания изделия не нужна (51 предзаполнено).
+    После пилота: Sprint 6 — полноценная форма с валидацией, RBAC, составом.
+    """
+    user = get_user_from_request(request)
+    ctx = get_template_context(request, user)
+    return templates.TemplateResponse("detail_new_placeholder.html", ctx)
+
+
 @app.get("/items/{item_id}/generate", response_class=HTMLResponse)
 async def item_generate_form(request: Request, item_id: int):
     user = get_user_from_request(request)
