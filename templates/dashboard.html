@@ -5,10 +5,9 @@
 <h1>Добрый день{% if current_user %}, {{ current_user.display_name.split()|first }}{% endif %} </h1>
 <p class="lead">У вас {{ counters.drafts }} черновиков, {{ counters.review }} ждут утверждения, {{ counters.notices }} извещений требуют решения.</p>
 
-<div style="display: flex; gap: 12px; margin: 20px 0 24px; flex-wrap: wrap;">
-  <a class="btn btn-primary" href="/products" style="font-size: 14px; padding: 10px 18px;">Создать ТК</a>
-  <a class="btn btn-secondary" href="/notices" style="font-size: 14px; padding: 10px 18px;">Извещения ({{ counters.notices }})</a>
-  <a class="btn btn-ghost" href="/knowledge" style="font-size: 14px; padding: 10px 18px;">База знаний ({{ counters.etalons }})</a>
+<div style="display: flex; gap: 12px; margin: 20px 0 24px; flex-wrap: wrap; align-items: center;">
+  <a class="btn btn-primary" href="/products" style="font-size: 14px; padding: 10px 18px;">Открыть список изделий</a>
+  <span class="muted" style="font-size: 12.5px;">Или начните с <a href="/detail/{{ top_draft.item_id }}">{{ top_draft.designation }}</a> — последний черновик ждёт правки.</span>
 </div>
 
 <div class="counters">

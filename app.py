@@ -297,11 +297,19 @@ async def dashboard(request: Request):
         "green_guess": green["red"],
     }
 
-    # Задачи (последние 5)
+    # Задачи (последние 5) — Q-007: "Мои задачи" = ТК, которые я генерил (по pilot_runs.user)
     tasks = db.query("""
         SELECT tc.id AS tech_card_id, i.id AS item_id, i.designation, i.name,
                tc.status, tc.version,
-               p.designation AS product_model
+               p.designation AS product_model,
+               pr.id AS pilot_run_id, pr.user AS pilot_user
+        FROM tech_cards tc
+        JOIN items i ON i.id = tc.item_id
+        LEFT JOIN product_models p ON p.id = i.product_model_id
+        INNER JOIN pilot_runs pr ON pr.tc_id = tc.id AND pr.user = ?
+        ORDER BY tc.updated_at DESC
+        LIMIT 5
+    """, (user.username,))
         FROM tech_cards tc
         JOIN items i ON i.id = tc.item_id
         LEFT JOIN product_models p ON p.id = i.product_model_id
@@ -327,6 +335,7 @@ async def dashboard(request: Request):
         "notices": notices,
         "metrics": metrics,
         "b_history": b_history,
+        "top_draft": tasks[0] if tasks else None,  # Q-005: контекстная подсказка
     })
     return templates.TemplateResponse("dashboard.html", ctx)
 

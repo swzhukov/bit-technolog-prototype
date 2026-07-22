@@ -1,12 +1,11 @@
 """
-auth.py — авторизация (5 ролей по прототипу v0.6).
+auth.py — авторизация (4 роли после M35q — схлопнуто до пилота 27.07).
 
-ADR-0011: Роли из прототипа (5 ролей):
+ADR-0011: Роли:
 1. technologist       — технолог (Баранов, Голубев, Воробьев)
 2. main_technologist  — главный технолог
 3. workshop_chief     — начальник цеха
-4. tech_admin         — технический администратор (настройка профилей РС, НЕ LLM)
-5. llm_admin          — LLM-администратор (назначение моделей)
+4. admin              — администратор (схлопнуто: tech_admin + llm_admin → admin)
 
 В препилоте — простая Basic Auth. В пилоте — login-форма.
 """
@@ -19,13 +18,29 @@ from typing import Optional
 from repositories import db
 
 # ============================================================
-# РОЛИ
+# РОЛИ (M35q: 4 роли — admin суперсет tech_admin + llm_admin)
 # ============================================================
+
+_ADMIN_PERMISSIONS = [
+    "view_all",
+    "edit_all",
+    "manage_rs_profiles",
+    "manage_llm_providers",
+    "manage_llm_model_assignments",
+    "manage_changelog",
+    "view_audit_logins",
+    "view_llm_calls",
+]
+
+# Алиасы для совместимости с БД (pilot_users содержит role='tech_admin'/'llm_admin')
+_ROLE_ALIASES = {
+    "tech_admin": "admin",
+    "llm_admin": "admin",
+}
 
 ROLES = {
     "technologist": {
         "display": "Технолог",
-        "icon": "👤",
         "permissions": [
             "view_tech_cards",
             "edit_own_tech_cards",
@@ -37,7 +52,6 @@ ROLES = {
     },
     "main_technologist": {
         "display": "Главный технолог",
-        "icon": "🔧",
         "permissions": [
             "view_tech_cards",
             "edit_tech_cards",
@@ -53,7 +67,6 @@ ROLES = {
     },
     "workshop_chief": {
         "display": "Начальник цеха",
-        "icon": "🏭",
         "permissions": [
             "view_tech_cards",
             "approve_tech_cards",
@@ -62,34 +75,16 @@ ROLES = {
             "view_etalons",
         ],
     },
-    "tech_admin": {
-        "display": "Тех. администратор",
-        "icon": "⚙️",
-        "permissions": [
-            "view_all",
-            "edit_all",
-            "manage_rs_profiles",
-            "manage_llm_providers",
-            "manage_llm_model_assignments",
-            "manage_changelog",
-            "view_audit_logins",
-            "view_llm_calls",
-        ],
-    },
-    "llm_admin": {
-        "display": "LLM администратор",
-        "icon": "🤖",
-        "permissions": [
-            "view_llm_calls",
-            "manage_llm_providers",
-            "manage_llm_model_assignments",
-        ],
+    "admin": {
+        "display": "Администратор",
+        "permissions": _ADMIN_PERMISSIONS,
     },
 }
 
 
 def has_permission(role: str, permission: str) -> bool:
-    """Проверить, есть ли у роли право."""
+    """Проверить, есть ли у роли право. M35q: алиасы tech_admin/llm_admin → admin."""
+    role = _ROLE_ALIASES.get(role, role)
     r = ROLES.get(role, {})
     return permission in r.get("permissions", [])
 
@@ -109,11 +104,16 @@ class User:
 
     @property
     def role_display(self) -> str:
-        return ROLES.get(self.role, {}).get("display", self.role)
+        role = _ROLE_ALIASES.get(self.role, self.role)
+        return ROLES.get(role, {}).get("display", self.role)
 
     @property
     def role_icon(self) -> str:
-        return ROLES.get(self.role, {}).get("icon", "👤")
+        return ""  # M35q: убрали emoji, чтобы не нарушать правило 50+ технолога
+
+    @property
+    def is_admin(self) -> bool:
+        return _ROLE_ALIASES.get(self.role, self.role) == "admin"
 
     def to_dict(self) -> dict:
         return {
