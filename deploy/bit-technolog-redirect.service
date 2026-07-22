@@ -1,0 +1,18 @@
+[Unit]
+Description=БИТ.Технолог — HTTP→HTTPS redirect
+After=network.target bit-technolog.service
+Wants=bit-technolog.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/beget/bit-technolog
+ExecStart=/opt/beget/bit-technolog/venv/bin/python3 /opt/beget/bit-technolog/deploy/http_redirect.py
+Restart=always
+RestartSec=3
+StandardOutput=append:/var/log/bit-technolog-redirect.log
+StandardError=append:/var/log/bit-technolog-redirect.err.log
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
