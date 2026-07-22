@@ -501,7 +501,7 @@ class LLMProviderRegistry:
                     return MockLLMProvider()
             endpoint = row["endpoint"] or ""
             # model_name из assignment (model_name) перебивает дефолт провайдера
-            return OpenAIProvider(api_key=api_key, endpoint=endpoint, model=row.get("model_name") or "gpt-4o-mini")
+            return OpenAIProvider(api_key=api_key, endpoint=endpoint, model=row["model_name"] or "gpt-4o-mini")
 
         return MockLLMProvider()
 
