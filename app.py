@@ -792,7 +792,7 @@ async def item_generate_post(request: Request, item_id: int):
             "source_label": "Аналог" if analogs_for_evidence else "AI",
             "note": (f"На основе {analogs_for_evidence[0]['etalon_designation']} "
                     f"({int(analogs_for_evidence[0]['similarity']*100)}%)" if analogs_for_evidence
-                    else "Догадка AI (нет аналогов)"),
+                    else "Предположение AI (нет аналогов)"),
             "confidence": analogs_for_evidence[0]["similarity"] if analogs_for_evidence else 0.0,
             "analogs": analogs_for_evidence,
         }

@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 class Source(str, Enum):
     FACTORY_DATA = "factory_data"      # Из утверждённого ТП
     ANALOG_ESTIMATE = "analog_estimate"  # Оценка по аналогам
-    AI_GUESS = "ai_guess"              # Догадка AI
+    AI_GUESS = "ai_guess"              # Предположение AI
     MANUAL = "manual"                   # Вручную технологом
 
 
@@ -61,7 +61,7 @@ class EvidenceLevel(str, Enum):
 LEVEL_LABELS = {
     EvidenceLevel.GREEN.value: "Подтверждено",
     EvidenceLevel.YELLOW.value: "Похоже на правду",
-    EvidenceLevel.RED.value: "Догадка AI",
+    EvidenceLevel.RED.value: "Предположение AI",
     EvidenceLevel.GRAY.value: "Нет данных",
 }
 
@@ -216,7 +216,7 @@ def collect_evidence_for_tech_card(tech_card_id: int) -> List[OperationEvidence]
                 source_label=SOURCE_LABELS[Source.AI_GUESS.value],
                 level_label=LEVEL_LABELS[EvidenceLevel.RED.value],
                 analogs=analogs,
-                note="Догадка AI. Эталонов в базе нет.",
+                note="Предположение AI. Эталонов в базе нет.",
             ))
 
     return evidences
