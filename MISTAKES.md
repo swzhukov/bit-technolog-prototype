@@ -960,3 +960,101 @@ else:
 db.execute(f"UPDATE operations SET {field} = ? WHERE id = ?", (sql_value, op_id))
 ```
 
+
+## M35u (2026-07-22, 14:30) — Q-001: реальная петля обратной связи (закрытие Sprint 5 ADR-0011)
+
+**Ситуация:** Сергей: "реализуй полную петлю" (3-4 дня, Sprint 5 из ADR-0011).
+
+**Открытие (важное):** `api_approve` УЖЕ реализует петлю — INSERT в `etalons`, `finish_tc_generation`, `record_green_pct`. Не хватало только **визуализации** — дашборд показывал placeholder "17 ТК, 42% → 61%" из M25.
+
+**Что сделано (M35u):**
+- Функция `_compute_learning()` в `app.py`:
+  - `approved_last_28d` — `SELECT count(*) FROM tech_cards WHERE is_approved=1 AND approved_at >= -28 days`
+  - `total_etalons` — `SELECT count(*) FROM etalons`
+  - `green_now` — `calc_green_pct("all")` (метрика c)
+  - `green_change` — сравнение с `pilot_metrics.metric_value` 28 дней назад
+  - `edits_total` — `SELECT count(*) FROM edits`
+  - `edits_name` — `SELECT count(*) FROM edits WHERE field='name'`
+- В `dashboard()` добавлен `learning: _compute_learning()` в context
+- HTML: реальные цифры вместо placeholder + `{% if approved_last_28d == 0 %}` показывает "Петля ещё не запущена"
+
+**Результат (на prod после M35u):**
+```
+Петля обратной связи (Q-001): за последние 28 дней утверждено 5 ТК → стали эталонами (всего 15 эталонов в БД).
+Доля норм «зелёного» уровня: 12% (изменение за 28 дней: +12%).
+Правок через inline-edit: 48 (name-правок: 1).
+```
+
+**2 фикса (M35u-fix, M35u-fix2):**
+1. **M35u-fix:** `get_user_from_request()` → `require_user()` в dashboard. После рестарта systemd `_sessions` dict in-memory очищается → cookies невалидные → `user=None` → `user.username` падал.
+2. **M35u-fix2:** забыл `return templates.TemplateResponse(...)` в dashboard при правке. Endpoint возвращал None → FastAPI отдавал 200 + пустое тело (content-length: 0).
+
+**Sprint 5 ADR-0011 статус:** ✅ ЗАКРЫТ
+- [x] A.1: edits → INSERT в `edits` (M35t)
+- [x] A.2: api_approve → INSERT в `etalons` (уже было с M25)
+- [x] A.3: etalons → RAG (RAG уже индексирует etalons)
+- [x] A.4: dashboard → реальные метрики (M35u)
+
+**Lesson (2 главных):**
+1. **При рефакторе с использованием `sed`/`replace` ВСЕГДА** проверять что контекст функции целый (return, exceptions, dependencies). Удобнее — `git diff` до коммита покажет удалённые/добавленные строки. **Лучше: использовать Edit tool с multi-line old_string/new_string** — он валидирует контекст.
+2. **In-memory `_sessions` dict — известный баг**, для пилота приемлемый (1 рестарт/день = перелогиниться). **До v0.9:** перенести в Redis/SQLite (но это **out of scope до пилота**).
+
+**Reusable паттерн "real-time петля обратной связи":**
+```
+edits → api_approve (INSERT в etalons) → RAG re-index → лучшие рекомендации → новые правки
+                          ↓
+                    pilot_metrics (green_pct)
+                          ↓
+                    /dashboard (real-time визуализация)
+```
+
+---
+
+## M35u-fix (2026-07-22, 14:35) — dashboard() падал после рестарта (_sessions in-memory)
+
+**Ситуация:** После `systemctl restart bit-technolog` все залогиненные пользователи получают 500 на /dashboard.
+
+**Root cause:** `app.py:114 get_current_user`:
+```python
+session_id = request.cookies.get("session_id")
+if session_id and session_id in _sessions:  # ← in-memory dict!
+    ...
+```
+`_sessions` — глобальный `dict` в `app.py`. При рестарте процесса — очищается. Cookies из браузера → `session_id` валидная, но **не в новом dict** → user=None.
+
+**Fix:** заменил `get_user_from_request()` → `require_user()` в `dashboard()`. `require_user` выкидывает 401 с редиректом на /login.
+
+**Известный баг:** in-memory сессии. Решение (out of scope до пилота): Redis/SQLite/itsdangerous. **Сейчас приемлемо** (1 рестарт/день = пользователь перелогинивается).
+
+**Lesson:** **НИКОГДА не использовать in-memory state** для сессий в проде. Это нарушает constraint "прод работает 24/7 без перезагрузок".
+
+---
+
+## M35u-fix2 (2026-07-22, 14:40) — забыл return в dashboard (content-length: 0)
+
+**Ситуация:** После M35u dashboard возвращал HTTP 200, content-length: 0.
+
+**Root cause:** При правке dashboard через Python `replace()`, заменил многострочный `ctx.update({...})` блок — но случайно зацепил строку `return templates.TemplateResponse("dashboard.html", ctx)`. Endpoint возвращал `None` → FastAPI отдавал 200 + пустое тело.
+
+**Обнаружение:** curl `GET /` → 200 size=0b. err log чистый (исключение НЕ логируется, потому что FastAPI "OK обработал" — вернул None как JSON null или HTML?).
+
+**Fix:** добавил `return templates.TemplateResponse("dashboard.html", ctx)` после `ctx.update({...})`.
+
+**Lesson (КРИТИЧНО):**
+1. **При правке `ctx.update({...})` через `replace` ВСЕГДА** включать в old_string последующие 1-2 строки (`return`, `ctx["..."] = ...`). Если old_string и new_string неполные — можно зацепить/потерять return.
+2. **Использовать `git diff` после каждой правки** — он сразу покажет: "−1 return". **Лучше: Edit tool с полным old_string включая return**.
+3. **Тест:** `curl http://prod:port/ -o file && [ -s file ]` или `wc -c` — пустой файл = регресс.
+
+**Reusable чеклист "после правки endpoint":**
+```bash
+# 1. git diff (ВАЖНО!)
+git diff app.py
+
+# 2. Запустить тест endpoint
+curl -s http://prod:port/route -o /tmp/r.html -w "HTTP=%{http_code} size=%{size_download}\n"
+[ -s /tmp/r.html ] || echo "❌ EMPTY RESPONSE"
+
+# 3. Если пусто — проверить, есть ли return
+grep -A 2 "async def endpoint_name" app.py
+```
+
