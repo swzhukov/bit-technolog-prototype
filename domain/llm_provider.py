@@ -554,29 +554,41 @@ def call_llm(
     """Удобный wrapper: получить провайдера по задаче + вызвать + залогировать.
 
     Все LLM-вызовы в системе идут через эту функцию.
+
+    M37-#4: semaphore на 5 одновременных LLM-вызовов.
+    Защита от runaway-клиента + защита 1bitai.ru от rate limit (RPS).
     """
+    import threading
+    global _llm_semaphore
+    try:
+        _llm_semaphore
+    except NameError:
+        _llm_semaphore = threading.Semaphore(5)
+
     registry = get_registry()
     provider = registry.get_for_task(task_type)
 
-    try:
-        result = provider.generate(
-            prompt=prompt,
-            system=system,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            response_format=response_format,
-        )
-        _log_call(task_type, provider.name, "", prompt, result, user, "ok", None)
-        return result
-    except LLMError as e:
-        # Fallback на mock
-        logger.warning(f"LLM error in {provider.name} for {task_type}: {e}, falling back to mock")
-        result = MockLLMProvider().generate(prompt, system, temperature, max_tokens, response_format=response_format)
-        _log_call(task_type, "mock", "", prompt, result, user, "fallback", str(e))
-        return result
-    except Exception as e:
-        _log_call(task_type, provider.name, "", prompt, None, user, "error", str(e))
-        raise
+    with _llm_semaphore:
+        # M37-#4: actual call wrapped by semaphore
+        try:
+            result = provider.generate(
+                prompt=prompt,
+                system=system,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_format=response_format,
+            )
+            _log_call(task_type, provider.name, "", prompt, result, user, "ok", None)
+            return result
+        except LLMError as e:
+            # Fallback на mock
+            logger.warning(f"LLM error in {provider.name} for {task_type}: {e}, falling back to mock")
+            result = MockLLMProvider().generate(prompt, system, temperature, max_tokens, response_format=response_format)
+            _log_call(task_type, "mock", "", prompt, result, user, "fallback", str(e))
+            return result
+        except Exception as e:
+            _log_call(task_type, provider.name, "", prompt, None, user, "error", str(e))
+            raise
 
 
 def _log_call(

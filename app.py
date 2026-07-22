@@ -64,6 +64,30 @@ from gateways.one_c_gateway import get_gateway, OneCResourceSpec  # noqa
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+# ============================================================
+# RATE LIMITER (M37-#3)
+# ============================================================
+# Защита от runaway-clients: один user не может запустить больше
+# N операций за окно T. In-memory dict (до пилота; потом Redis).
+import time as _time
+from collections import defaultdict as _defaultdict
+
+_rate_limit_buckets: dict = _defaultdict(list)  # key -> [timestamps]
+
+def _rate_limit_check(key: str, max_calls: int, window_sec: int) -> tuple[bool, int]:
+    """Проверить rate limit. Возвращает (ok, retry_after_sec)."""
+    now = _time.time()
+    bucket = _rate_limit_buckets[key]
+    # Очищаем старые timestamps
+    bucket[:] = [t for t in bucket if now - t < window_sec]
+    if len(bucket) >= max_calls:
+        # Сколько секунд до освобождения слота
+        retry_after = int(window_sec - (now - bucket[0])) + 1
+        return False, retry_after
+    bucket.append(now)
+    return True, 0
+
 app = FastAPI(title="БИТ.Технолог", version="1.0.0")
 
 # ============================================================
@@ -570,9 +594,20 @@ async def item_generate_form(request: Request, item_id: int):
 
 @app.post("/items/{item_id}/generate")
 async def item_generate_post(request: Request, item_id: int):
+    # M37-#3: rate limit 5 generations per 60 sec per user
+    # (LLM вызов занимает 24 сек + 1.32₽ — защита от runaway UI)
     user = get_user_from_request(request)
     if not user:
         raise HTTPException(401)
+    rl_key = f"gen:{user.username}"
+    rl_ok, rl_retry = _rate_limit_check(rl_key, max_calls=5, window_sec=60)
+    if not rl_ok:
+        from starlette.responses import JSONResponse
+        return JSONResponse(
+            {"detail": f"Слишком много генераций. Подождите {rl_retry} сек.", "retry_after": rl_retry},
+            status_code=429,
+            headers={"Retry-After": str(rl_retry)},
+        )
     item = db.get_item_with_bom(item_id)
     if not item:
         raise HTTPException(404, "Item not found")
