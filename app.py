@@ -270,7 +270,7 @@ async def login_post(request: Request):
         return templates.TemplateResponse(
             "login.html",
             {"request": request, "error": "Неверный логин или пароль", "is_mock_mode": True,
-             "app_env": "ПРОТОТИП", "app_version": "0.8.5", "daily_cost": 0, "cost_budget": 500},
+             "app_env": "PROD", "app_version": "1.0.0", "daily_cost": 0, "cost_budget": 500},
         )
     sid = _create_session(username)
     response = RedirectResponse(url="/", status_code=303)
@@ -361,8 +361,8 @@ def get_template_context(request: Request, user: Optional[User] = None) -> Dict[
         "is_mock_mode": registry.is_mock_mode(),
         "daily_cost": registry.daily_cost_estimate(),
         "cost_budget": 500.0,
-        "app_version": "0.8.5",
-        "app_env": "ПРОТОТИП",
+        "app_version": "1.0.0",
+        "app_env": "PROD",
         "ROLES": ROLES,
         "counters": {"notices": n_open_notices},  # для nav
     }
@@ -1052,7 +1052,7 @@ async def health():
         n_etalons = result["n"] if result else 0
         return {
             "status": "ok",
-            "version": "0.8.5",
+            "version": "1.0.0",
             "db": "ok",
             "items": n_items,
             "etalons": n_etalons,
