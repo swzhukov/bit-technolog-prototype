@@ -265,7 +265,7 @@ async def login_post(request: Request):
         )
     sid = _create_session(username)
     response = RedirectResponse(url="/", status_code=303)
-    response.set_cookie("session_id", sid, max_age=7*24*3600, httponly=True, samesite="lax")
+    response.set_cookie("session_id", sid, max_age=7*24*3600, httponly=True, samesite="lax", secure=True)  # F3-003
     return response
 
 
@@ -1158,23 +1158,36 @@ async def api_rs_download(filename: str, request: Request):
 
 @app.get("/health")
 async def health():
-    """Health check."""
+    """F3-002: health check с защитой от зависания при lock БД."""
+    import signal as _signal
+    db_status = "ok"
+    n_items = 0
+    n_etalons = 0
     try:
-        # Проверим БД
-        result = db.query_one("SELECT COUNT(*) AS n FROM items")
-        n_items = result["n"] if result else 0
-        result = db.query_one("SELECT COUNT(*) AS n FROM etalons")
-        n_etalons = result["n"] if result else 0
-        return {
-            "status": "ok",
-            "version": "1.0.0",
-            "db": "ok",
-            "items": n_items,
-            "etalons": n_etalons,
-            "is_mock_mode": get_registry().is_mock_mode(),
-        }
+        # Hard timeout 1 sec (если БД залочена)
+        def _timeout_handler(signum, frame):
+            raise TimeoutError("db query timeout")
+        old_handler = _signal.signal(_signal.SIGALRM, _timeout_handler)
+        _signal.alarm(1)
+        try:
+            result = db.query_one("SELECT COUNT(*) AS n FROM items")
+            n_items = result["n"] if result else 0
+            result = db.query_one("SELECT COUNT(*) AS n FROM etalons")
+            n_etalons = result["n"] if result else 0
+        finally:
+            _signal.alarm(0)
+            _signal.signal(_signal.SIGALRM, old_handler)
     except Exception as e:
-        return JSONResponse({"status": "error", "error": str(e)}, status_code=500)
+        db_status = f"error: {type(e).__name__}"
+    overall = "ok" if db_status == "ok" else "degraded"
+    return {
+        "status": overall,
+        "version": "1.0.0",
+        "db": db_status,
+        "items": n_items,
+        "etalons": n_etalons,
+        "is_mock_mode": get_registry().is_mock_mode(),
+    }
 
 
 @app.get("/api/items")
@@ -1465,8 +1478,9 @@ if __name__ == "__main__":
     if _os.path.exists("certs/cert.pem") and _os.path.exists("certs/key.pem"):
         _ssl_kwargs = {"ssl_keyfile": "certs/key.pem", "ssl_certfile": "certs/cert.pem"}
         print("🔒 TLS enabled (certs/cert.pem)")
+    # F3-001: единый порт с systemd (8081) — иначе конфликт
     uvicorn.run(
-        app, host="0.0.0.0", port=8000, log_level="info",
+        app, host="0.0.0.0", port=8081, log_level="info",
         timeout_graceful_shutdown=30,  # M37-#5: 30s drain
         **_ssl_kwargs,
     )
