@@ -1010,6 +1010,9 @@ async def api_notice_diff(notice_id: int, request: Request):
     normalize_user_role(user)
     if user.role not in ("admin", "main_technologist", "technologist"):
         raise HTTPException(403)
+    n = get_notice(notice_id)
+    if not n:
+        raise HTTPException(404, "Извещение не найдено")
     try:
         ai_diff = generate_ai_diff(notice_id)
         return {"status": "ok", "ai_diff": ai_diff}
