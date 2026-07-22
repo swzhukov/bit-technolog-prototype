@@ -335,6 +335,7 @@ async def dashboard(request: Request):
         "top_draft": tasks[0] if tasks else None,  # Q-005: контекстная подсказка
         "learning": _compute_learning(),  # Q-001: петля обратной связи
     })
+    return templates.TemplateResponse("dashboard.html", ctx)  # M35u-fix2: возврат HTML
 
 
 def _compute_learning() -> dict:
