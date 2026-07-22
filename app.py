@@ -964,6 +964,8 @@ async def api_notice(notice_id: int):
 @app.get("/profiles", response_class=HTMLResponse)
 async def profiles(request: Request):
     user = get_user_from_request(request)
+    if not user or user.role not in ("admin", "main_technologist"):
+        raise HTTPException(403, "Недостаточно прав")
     ctx = get_template_context(request, user)
     profiles_list = db.rows_to_dicts(db.query("SELECT * FROM rs_output_profiles"))
     ctx["profiles"] = profiles_list
@@ -1017,6 +1019,8 @@ async def help_page(request: Request):
 @app.get("/metrics", response_class=HTMLResponse)
 async def metrics_page(request: Request):
     user = get_user_from_request(request)
+    if not user or user.role not in ("admin", "main_technologist"):
+        raise HTTPException(403, "Недостаточно прав")
     ctx = get_template_context(request, user)
     from services.metrics import get_dashboard_metrics, calc_green_pct
     ctx["metrics"] = get_dashboard_metrics()
