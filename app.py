@@ -662,41 +662,36 @@ async def details_new_create(request: Request):
     name = form.get("name", "").strip()
     level = form.get("level", "").strip()
     if not designation:
-        return templates.TemplateResponse("detail_new.html", {
-            "request": request, "user": user,
-            "error": "Обозначение обязательно",
-            "form_data": dict(form),
-        }, status_code=400)
+        ctx2 = get_template_context(request, user)
+        ctx2["error"] = "Обозначение обязательно"
+        ctx2["form_data"] = dict(form)
+        return templates.TemplateResponse("detail_new.html", ctx2, status_code=400)
     if not name:
-        return templates.TemplateResponse("detail_new.html", {
-            "request": request, "user": user,
-            "error": "Наименование обязательно",
-            "form_data": dict(form),
-        }, status_code=400)
+        ctx2 = get_template_context(request, user)
+        ctx2["error"] = "Наименование обязательно"
+        ctx2["form_data"] = dict(form)
+        return templates.TemplateResponse("detail_new.html", ctx2, status_code=400)
     if level not in ("detail", "assembly", "product", "purchased", "semi"):
-        return templates.TemplateResponse("detail_new.html", {
-            "request": request, "user": user,
-            "error": "Уровень должен быть: detail/assembly/product/purchased/semi",
-            "form_data": dict(form),
-        }, status_code=400)
+        ctx2 = get_template_context(request, user)
+        ctx2["error"] = "Уровень должен быть: detail/assembly/product/purchased/semi"
+        ctx2["form_data"] = dict(form)
+        return templates.TemplateResponse("detail_new.html", ctx2, status_code=400)
     # Уникальность designation
     existing = db.query_one("SELECT id FROM items WHERE designation = ?", (designation,))
     if existing:
-        return templates.TemplateResponse("detail_new.html", {
-            "request": request, "user": user,
-            "error": f"Деталь с обозначением «{designation}» уже существует",
-            "form_data": dict(form),
-        }, status_code=400)
+        ctx2 = get_template_context(request, user)
+        ctx2["error"] = f"Деталь с обозначением «{designation}» уже существует"
+        ctx2["form_data"] = dict(form)
+        return templates.TemplateResponse("detail_new.html", ctx2, status_code=400)
     # Числовые поля
     mass_kg = form.get("mass_kg", "").strip()
     try:
         mass_kg = float(mass_kg) if mass_kg else None
     except ValueError:
-        return templates.TemplateResponse("detail_new.html", {
-            "request": request, "user": user,
-            "error": f"Масса должна быть числом: {mass_kg!r}",
-            "form_data": dict(form),
-        }, status_code=400)
+        ctx2 = get_template_context(request, user)
+        ctx2["error"] = f"Масса должна быть числом: {mass_kg!r}"
+        ctx2["form_data"] = dict(form)
+        return templates.TemplateResponse("detail_new.html", ctx2, status_code=400)
     # FK поля
     material_id = form.get("material_id", "").strip()
     material_id = int(material_id) if material_id.isdigit() else None
@@ -704,17 +699,15 @@ async def details_new_create(request: Request):
     product_model_id = int(product_model_id) if product_model_id.isdigit() else None
     # Валидация FK
     if material_id and not db.query_one("SELECT id FROM materials WHERE id = ?", (material_id,)):
-        return templates.TemplateResponse("detail_new.html", {
-            "request": request, "user": user,
-            "error": f"Материал #{material_id} не найден",
-            "form_data": dict(form),
-        }, status_code=400)
+        ctx2 = get_template_context(request, user)
+        ctx2["error"] = f"Материал #{material_id} не найден"
+        ctx2["form_data"] = dict(form)
+        return templates.TemplateResponse("detail_new.html", ctx2, status_code=400)
     if product_model_id and not db.query_one("SELECT id FROM product_models WHERE id = ?", (product_model_id,)):
-        return templates.TemplateResponse("detail_new.html", {
-            "request": request, "user": user,
-            "error": f"Изделие #{product_model_id} не найдено",
-            "form_data": dict(form),
-        }, status_code=400)
+        ctx2 = get_template_context(request, user)
+        ctx2["error"] = f"Изделие #{product_model_id} не найден"
+        ctx2["form_data"] = dict(form)
+        return templates.TemplateResponse("detail_new.html", ctx2, status_code=400)
     sourcing = form.get("sourcing", "make").strip()
     if sourcing not in ("make", "buy", "coop_da", "coop_full"):
         sourcing = "make"
