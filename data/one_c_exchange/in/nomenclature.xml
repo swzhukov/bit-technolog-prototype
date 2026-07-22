@@ -1,0 +1,318 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Nomenclature>
+  <Item ref="uuid-ac-8" level="product" sourcing="make">
+    <Designation>АЦ-8,0-40</Designation>
+    <Name>Автоцистерна пожарная 8 м³ на шасси КАМАЗ-43118</Name>
+    <Mass>18500.0</Mass>
+    <MaterialRef/>
+    <ParentRef/>
+  </Item>
+  <Item ref="uuid-ac-6" level="product" sourcing="make">
+    <Designation>АЦ-6,0-40</Designation>
+    <Name>Автоцистерна пожарная 6 м³ на шасси КАМАЗ-43118</Name>
+    <Mass>15200.0</Mass>
+    <MaterialRef/>
+    <ParentRef/>
+  </Item>
+  <Item ref="uuid-umk-3" level="product" sourcing="make">
+    <Designation>УМК-3,0-40</Designation>
+    <Name>Установка комбинированная 3 м³</Name>
+    <Mass>9800.0</Mass>
+    <MaterialRef/>
+    <ParentRef/>
+  </Item>
+  <Item ref="uuid-pss-5" level="product" sourcing="make">
+    <Designation>ПСС-5,0-40</Designation>
+    <Name>Пожарная насосная станция 5 м³/мин</Name>
+    <Mass>11200.0</Mass>
+    <MaterialRef/>
+    <ParentRef/>
+  </Item>
+  <Item ref="uuid-umk-7" level="product" sourcing="make">
+    <Designation>УМК-7,0-40</Designation>
+    <Name>Установка комбинированная 7 м³</Name>
+    <Mass>19800.0</Mass>
+    <MaterialRef/>
+    <ParentRef/>
+  </Item>
+  <Item ref="uuid-cist-8" level="assembly" sourcing="make">
+    <Designation>53-ТВ.05.000</Designation>
+    <Name>Цистерна (узел)</Name>
+    <Mass>2400.0</Mass>
+    <MaterialRef/>
+    <ParentRef>uuid-ac-8</ParentRef>
+  </Item>
+  <Item ref="uuid-rama-8" level="assembly" sourcing="make">
+    <Designation>53-РМ.10.000</Designation>
+    <Name>Рама (узел)</Name>
+    <Mass>850.0</Mass>
+    <MaterialRef/>
+    <ParentRef>uuid-ac-8</ParentRef>
+  </Item>
+  <Item ref="uuid-kabin-8" level="assembly" sourcing="make">
+    <Designation>53-КБ.20.000</Designation>
+    <Name>Кабина (узел)</Name>
+    <Mass>320.0</Mass>
+    <MaterialRef/>
+    <ParentRef>uuid-ac-8</ParentRef>
+  </Item>
+  <Item ref="uuid-nasos-8" level="assembly" sourcing="make">
+    <Designation>53-НС.30.000</Designation>
+    <Name>Насосная установка (узел)</Name>
+    <Mass>180.0</Mass>
+    <MaterialRef/>
+    <ParentRef>uuid-ac-8</ParentRef>
+  </Item>
+  <Item ref="uuid-upor-1" level="assembly" sourcing="make">
+    <Designation>ЛМША.301314.010</Designation>
+    <Name>Упор продольный</Name>
+    <Mass>12.5</Mass>
+    <MaterialRef/>
+    <ParentRef>uuid-rama-8</ParentRef>
+  </Item>
+  <Item ref="uuid-rastyag-1" level="assembly" sourcing="make">
+    <Designation>ЛМША.301712.000</Designation>
+    <Name>Растяжка пружинная</Name>
+    <Mass>8.3</Mass>
+    <MaterialRef/>
+    <ParentRef>uuid-rama-8</ParentRef>
+  </Item>
+  <Item ref="uuid-kronsh-1" level="assembly" sourcing="make">
+    <Designation>ЛМША.301555.020</Designation>
+    <Name>Кронштейн боковой</Name>
+    <Mass>4.5</Mass>
+    <MaterialRef/>
+    <ParentRef>uuid-rama-8</ParentRef>
+  </Item>
+  <Item ref="uuid-probka-1" level="assembly" sourcing="make">
+    <Designation>ЛМША.302410.001</Designation>
+    <Name>Пробка заливной горловины</Name>
+    <Mass>0.8</Mass>
+    <MaterialRef/>
+    <ParentRef>uuid-cist-8</ParentRef>
+  </Item>
+  <Item ref="uuid-zadv-1" level="assembly" sourcing="make">
+    <Designation>ЛМША.302510.005</Designation>
+    <Name>Задвижка донная</Name>
+    <Mass>1.2</Mass>
+    <MaterialRef/>
+    <ParentRef>uuid-cist-8</ParentRef>
+  </Item>
+  <Item ref="uuid-bak-1" level="assembly" sourcing="make">
+    <Designation>ЛМША.303210.100</Designation>
+    <Name>Бак пенообразователя</Name>
+    <Mass>95.0</Mass>
+    <MaterialRef/>
+    <ParentRef>uuid-nasos-8</ParentRef>
+  </Item>
+  <Item ref="uuid-d1" level="detail" sourcing="make">
+    <Designation>ЛМША.304142.010</Designation>
+    <Name>Втулка</Name>
+    <Mass>0.8</Mass>
+    <MaterialRef>uuid-m-09g2s</MaterialRef>
+    <ParentRef>uuid-rastyag-1</ParentRef>
+  </Item>
+  <Item ref="uuid-d2" level="detail" sourcing="make">
+    <Designation>ЛМША.304142.010-01</Designation>
+    <Name>Втулка (модификация)</Name>
+    <Mass>0.8</Mass>
+    <MaterialRef>uuid-m-09g2s</MaterialRef>
+    <ParentRef>uuid-rastyag-1</ParentRef>
+  </Item>
+  <Item ref="uuid-d3" level="detail" sourcing="make">
+    <Designation>ЛМША.304339.010</Designation>
+    <Name>Проушина</Name>
+    <Mass>1.2</Mass>
+    <MaterialRef>uuid-m-09g2s</MaterialRef>
+    <ParentRef>uuid-rastyag-1</ParentRef>
+  </Item>
+  <Item ref="uuid-d4" level="detail" sourcing="make">
+    <Designation>ЛМША.301624.003</Designation>
+    <Name>Шайба</Name>
+    <Mass>0.02</Mass>
+    <MaterialRef>uuid-m-09g2s</MaterialRef>
+    <ParentRef>uuid-rastyag-1</ParentRef>
+  </Item>
+  <Item ref="uuid-d5" level="detail" sourcing="make">
+    <Designation>ЛМША.301614.001</Designation>
+    <Name>Шпилька</Name>
+    <Mass>0.05</Mass>
+    <MaterialRef>uuid-m-09g2s</MaterialRef>
+    <ParentRef>uuid-rastyag-1</ParentRef>
+  </Item>
+  <Item ref="uuid-d6" level="detail" sourcing="make">
+    <Designation>ЛМША.304590.001</Designation>
+    <Name>Пружина тарельчатая</Name>
+    <Mass>0.05</Mass>
+    <MaterialRef>uuid-m-65g</MaterialRef>
+    <ParentRef>uuid-rastyag-1</ParentRef>
+  </Item>
+  <Item ref="uuid-d7" level="detail" sourcing="make">
+    <Designation>ЛМША.305001.020</Designation>
+    <Name>Днище (оболочка)</Name>
+    <Mass>95.0</Mass>
+    <MaterialRef>uuid-m-09g2s</MaterialRef>
+    <ParentRef>uuid-cist-8</ParentRef>
+  </Item>
+  <Item ref="uuid-d8" level="detail" sourcing="make">
+    <Designation>ЛМША.305002.010</Designation>
+    <Name>Обечайка (оболочка)</Name>
+    <Mass>45.0</Mass>
+    <MaterialRef>uuid-m-09g2s</MaterialRef>
+    <ParentRef>uuid-cist-8</ParentRef>
+  </Item>
+  <Item ref="uuid-d9" level="detail" sourcing="make">
+    <Designation>ЛМША.305003.000</Designation>
+    <Name>Крышка люка</Name>
+    <Mass>12.0</Mass>
+    <MaterialRef>uuid-m-09g2s</MaterialRef>
+    <ParentRef>uuid-cist-8</ParentRef>
+  </Item>
+  <Item ref="uuid-d10" level="detail" sourcing="make">
+    <Designation>ЛМША.306001.005</Designation>
+    <Name>Поперечина рамы</Name>
+    <Mass>32.0</Mass>
+    <MaterialRef>uuid-m-09g2s</MaterialRef>
+    <ParentRef>uuid-rama-8</ParentRef>
+  </Item>
+  <Item ref="uuid-d11" level="detail" sourcing="make">
+    <Designation>ЛМША.306002.007</Designation>
+    <Name>Лонжерон (балка)</Name>
+    <Mass>28.0</Mass>
+    <MaterialRef>uuid-m-09g2s</MaterialRef>
+    <ParentRef>uuid-rama-8</ParentRef>
+  </Item>
+  <Item ref="uuid-d12" level="detail" sourcing="make">
+    <Designation>ЛМША.307001.001</Designation>
+    <Name>Кронштейн насоса</Name>
+    <Mass>8.5</Mass>
+    <MaterialRef>uuid-m-st3</MaterialRef>
+    <ParentRef>uuid-nasos-8</ParentRef>
+  </Item>
+  <Item ref="uuid-d13" level="detail" sourcing="make">
+    <Designation>ЛМША.307002.002</Designation>
+    <Name>Фланец патрубка</Name>
+    <Mass>3.2</Mass>
+    <MaterialRef>uuid-m-st3</MaterialRef>
+    <ParentRef>uuid-nasos-8</ParentRef>
+  </Item>
+  <Item ref="uuid-d14" level="detail" sourcing="make">
+    <Designation>ЛМША.308001.003</Designation>
+    <Name>Панель кабины</Name>
+    <Mass>18.0</Mass>
+    <MaterialRef>uuid-m-st3</MaterialRef>
+    <ParentRef>uuid-kabin-8</ParentRef>
+  </Item>
+  <Item ref="uuid-d15" level="detail" sourcing="make">
+    <Designation>ЛМША.308002.001</Designation>
+    <Name>Каркас двери</Name>
+    <Mass>6.5</Mass>
+    <MaterialRef>uuid-m-st3</MaterialRef>
+    <ParentRef>uuid-kabin-8</ParentRef>
+  </Item>
+  <Item ref="uuid-p1" level="purchased" sourcing="buy">
+    <Designation>Гайка М12-6Н.6.019</Designation>
+    <Name>Гайка М12</Name>
+    <Mass>0.015</Mass>
+    <MaterialRef>uuid-m-st3</MaterialRef>
+    <ParentRef>uuid-rama-8</ParentRef>
+  </Item>
+  <Item ref="uuid-p2" level="purchased" sourcing="buy">
+    <Designation>Болт М12-6g×60.58.019</Designation>
+    <Name>Болт М12×60</Name>
+    <Mass>0.05</Mass>
+    <MaterialRef>uuid-m-st3</MaterialRef>
+    <ParentRef>uuid-rama-8</ParentRef>
+  </Item>
+  <Item ref="uuid-p3" level="purchased" sourcing="buy">
+    <Designation>Шайба 12.01.019</Designation>
+    <Name>Шайба 12</Name>
+    <Mass>0.005</Mass>
+    <MaterialRef>uuid-m-st3</MaterialRef>
+    <ParentRef>uuid-rama-8</ParentRef>
+  </Item>
+  <Item ref="uuid-p4" level="purchased" sourcing="buy">
+    <Designation>Подшипник 6205-2RS</Designation>
+    <Name>Подшипник 6205</Name>
+    <Mass>0.13</Mass>
+    <MaterialRef/>
+    <ParentRef>uuid-nasos-8</ParentRef>
+  </Item>
+  <Item ref="uuid-p5" level="purchased" sourcing="buy">
+    <Designation>Манжета 1.2-25×42-1</Designation>
+    <Name>Манжета армированная</Name>
+    <Mass>0.02</Mass>
+    <MaterialRef/>
+    <ParentRef>uuid-nasos-8</ParentRef>
+  </Item>
+  <Item ref="uuid-p6" level="purchased" sourcing="buy">
+    <Designation>Ремень SPB-1250</Designation>
+    <Name>Ремень клиновой</Name>
+    <Mass>0.18</Mass>
+    <MaterialRef/>
+    <ParentRef>uuid-nasos-8</ParentRef>
+  </Item>
+  <Item ref="uuid-p7" level="purchased" sourcing="buy">
+    <Designation>Фильтр ФВТ-150</Designation>
+    <Name>Фильтр воздушный</Name>
+    <Mass>0.45</Mass>
+    <MaterialRef/>
+    <ParentRef>uuid-nasos-8</ParentRef>
+  </Item>
+  <Item ref="uuid-p8" level="purchased" sourcing="buy">
+    <Designation>Стекло 510×350×4</Designation>
+    <Name>Стекло автомобильное</Name>
+    <Mass>1.8</Mass>
+    <MaterialRef/>
+    <ParentRef>uuid-kabin-8</ParentRef>
+  </Item>
+  <Item ref="uuid-p9" level="purchased" sourcing="buy">
+    <Designation>Уплотнитель 2000 мм</Designation>
+    <Name>Уплотнитель двери</Name>
+    <Mass>0.15</Mass>
+    <MaterialRef/>
+    <ParentRef>uuid-kabin-8</ParentRef>
+  </Item>
+  <Item ref="uuid-p10" level="purchased" sourcing="buy">
+    <Designation>Замок 5.780-01</Designation>
+    <Name>Замок двери</Name>
+    <Mass>0.25</Mass>
+    <MaterialRef/>
+    <ParentRef>uuid-kabin-8</ParentRef>
+  </Item>
+  <Item ref="uuid-s1" level="semi" sourcing="make">
+    <Designation>ЛМША.402010.001</Designation>
+    <Name>Заготовка обечайки</Name>
+    <Mass>48.0</Mass>
+    <MaterialRef>uuid-m-09g2s</MaterialRef>
+    <ParentRef/>
+  </Item>
+  <Item ref="uuid-s2" level="semi" sourcing="make">
+    <Designation>ЛМША.402020.001</Designation>
+    <Name>Заготовка днища</Name>
+    <Mass>105.0</Mass>
+    <MaterialRef>uuid-m-09g2s</MaterialRef>
+    <ParentRef/>
+  </Item>
+  <Item ref="uuid-s3" level="semi" sourcing="make">
+    <Designation>ЛМША.402030.001</Designation>
+    <Name>Заготовка лонжерона</Name>
+    <Mass>35.0</Mass>
+    <MaterialRef>uuid-m-09g2s</MaterialRef>
+    <ParentRef/>
+  </Item>
+  <Item ref="uuid-s4" level="semi" sourcing="make">
+    <Designation>ЛМША.402040.001</Designation>
+    <Name>Заготовка панели</Name>
+    <Mass>22.0</Mass>
+    <MaterialRef>uuid-m-st3</MaterialRef>
+    <ParentRef/>
+  </Item>
+  <Item ref="uuid-s5" level="semi" sourcing="make">
+    <Designation>ЛМША.402050.001</Designation>
+    <Name>Заготовка каркаса</Name>
+    <Mass>8.0</Mass>
+    <MaterialRef>uuid-m-st3</MaterialRef>
+    <ParentRef/>
+  </Item>
+</Nomenclature>

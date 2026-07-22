@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Professions>
+  <Profession ref="uuid-p-r3" grade="3">
+    <Code>Р-3</Code>
+    <Name>Резчик</Name>
+    <HourlyRate>250.0</HourlyRate>
+  </Profession>
+  <Profession ref="uuid-p-r4" grade="4">
+    <Code>Р-4</Code>
+    <Name>Резчик</Name>
+    <HourlyRate>290.0</HourlyRate>
+  </Profession>
+  <Profession ref="uuid-p-s4" grade="4">
+    <Code>С-4</Code>
+    <Name>Слесарь-сборщик</Name>
+    <HourlyRate>300.0</HourlyRate>
+  </Profession>
+  <Profession ref="uuid-p-s5" grade="5">
+    <Code>С-5</Code>
+    <Name>Слесарь-сборщик</Name>
+    <HourlyRate>340.0</HourlyRate>
+  </Profession>
+  <Profession ref="uuid-p-e5" grade="5">
+    <Code>Э-5</Code>
+    <Name>Электросварщик ручной дуговой</Name>
+    <HourlyRate>380.0</HourlyRate>
+  </Profession>
+  <Profession ref="uuid-p-e6" grade="6">
+    <Code>Э-6</Code>
+    <Name>Электросварщик ручной дуговой</Name>
+    <HourlyRate>430.0</HourlyRate>
+  </Profession>
+  <Profession ref="uuid-p-g4" grade="4">
+    <Code>Г-4</Code>
+    <Name>Гибщик</Name>
+    <HourlyRate>290.0</HourlyRate>
+  </Profession>
+  <Profession ref="uuid-p-k3" grade="3">
+    <Code>К-3</Code>
+    <Name>Контролёр ОТК</Name>
+    <HourlyRate>270.0</HourlyRate>
+  </Profession>
+  <Profession ref="uuid-p-k4" grade="4">
+    <Code>К-4</Code>
+    <Name>Контролёр ОТК</Name>
+    <HourlyRate>310.0</HourlyRate>
+  </Profession>
+  <Profession ref="uuid-p-m5" grade="5">
+    <Code>М-5</Code>
+    <Name>Маляр</Name>
+    <HourlyRate>320.0</HourlyRate>
+  </Profession>
+  <Profession ref="uuid-p-t4" grade="4">
+    <Code>Т-4</Code>
+    <Name>Токарь</Name>
+    <HourlyRate>310.0</HourlyRate>
+  </Profession>
+  <Profession ref="uuid-p-f4" grade="4">
+    <Code>Ф-4</Code>
+    <Name>Фрезеровщик</Name>
+    <HourlyRate>310.0</HourlyRate>
+  </Profession>
+</Professions>

@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Equipment>
+  <Equipment ref="uuid-e-01-1" inventory_no="01-001" workshop_ref="workshop-01">
+    <Name>Гильотинные ножницы НГ-6,3×2500</Name>
+    <PowerKW>7.5</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-01-2" inventory_no="01-002" workshop_ref="workshop-01">
+    <Name>Гильотинные ножницы НГ-4×1500</Name>
+    <PowerKW>5.5</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-01-3" inventory_no="01-003" workshop_ref="workshop-01">
+    <Name>Пресс гидравлический П6330</Name>
+    <PowerKW>22.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-01-4" inventory_no="01-004" workshop_ref="workshop-01">
+    <Name>Пресс листогибочный ИБ2232</Name>
+    <PowerKW>11.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-01-5" inventory_no="01-005" workshop_ref="workshop-01">
+    <Name>Вальцы трехвалковые ИБ2232</Name>
+    <PowerKW>5.5</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-01-6" inventory_no="01-006" workshop_ref="workshop-01">
+    <Name>Ленточнопильный станок Bomar</Name>
+    <PowerKW>3.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-01-7" inventory_no="01-007" workshop_ref="workshop-01">
+    <Name>Плазменный резак HyperTherm</Name>
+    <PowerKW>25.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-02-1" inventory_no="02-001" workshop_ref="workshop-02">
+    <Name>Полуавтомат сварочный ПДГ-508</Name>
+    <PowerKW>18.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-02-2" inventory_no="02-002" workshop_ref="workshop-02">
+    <Name>Полуавтомат сварочный Fronius TPS 400i</Name>
+    <PowerKW>22.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-02-3" inventory_no="02-003" workshop_ref="workshop-02">
+    <Name>Сварочный инвертор Lincoln 355</Name>
+    <PowerKW>14.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-02-4" inventory_no="02-004" workshop_ref="workshop-02">
+    <Name>Аргонодуговой аппарат TIG 200</Name>
+    <PowerKW>8.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-02-5" inventory_no="02-005" workshop_ref="workshop-02">
+    <Name>Сварочный стол 2000×1000</Name>
+    <PowerKW>0.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-02-6" inventory_no="02-006" workshop_ref="workshop-02">
+    <Name>Сборочно-сварочный стенд ССК-2</Name>
+    <PowerKW>0.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-03-1" inventory_no="03-001" workshop_ref="workshop-03">
+    <Name>Стенд сборочный универсальный</Name>
+    <PowerKW>0.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-03-2" inventory_no="03-002" workshop_ref="workshop-03">
+    <Name>Кантователь гидравлический 5т</Name>
+    <PowerKW>3.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-03-3" inventory_no="03-003" workshop_ref="workshop-03">
+    <Name>Пресс гидравлический 100т</Name>
+    <PowerKW>30.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-03-4" inventory_no="03-004" workshop_ref="workshop-03">
+    <Name>Стенд испытательный на герметичность</Name>
+    <PowerKW>5.5</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-03-5" inventory_no="03-005" workshop_ref="workshop-03">
+    <Name>УШМ (болгарка) 125 мм</Name>
+    <PowerKW>1.2</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-03-6" inventory_no="03-006" workshop_ref="workshop-03">
+    <Name>Дрель ручная электрическая</Name>
+    <PowerKW>0.6</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-04-1" inventory_no="04-001" workshop_ref="workshop-04">
+    <Name>Камера окрасочная 6×4×3</Name>
+    <PowerKW>15.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-04-2" inventory_no="04-002" workshop_ref="workshop-04">
+    <Name>Краскораспылитель SATA 4000</Name>
+    <PowerKW>0.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-04-3" inventory_no="04-003" workshop_ref="workshop-04">
+    <Name>Сушильная камера 80°C</Name>
+    <PowerKW>30.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-04-4" inventory_no="04-005" workshop_ref="workshop-04">
+    <Name>Пескоструйная камера</Name>
+    <PowerKW>7.5</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-05-1" inventory_no="05-001" workshop_ref="workshop-05">
+    <Name>Стол ОТК</Name>
+    <PowerKW>0.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-05-2" inventory_no="05-002" workshop_ref="workshop-05">
+    <Name>Твердомер ТЭМП-4</Name>
+    <PowerKW>0.5</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-05-3" inventory_no="05-003" workshop_ref="workshop-05">
+    <Name>Ультразвуковой дефектоскоп А1212</Name>
+    <PowerKW>0.3</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-05-4" inventory_no="05-004" workshop_ref="workshop-05">
+    <Name>Толщиномер ультразвуковой А1209</Name>
+    <PowerKW>0.2</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-05-5" inventory_no="05-005" workshop_ref="workshop-05">
+    <Name>Манометр образцовый МО-11202</Name>
+    <PowerKW>0.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-05-6" inventory_no="05-006" workshop_ref="workshop-05">
+    <Name>Шаблоны сварочные УШС-2</Name>
+    <PowerKW>0.0</PowerKW>
+  </Equipment>
+  <Equipment ref="uuid-e-05-7" inventory_no="05-007" workshop_ref="workshop-05">
+    <Name>Лупа измерительная 10×</Name>
+    <PowerKW>0.0</PowerKW>
+  </Equipment>
+</Equipment>

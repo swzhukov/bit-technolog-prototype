@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Materials>
+  <Material ref="uuid-m-09g2s" unit="кг">
+    <Code>09Г2С</Code>
+    <Name>Сталь 09Г2С листовая</Name>
+    <Category>лист</Category>
+    <Price>95.0</Price>
+  </Material>
+  <Material ref="uuid-m-10xsnd" unit="кг">
+    <Code>10ХСНД</Code>
+    <Name>Сталь 10ХСНД (морозостойкая)</Name>
+    <Category>лист</Category>
+    <Price>125.0</Price>
+  </Material>
+  <Material ref="uuid-m-st3" unit="кг">
+    <Code>Ст3</Code>
+    <Name>Сталь Ст3 листовая</Name>
+    <Category>лист</Category>
+    <Price>75.0</Price>
+  </Material>
+  <Material ref="uuid-m-65g" unit="кг">
+    <Code>65Г</Code>
+    <Name>Сталь 65Г (пружинная)</Name>
+    <Category>лист</Category>
+    <Price>145.0</Price>
+  </Material>
+  <Material ref="uuid-m-sv08g2s" unit="кг">
+    <Code>Св-08Г2С-О</Code>
+    <Name>Проволока сварочная Св-08Г2С-О 0,8 мм</Name>
+    <Category>проволока</Category>
+    <Price>145.0</Price>
+  </Material>
+  <Material ref="uuid-m-sv08g2s12" unit="кг">
+    <Code>Св-08Г2С-О-1,2</Code>
+    <Name>Проволока сварочная Св-08Г2С-О 1,2 мм</Name>
+    <Category>проволока</Category>
+    <Price>142.0</Price>
+  </Material>
+  <Material ref="uuid-m-sprey" unit="л">
+    <Code>Спрей Auscon Wpre</Code>
+    <Name>Спрей антипригарный Auscon Wpre!</Name>
+    <Category>вспомогательные</Category>
+    <Price>850.0</Price>
+  </Material>
+  <Material ref="uuid-m-kraska" unit="кг">
+    <Code>Эмаль ПФ-115</Code>
+    <Name>Эмаль ПФ-115 (серая)</Name>
+    <Category>лакокрасочные</Category>
+    <Price>220.0</Price>
+  </Material>
+  <Material ref="uuid-m-grunt" unit="кг">
+    <Code>ГФ-021</Code>
+    <Name>Грунт ГФ-021 (коричневый)</Name>
+    <Category>лакокрасочные</Category>
+    <Price>185.0</Price>
+  </Material>
+  <Material ref="uuid-m-rastvor" unit="л">
+    <Code>Растворитель 646</Code>
+    <Name>Растворитель 646</Name>
+    <Category>лакокрасочные</Category>
+    <Price>95.0</Price>
+  </Material>
+  <Material ref="uuid-m-benzin" unit="л">
+    <Code>Бензин Калоша</Code>
+    <Name>Бензин Калоша (Нефрас)</Name>
+    <Category>вспомогательные</Category>
+    <Price>75.0</Price>
+  </Material>
+  <Material ref="uuid-m-tkan" unit="кг">
+    <Code>Стеклоткань Э-200</Code>
+    <Name>Стеклоткань Э-200</Name>
+    <Category>композиты</Category>
+    <Price>380.0</Price>
+  </Material>
+  <Material ref="uuid-m-smola" unit="кг">
+    <Code>ЭД-20</Code>
+    <Name>Эпоксидная смола ЭД-20</Name>
+    <Category>композиты</Category>
+    <Price>540.0</Price>
+  </Material>
+  <Material ref="uuid-m-otverd" unit="кг">
+    <Code>ПЭПА</Code>
+    <Name>Отвердитель ПЭПА</Name>
+    <Category>композиты</Category>
+    <Price>720.0</Price>
+  </Material>
+  <Material ref="uuid-m-maslo" unit="л">
+    <Code>Масло И-20А</Code>
+    <Name>Масло индустриальное И-20А</Name>
+    <Category>смазочные</Category>
+    <Price>95.0</Price>
+  </Material>
+  <Material ref="uuid-m-tormoz" unit="л">
+    <Code>Жидкость DOT-4</Code>
+    <Name>Тормозная жидкость DOT-4</Name>
+    <Category>технические</Category>
+    <Price>280.0</Price>
+  </Material>
+  <Material ref="uuid-m-antifriz" unit="л">
+    <Code>Антифриз G11</Code>
+    <Name>Антифриз G11 (зелёный)</Name>
+    <Category>технические</Category>
+    <Price>165.0</Price>
+  </Material>
+</Materials>

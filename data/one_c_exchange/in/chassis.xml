@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Chassis>
+  <Chassis ref="uuid-c-kamaz-43118">
+    <Designation>КАМАЗ-43118</Designation>
+    <Name>КАМАЗ-43118 6×6</Name>
+    <Manufacturer>ПАО КАМАЗ</Manufacturer>
+    <WheelFormula>6×6</WheelFormula>
+    <CurbWeightKG>10400</CurbWeightKG>
+    <PayloadKG>7000</PayloadKG>
+  </Chassis>
+  <Chassis ref="uuid-c-kamaz-6520">
+    <Designation>КАМАЗ-6520</Designation>
+    <Name>КАМАЗ-6520 6×4</Name>
+    <Manufacturer>ПАО КАМАЗ</Manufacturer>
+    <WheelFormula>6×4</WheelFormula>
+    <CurbWeightKG>12800</CurbWeightKG>
+    <PayloadKG>14000</PayloadKG>
+  </Chassis>
+  <Chassis ref="uuid-c-ural-4320">
+    <Designation>УРАЛ-4320</Designation>
+    <Name>УРАЛ-4320 6×6</Name>
+    <Manufacturer>АЗ УРАЛ</Manufacturer>
+    <WheelFormula>6×6</WheelFormula>
+    <CurbWeightKG>8400</CurbWeightKG>
+    <PayloadKG>12000</PayloadKG>
+  </Chassis>
+  <Chassis ref="uuid-c-ural-5557">
+    <Designation>УРАЛ-5557</Designation>
+    <Name>УРАЛ-5557 4×4</Name>
+    <Manufacturer>АЗ УРАЛ</Manufacturer>
+    <WheelFormula>4×4</WheelFormula>
+    <CurbWeightKG>6900</CurbWeightKG>
+    <PayloadKG>5000</PayloadKG>
+  </Chassis>
+</Chassis>

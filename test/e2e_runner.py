@@ -17,7 +17,7 @@ from typing import List, Optional
 
 from playwright.async_api import async_playwright, Page, BrowserContext, TimeoutError as PWTimeout
 
-URL = "http://217.114.7.5:8081"
+URL = "https://217.114.7.5:8081"
 ROLES = [
     ("techadmin", "admin"),
     ("vorobyev", "main_technologist"),
@@ -189,6 +189,7 @@ async def run_scenario_s04_generate(page: Page, role: str, report: Report):
                 form={"input": ""},
                 max_redirects=0,
                 timeout=10000,
+                headers={"X-Requested-With": "XMLHttpRequest"},
             )
             if r_buy.status != 400:
                 report.add_result("S04", role, False, f"buy POST → {r_buy.status}, expected 400")
@@ -416,7 +417,11 @@ async def run_role(p, role_name: str, username: str, report: Report, screenshots
     print(f"\n=== Роль: {username} ({role_name}) ===")
     browser = await p.chromium.launch(headless=True)
     try:
-        context = await browser.new_context(viewport={"width": 1280, "height": 800})
+        # M37-#6: ignore self-signed cert (для pilot TLS)
+        context = await browser.new_context(
+            viewport={"width": 1280, "height": 800},
+            ignore_https_errors=True,
+        )
         page = await context.new_page()
         for code, _, roles in SCENARIOS:
             if role_name not in roles:

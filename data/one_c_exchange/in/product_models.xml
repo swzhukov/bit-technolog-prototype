@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ProductModels>
+  <ProductModel ref="uuid-pm-1">
+    <Designation>АЦ-8,0-40</Designation>
+    <Name>Автоцистерна пожарная 8 м³ на шасси КАМАЗ-43118</Name>
+    <ProductType>АЦ</ProductType>
+    <ChassisRef>uuid-c-kamaz-43118</ChassisRef>
+    <TU>ТУ 4854-001-14937555-2018</TU>
+  </ProductModel>
+  <ProductModel ref="uuid-pm-2">
+    <Designation>АЦ-6,0-40</Designation>
+    <Name>Автоцистерна пожарная 6 м³ на шасси КАМАЗ-43118</Name>
+    <ProductType>АЦ</ProductType>
+    <ChassisRef>uuid-c-kamaz-43118</ChassisRef>
+    <TU>ТУ 4854-002-14937555-2018</TU>
+  </ProductModel>
+  <ProductModel ref="uuid-pm-3">
+    <Designation>УМК-3,0-40</Designation>
+    <Name>Установка комбинированная 3 м³ на шасси КАМАЗ-43118</Name>
+    <ProductType>УМК</ProductType>
+    <ChassisRef>uuid-c-kamaz-43118</ChassisRef>
+    <TU>ТУ 4854-003-14937555-2018</TU>
+  </ProductModel>
+  <ProductModel ref="uuid-pm-4">
+    <Designation>ПСС-5,0-40</Designation>
+    <Name>Пожарная насосная станция 5 м³/мин на шасси КАМАЗ-43118</Name>
+    <ProductType>ПСС</ProductType>
+    <ChassisRef>uuid-c-kamaz-43118</ChassisRef>
+    <TU>ТУ 4854-004-14937555-2018</TU>
+  </ProductModel>
+  <ProductModel ref="uuid-pm-5">
+    <Designation>УМК-7,0-40</Designation>
+    <Name>Установка комбинированная 7 м³ на шасси УРАЛ-4320</Name>
+    <ProductType>УМК</ProductType>
+    <ChassisRef>uuid-c-ural-4320</ChassisRef>
+    <TU>ТУ 4854-005-14937555-2018</TU>
+  </ProductModel>
+</ProductModels>
