@@ -144,6 +144,7 @@
  <a href="/products" class="nav-item {% if active_page == 'products' %}active{% endif %}">Изделия</a>
  <a href="/knowledge" class="nav-item {% if active_page == 'knowledge' %}active{% endif %}">База знаний</a>
  <a href="/notices" class="nav-item {% if active_page == 'notices' %}active{% endif %}">Извещения {% if counters is defined and counters.notices %}<span class="badge bad">{{ counters.notices }}</span>{% endif %}</a>
+ <a href="/rs" class="nav-item {% if active_page == 'rs' %}active{% endif %}">Выгрузка РС</a>
  <div class="nav-section">Конфигурация</div>
 {% if user and user.role in ('admin', 'main_technologist') %}
  <a href="/profiles" class="nav-item {% if active_page == 'profiles' %}active{% endif %}">Шаблоны маршрутов</a>

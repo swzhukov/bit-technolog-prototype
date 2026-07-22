@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% set active_page = 'products' %}
+{% block title %}Выгруженные РС — БИТ.Технолог{% endblock %}
+{% block content %}
+<h1>Выгруженные РС (для 1С:ERP)</h1>
+<p class="lead">Все сгенерированные РС в XML, готовые для загрузки в 1С:ERP через FileGateway/HttpGateway.</p>
+
+<div class="panel">
+  <div class="panel-head">
+    <span class="ttl">Список файлов (отсортированы по дате, новые сверху)</span>
+    <button class="btn" id="btn-refresh">Обновить</button>
+  </div>
+  <div class="panel-body" id="rs-list">
+    <div class="empty">Загрузка...</div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top: 16px;">
+  <div class="panel-body">
+    <h3 style="margin: 0 0 8px;">Что делать с этим файлом?</h3>
+    <ol style="margin: 0; padding-left: 20px; line-height: 1.6;">
+      <li>Скачайте XML файл, нажав "Скачать" в строке нужной РС.</li>
+      <li>Откройте 1С:ERP → Справочник "Ресурсные спецификации" → "Загрузить из файла".</li>
+      <li>Укажите скачанный XML.</li>
+      <li>Проверьте соответствие НСИ (материалы, оборудование, профессии).</li>
+      <li>Сохраните.</li>
+    </ol>
+  </div>
+</div>
+
+<script>
+async function loadRs() {
+  const r = await fetch('/api/rs/list', {credentials: 'same-origin'});
+  if (!r.ok) { document.getElementById('rs-list').innerHTML = '<div class="empty">Ошибка загрузки</div>'; return; }
+  const data = await r.json();
+  const list = data.files || [];
+  if (list.length === 0) {
+    document.getElementById('rs-list').innerHTML = '<div class="empty">Нет выгруженных РС. Сначала утвердите технологическую карту.</div>';
+    return;
+  }
+  const html = ['<table class="tbl"><thead><tr><th>Файл</th><th>Размер</th><th>Дата</th><th>Действие</th></tr></thead><tbody>'];
+  for (const f of list) {
+    const date = new Date(f.modified * 1000).toLocaleString('ru-RU');
+    const sizeKb = (f.size / 1024).toFixed(1) + ' КБ';
+    html.push(`<tr><td><b>${f.filename}</b></td><td>${sizeKb}</td><td class="muted">${date}</td><td><a class="btn btn-primary" href="/api/rs/download/${f.filename}">Скачать XML</a></td></tr>`);
+  }
+  html.push('</tbody></table>');
+  document.getElementById('rs-list').innerHTML = html.join('');
+}
+loadRs();
+document.getElementById('btn-refresh').addEventListener('click', loadRs);
+</script>
+{% endblock %}

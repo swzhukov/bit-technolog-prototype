@@ -1072,6 +1072,56 @@ async def metrics_record_green(request: Request):
 # API ENDPOINTS
 # ============================================================
 
+@app.get("/rs", response_class=HTMLResponse)
+async def rs_export_page(request: Request):
+    """M38-c4: страница выгрузки РС."""
+    user = get_user_from_request(request)
+    if not user:
+        return RedirectResponse("/login", 303)
+    ctx = get_template_context(request, user)
+    return templates.TemplateResponse("rs_export.html", ctx)
+
+
+@app.get("/api/rs/list")
+async def api_rs_list(request: Request):
+    """M38-c4: список выгруженных РС (XML файлов)."""
+    user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(401)
+    import os
+    out_dir = "data/one_c_exchange/out"
+    if not os.path.exists(out_dir):
+        return {"files": []}
+    files = []
+    for f in sorted(os.listdir(out_dir), reverse=True):
+        if f.endswith(".xml"):
+            full = os.path.join(out_dir, f)
+            files.append({
+                "filename": f,
+                "size": os.path.getsize(full),
+                "modified": os.path.getmtime(full),
+            })
+    return {"files": files}
+
+
+@app.get("/api/rs/download/{filename}")
+async def api_rs_download(filename: str, request: Request):
+    """M38-c4: скачать XML РС (для 1С:ERP)."""
+    user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(401)
+    import os
+    # Защита от path traversal
+    if "/" in filename or ".." in filename or chr(92) in filename:
+        raise HTTPException(400, "invalid filename")
+    out_dir = "data/one_c_exchange/out"
+    fpath = os.path.join(out_dir, filename)
+    if not os.path.exists(fpath):
+        raise HTTPException(404, "file not found")
+    from fastapi.responses import FileResponse
+    return FileResponse(fpath, media_type="application/xml", filename=filename)
+
+
 @app.get("/health")
 async def health():
     """Health check."""
