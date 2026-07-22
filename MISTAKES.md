@@ -1058,3 +1058,43 @@ curl -s http://prod:port/route -o /tmp/r.html -w "HTTP=%{http_code} size=%{size_
 grep -A 2 "async def endpoint_name" app.py
 ```
 
+
+## Цикл аудита #1 (2026-07-22) — ИТОГИ
+
+**Дата:** 2026-07-22, цикл 1.
+**Скоуп:** 5 точек аудита (M35n), 7 вопросов Q-001..Q-007.
+
+**Результат по вопросам:**
+
+| # | Вопрос | Статус | Сделано |
+|---|--------|--------|---------|
+| Q-001 | Петля обучения | ✅ ЗАКРЫТ | M35u (real metrics) |
+| Q-002 | LLM в основном flow | ✅ ЗАКРЫТ | M35r (RAG + LLM refine) |
+| Q-003 | Мёртвый код | ✅ ЗАКРЫТ | M35s (git rm 328 строк) |
+| Q-004 | Inline-edit | ✅ ЗАКРЫТ | M35t (3 поля, Linear pattern) |
+| Q-005 | Header buttons | ✅ ЗАКРЫТ | M35q (1 primary + top_draft) |
+| Q-006 | 5→4 роли | ✅ ЗАКРЫТ | M35q (_ROLE_ALIASES) |
+| Q-007 | "Мои задачи" | ✅ ЗАКРЫТ | M35q (LEFT JOIN item_id+user) |
+
+**Итого: 7/7 (100%) вопросов закрыты за 1 цикл.**
+
+**Что выявлено сверх первоначального скоупа:**
+- M35u-fix: in-memory `_sessions` известный баг (некритично для пилота)
+- M35u-fix2: забыл `return` при правке (content-length: 0)
+- M35r-fix: 1bitai.ru 170 сек (max_tokens 3000 → 1500)
+- M35q-fix: IndentationError (duplicate SQL tail)
+- M35q-fix2: "Мои задачи" использовал tc_id (NULL до approve) → item_id+user
+
+**Скриншоты:**
+- /tmp/audit_screens/dashboard_q001.png — дашборд с реальной петлёй
+- /tmp/audit_screens/detail_item_12.png — /detail/12 (5 операций)
+- /tmp/audit_screens/detail_inline_edit_hover.png — hover на editable
+
+**Состояние prod на 14:45 22.07.2026:**
+- HEAD: `4dc2a41` (M35u-docs)
+- Health: ok, v0.8.5
+- БД: 51 items, 15 etalons, 5 ТК утверждено за 28д
+- 0/11 находок аудита не закрыто
+
+**Следующий цикл:** цикл 2 (после пилота 27.07) — на основе реальной обратной связи от 50+ технологов.
+
