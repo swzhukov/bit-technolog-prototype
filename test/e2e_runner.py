@@ -384,7 +384,7 @@ SCENARIOS = [
     ("S02", "Список изделий /products", ["admin", "main_technologist", "technologist", "workshop_chief"]),
     ("S03", "Карточка изделия /detail/{id}", ["admin", "main_technologist", "technologist", "workshop_chief"]),
     ("S04", "Генерация ТК + 400 для покупного", ["admin", "main_technologist", "technologist"]),
-    ("S05", "Inline-edit операции", ["admin", "main_technologist", "technologist"]),
+    ("S05", "Inline-edit операции (только редакторы)", ["admin", "main_technologist", "technologist"]),
     ("S06", "Дашборд с петлёй обратной связи", ["admin", "main_technologist", "technologist", "workshop_chief"]),
     ("S07", "Извещения /notices", ["admin", "main_technologist", "technologist"]),
     ("S08", "Шаблоны маршрутов /profiles", ["admin", "main_technologist"]),
