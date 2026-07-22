@@ -91,12 +91,14 @@
 
 <div class="panel success">
  <div class="panel-body">
- <b> Петля обучения:</b> за последние 4 недели утверждено 17 ТК — они стали эталонами.
- Доля норм «зелёного» уровня выросла с 42% до 61%.
- <div style="margin-top:8px; font-size:12.5px;">
- <b>Кейс «Зачистка после мех. сварки»:</b> AI ставил 0,50 н/ч (-25% к факту), наряды показывали 0,62-0,70.
- → Добавлено правило технолога «12 мин/пог. м шва» → теперь AI выдаёт 0,65 (зелёный уровень)
+ <b>Петля обратной связи (Q-001):</b> за последние 28 дней утверждено <b>{{ learning.approved_last_28d }}</b> ТК → стали эталонами (всего <b>{{ learning.total_etalons }}</b> эталонов в БД).
+ <br>Доля норм «зелёного» уровня: <b>{{ learning.green_now }}%</b>{% if learning.green_change != 0 %} (изменение за 28 дней: <b>{% if learning.green_change > 0 %}+{% endif %}{{ learning.green_change }}%</b>){% endif %}.
+ <br><span class="muted" style="font-size:12px;">Правок через inline-edit: <b>{{ learning.edits_total }}</b> (name-правок: <b>{{ learning.edits_name }}</b>). Петля работает: правки → подтверждение → эталон → RAG.</span>
+ {% if learning.approved_last_28d == 0 %}
+ <div style="margin-top:8px; font-size:12.5px; color: var(--v8-muted);">
+ Петля ещё не запущена. Чтобы запустить: утвердите ТК в <a href="/products">Изделиях</a>. После этого правки через inline-edit будут попадать в эталоны и улучшать RAG.
  </div>
+ {% endif %}
  </div>
 </div>
 {% endblock %}

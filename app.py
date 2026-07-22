@@ -333,7 +333,55 @@ async def dashboard(request: Request):
         "metrics": metrics,
         "b_history": b_history,
         "top_draft": tasks[0] if tasks else None,  # Q-005: контекстная подсказка
+        "learning": _compute_learning(),  # Q-001: петля обратной связи
     })
+
+
+def _compute_learning() -> dict:
+    """Q-001 (M35u): реальные метрики петли обратной связи.
+    Заменяет placeholder "17 ТК, 42% → 61%" в /dashboard.
+    """
+    try:
+        approved_28d = db.query_one(
+            "SELECT COUNT(*) AS n FROM tech_cards WHERE is_approved = 1 AND approved_at >= datetime('now', '-28 days')"
+        )["n"]
+        total_etalons = db.query_one("SELECT COUNT(*) AS n FROM etalons")["n"]
+        # Текущая доля зелёных
+        from services.metrics import calc_green_pct
+        green_now_dict = calc_green_pct(scope="all")
+        green_now = int(green_now_dict.get("green_pct", 0))
+        # Изменение за 28 дней: считаем через pilot_metrics (если есть)
+        green_then = 0
+        try:
+            row = db.query_one(
+                "SELECT metric_value FROM pilot_metrics WHERE metric_code = 'green_pct' "
+                "AND measured_at <= date('now', '-28 days') ORDER BY id DESC LIMIT 1"
+            )
+            if row:
+                green_then = int(row["metric_value"])
+        except Exception:
+            pass
+        green_change = green_now - green_then
+        # Edits: всего + name-правок (Q-001)
+        edits_total = db.query_one("SELECT COUNT(*) AS n FROM edits")["n"]
+        edits_name = db.query_one("SELECT COUNT(*) AS n FROM edits WHERE field = 'name'")["n"]
+        return {
+            "approved_last_28d": approved_28d,
+            "total_etalons": total_etalons,
+            "green_now": green_now,
+            "green_change": green_change,
+            "edits_total": edits_total,
+            "edits_name": edits_name,
+        }
+    except Exception as e:
+        return {
+            "approved_last_28d": 0,
+            "total_etalons": 0,
+            "green_now": 0,
+            "green_change": 0,
+            "edits_total": 0,
+            "edits_name": 0,
+        }
     return templates.TemplateResponse("dashboard.html", ctx)
 
 
