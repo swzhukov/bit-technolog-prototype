@@ -297,7 +297,9 @@ async def dashboard(request: Request):
         "green_guess": green["red"],
     }
 
-    # Задачи (последние 5) — Q-007: "Мои задачи" = ТК, которые я генерил (по pilot_runs.user)
+    # Задачи (последние 5) — Q-007: "Мои задачи" = ТК, которые я генерил
+    # Используем LEFT JOIN: tc_id может быть NULL (если не было approve),
+    # но если pilot_runs.user = ? — это "моя" ТК.
     tasks = db.query("""
         SELECT tc.id AS tech_card_id, i.id AS item_id, i.designation, i.name,
                tc.status, tc.version,
@@ -306,7 +308,8 @@ async def dashboard(request: Request):
         FROM tech_cards tc
         JOIN items i ON i.id = tc.item_id
         LEFT JOIN product_models p ON p.id = i.product_model_id
-        INNER JOIN pilot_runs pr ON pr.tc_id = tc.id AND pr.user = ?
+        LEFT JOIN pilot_runs pr ON pr.item_id = tc.item_id AND pr.user = ?
+        WHERE pr.id IS NOT NULL
         ORDER BY tc.updated_at DESC
         LIMIT 5
     """, (user.username,))
