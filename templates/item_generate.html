@@ -3,7 +3,7 @@
 {% block title %}Сгенерировать ТК — {{ item.designation }}{% endblock %}
 {% block content %}
 <div class="breadcrumbs"><a href="/products">Изделия</a> → <a href="/detail/{{ item.id }}">{{ item.designation }}</a> →</div>
-<h1>Сгенерировать ТК</h1>
+<h1>Сгенерировать техкарту</h1>
 <p class="lead">
   <span class="badge brand">{{ item.level }}</span>
   <b>{{ item.name }}</b>
@@ -16,13 +16,47 @@
   <div class="panel-body">
     <p style="margin: 0 0 8px;">AI подберёт аналоги из базы эталонов и предложит операции с доказательствами.</p>
     <p class="muted" style="font-size: 12px; margin: 0;">
-      Поля «время» будут выставлены по аналогам (жёлтый уровень). Технолог подтвердит вручную.
+      Поля «время» будут выставлены по аналогам. Технолог подтвердит вручную.
     </p>
   </div>
 </div>
 
-<form method="POST" action="/items/{{ item.id }}/generate">
-  <button type="submit" class="btn btn-primary" style="font-size: 14px; padding: 10px 20px;">Сгенерировать черновик</button>
+<form method="POST" action="/items/{{ item.id }}/generate" id="gen-form">
+  <button type="submit" class="btn btn-primary" style="font-size: 14px; padding: 10px 20px;" id="gen-btn">
+    Сгенерировать черновик
+  </button>
   <a class="btn btn-ghost" href="/detail/{{ item.id }}">Отмена</a>
 </form>
+
+<!-- M38: progress overlay — показывается после submit -->
+<div id="gen-progress" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:100; align-items:center; justify-content:center;">
+  <div style="background:white; padding:32px 48px; border-radius:8px; max-width:480px; text-align:center;">
+    <h3 style="margin:0 0 12px;">Генерирую техкарту</h3>
+    <p style="color:#666; font-size:13px; margin:0 0 16px;">
+      Анализирую {{ etalons_count }} эталонов и подбираю аналоги...<br>
+      Затем отправляю в LLM для уточнения операций.
+    </p>
+    <div style="background:#f3f4f6; border-radius:4px; height:8px; overflow:hidden; margin-bottom:12px;">
+      <div id="progress-bar" style="background:linear-gradient(90deg, #dc2626, #f59e0b); height:100%; width:0%; transition: width 0.3s;"></div>
+    </div>
+    <p style="color:#999; font-size:12px; margin:0;">
+      Обычно занимает 20-30 секунд. Не закрывайте вкладку.
+    </p>
+  </div>
+</div>
+
+<script>
+document.getElementById('gen-form').addEventListener('submit', function() {
+  document.getElementById('gen-btn').disabled = true;
+  document.getElementById('gen-progress').style.display = 'flex';
+  // Animate progress bar 0 → 90% за 25 сек
+  let p = 0;
+  const bar = document.getElementById('progress-bar');
+  const interval = setInterval(() => {
+    p = Math.min(p + 4, 90);
+    bar.style.width = p + '%';
+    if (p >= 90) clearInterval(interval);
+  }, 1000);
+});
+</script>
 {% endblock %}

@@ -188,7 +188,7 @@ async def run_scenario_s04_generate(page: Page, role: str, report: Report):
                 f"{URL}/items/8/generate",
                 form={"input": ""},
                 max_redirects=0,
-                timeout=10000,
+                timeout=20000,
                 headers={"X-Requested-With": "XMLHttpRequest"},
             )
             if r_buy.status != 400:
