@@ -341,15 +341,22 @@ async def settings_save_llm(request: Request):
 # CONTEXT для всех шаблонов
 # ============================================================
 
+def normalize_user_role(user) -> None:
+    """M38-c3-fix: нормализует роль через _ROLE_ALIASES.
+    'tech_admin' → 'admin', 'llm_admin' → 'admin'.
+    Вызывать ПОСЛЕ get_user_from_request, до RBAC проверок.
+    """
+    if user is None:
+        return
+    from services.auth import _ROLE_ALIASES
+    user.role = _ROLE_ALIASES.get(user.role, user.role)
+
+
 def get_template_context(request: Request, user: Optional[User] = None) -> Dict[str, Any]:
     """Общий контекст для всех шаблонов."""
     registry = get_registry()
     # Счётчик открытых извещений (нужен в nav)
     n_open_notices = db.query_one("SELECT COUNT(*) AS n FROM change_notices WHERE status IN ('open','in_progress')")["n"]
-    # M38-c3: нормализуем роль через _ROLE_ALIASES (tech_admin → admin)
-    from services.auth import _ROLE_ALIASES
-    if user:
-        user.role = _ROLE_ALIASES.get(user.role, user.role)
     return {
         "request": request,
         "current_user": user,
@@ -968,6 +975,7 @@ async def api_notice(notice_id: int):
 @app.get("/profiles", response_class=HTMLResponse)
 async def profiles(request: Request):
     user = get_user_from_request(request)
+    normalize_user_role(user)
     if not user or user.role not in ("admin", "main_technologist"):
         raise HTTPException(403, "Недостаточно прав")
     ctx = get_template_context(request, user)
@@ -1023,6 +1031,7 @@ async def help_page(request: Request):
 @app.get("/metrics", response_class=HTMLResponse)
 async def metrics_page(request: Request):
     user = get_user_from_request(request)
+    normalize_user_role(user)
     if not user or user.role not in ("admin", "main_technologist"):
         raise HTTPException(403, "Недостаточно прав")
     ctx = get_template_context(request, user)
