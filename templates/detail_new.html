@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% set active_page = 'products' %}
+{% block title %}Новая деталь — БИТ.Технолог{% endblock %}
+{% block content %}
+<div class="breadcrumbs">
+  <a href="/products">Изделия</a> → <span>Новая деталь</span>
+</div>
+
+<h1>Создание новой детали</h1>
+<p class="lead">Заполните карточку. Поля со звёздочкой (<span style="color: var(--bad);">*</span>) обязательны.</p>
+
+{% if error %}
+<div class="panel alert" style="margin: 0 0 16px;">
+  <div class="panel-body">
+    <b style="color: var(--bad);">Ошибка:</b> {{ error }}
+  </div>
+</div>
+{% endif %}
+
+<form method="post" action="/details/new" class="panel">
+  <div class="panel-body">
+    <div class="grid2" style="grid-template-columns: 1fr 1fr; gap: 16px;">
+      <!-- Левая колонка: обязательные -->
+      <div>
+        <h3 style="margin: 0 0 12px; font-size: 16px;">Основные</h3>
+
+        <div style="margin-bottom: 12px;">
+          <label>Обозначение <span style="color: var(--bad);">*</span></label>
+          <input type="text" name="designation" required placeholder="ЛМША.301314.010"
+                 value="{{ form_data.designation|default('') }}" autofocus
+                 style="width: 100%; font-family: monospace;">
+          <div class="muted" style="font-size: 12px; margin-top: 4px;">
+            Формат: <code>ЛМША.XXXXXX.XXX</code> — уникально в системе
+          </div>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label>Наименование <span style="color: var(--bad);">*</span></label>
+          <input type="text" name="name" required placeholder="Кронштейн крепления"
+                 value="{{ form_data.name|default('') }}" style="width: 100%;">
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label>Уровень <span style="color: var(--bad);">*</span></label>
+          <select name="level" required style="width: 100%;">
+            {% for value, label in levels %}
+            <option value="{{ value }}" {% if form_data.level|default('detail') == value %}selected{% endif %}>
+              {{ label }}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="muted" style="font-size: 12px; margin-top: 4px;">
+            <b>Деталь</b> — простой элемент, изготавливается сами.<br>
+            <b>Сборка</b> — несколько деталей собираются в узел.<br>
+            <b>Изделие</b> — финальный продукт (продаётся заказчику).<br>
+            <b>Покупное</b> — покупаем у поставщика без доработки.<br>
+            <b>Составная</b> — изготавливается, но входит в сборку.
+          </div>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label>Тип (опционально)</label>
+          <input type="text" name="type" placeholder="Корпусная, тела вращения, плоская..."
+                 value="{{ form_data.type|default('') }}" style="width: 100%;">
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label>Масса, кг</label>
+          <input type="number" name="mass_kg" step="0.001" min="0" placeholder="0.250"
+                 value="{{ form_data.mass_kg|default('') }}" style="width: 100%;">
+        </div>
+      </div>
+
+      <!-- Правая колонка: опциональные -->
+      <div>
+        <h3 style="margin: 0 0 12px; font-size: 16px;">Справочники</h3>
+
+        <div style="margin-bottom: 12px;">
+          <label>Материал</label>
+          <select name="material_id" style="width: 100%;">
+            <option value="">— не указан —</option>
+            {% for m in materials %}
+            <option value="{{ m.id }}" {% if form_data.material_id|default('') == m.id|string %}selected{% endif %}>
+              {{ m.name }} ({{ m.code }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label>Изделие (родитель)</label>
+          <select name="product_model_id" style="width: 100%;">
+            <option value="">— не указан —</option>
+            {% for pm in product_models %}
+            <option value="{{ pm.id }}" {% if form_data.product_model_id|default('') == pm.id|string %}selected{% endif %}>
+              {{ pm.name }}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="muted" style="font-size: 12px; margin-top: 4px;">
+            В какое изделие входит эта деталь
+          </div>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label>Способ изготовления</label>
+          <select name="sourcing" style="width: 100%;">
+            {% for value, label in sourcings %}
+            <option value="{{ value }}" {% if form_data.sourcing|default('make') == value %}selected{% endif %}>
+              {{ label }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label>Чертёж (номер)</label>
+          <input type="text" name="drawing_no" placeholder="ЛМША.301314.010 СБ"
+                 value="{{ form_data.drawing_no|default('') }}" style="width: 100%;">
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label>ref_1c (UUID в 1С:ERP)</label>
+          <input type="text" name="ref_1c" placeholder="опционально"
+                 value="{{ form_data.ref_1c|default('') }}" style="width: 100%; font-family: monospace; font-size: 12px;">
+          <div class="muted" style="font-size: 12px; margin-top: 4px;">
+            Заполнится автоматически при синхронизации с 1С
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-body" style="border-top: 1px solid var(--border); background: var(--bg-muted); display: flex; gap: 8px; justify-content: space-between; align-items: center;">
+    <a href="/products" class="btn">← Отмена</a>
+    <button type="submit" class="btn btn-primary">Создать деталь</button>
+  </div>
+</form>
+
+<div class="panel" style="margin-top: 16px;">
+  <div class="panel-body">
+    <h3 style="margin: 0 0 8px; font-size: 14px;">Что дальше?</h3>
+    <p style="margin: 0; line-height: 1.5;">
+      После создания откроется карточка детали. Чтобы сгенерировать черновик ТК — нажмите <b>«Сгенерировать ТК»</b> в карточке.
+      AI проанализирует эталонную базу знаний и предложит операции с нормами времени.
+    </p>
+  </div>
+</div>
+
+{% endblock %}
