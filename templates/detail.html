@@ -1,6 +1,15 @@
 {% extends "base.html" %}
 {% set active_page = 'products' %}
 {% block title %}{{ item.designation }} — БИТ.Технолог{% endblock %}
+{% block extra_head %}
+<style>
+/* Q-004 (M35t): inline-edit affordance для полей операции (Linear/Airtable pattern) */
+.editable { cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: background 0.1s; border: 1px dashed transparent; }
+.editable:hover { background: var(--v8-blue-bg); border-color: var(--v8-blue); }
+.editable-input { padding: 4px 8px; border: 1px solid var(--v8-blue); border-radius: 4px; background: var(--v8-panel); color: var(--v8-text); font: inherit; }
+.editable-saving { opacity: 0.5; pointer-events: none; }
+</style>
+{% endblock %}
 {% block content %}
 <div class="breadcrumbs"><a href="/products">Изделия</a> → <a href="/products?level={{ item.level }}">{{ item.level|ru_level }}</a> →</div>
 <h1>{{ item.name }} <span class="muted" style="font-size:14px; font-weight:400;">{{ item.designation }}</span></h1>
@@ -79,7 +88,8 @@
       {% set ev = evidence_map.get(op.id) %}
       <tr>
         <td>{{ op.op_number }}</td>
-        <td><b>{{ op.name }}</b>
+        <td>
+          <b><span class="editable" data-op="{{ op.id }}" data-field="name" title="Клик для редактирования">{{ op.name }}</span></b>
           {% if ev and ev.analogs %}<br><span class="muted" style="font-size: 11.5px;">{{ ev.note }}</span>{% endif %}
         </td>
         <td>
@@ -90,8 +100,8 @@
           <b>{{ profession_names.get(op.profession_code, op.profession_code) or '—' }}</b>
           {% if op.profession_code %}<br><span class="muted" style="font-size: 11px;">{{ op.profession_code }}</span>{% endif %}
         </td>
-        <td><b>{{ op.time_per_unit_min or 0 }}</b></td>
-        <td>{{ op.time_setup_min or 0 }}</td>
+        <td><b><span class="editable" data-op="{{ op.id }}" data-field="time_per_unit_min" data-type="number" title="Клик для редактирования">{{ op.time_per_unit_min or 0 }}</span></b></td>
+        <td><span class="editable" data-op="{{ op.id }}" data-field="time_setup_min" data-type="number" title="Клик для редактирования">{{ op.time_setup_min or 0 }}</span></td>
         <td>
           {% if ev %}
             {% if ev.source == 'factory_data' %}<span class="badge ok">{{ ev.source_label }}</span>
@@ -309,6 +319,74 @@ async function submitConfirm(opId) {
     alert('Сетевая ошибка: ' + e.message);
   }
 }
+
+// === Q-004 (M35t): inline-edit для полей операции (Linear/Airtable pattern) ===
+// click → input → Enter=POST, Escape=cancel
+(function() {
+  document.querySelectorAll('span.editable[data-op][data-field]').forEach(function(span) {
+    span.addEventListener('click', function() {
+      if (span.querySelector('input')) return;
+      const opId = span.dataset.op;
+      const field = span.dataset.field;
+      const type = span.dataset.type || 'text';
+      const original = span.textContent.trim();
+      const input = document.createElement('input');
+      input.type = type;
+      input.className = 'editable-input';
+      input.value = original;
+      if (type === 'number') {
+        input.step = '0.1';
+        input.min = '0';
+        input.style.width = '70px';
+      } else {
+        input.style.width = 'auto';
+        input.style.minWidth = '100px';
+      }
+      span.textContent = '';
+      span.appendChild(input);
+      input.focus();
+      input.select();
+      let saved = false;
+      function save() {
+        if (saved) return;
+        saved = true;
+        const newVal = input.value;
+        if (newVal === original) { span.textContent = original; return; }
+        span.classList.add('editable-saving');
+        fetch('/api/operations/' + opId + '/update', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+          credentials: 'same-origin',
+          body: JSON.stringify({field: field, value: newVal}),
+        }).then(function(r) { return r.json().then(function(j) { return {ok: r.ok, j: j}; }); })
+          .then(function(res) {
+            span.classList.remove('editable-saving');
+            if (res.ok && res.j.status === 'ok') {
+              span.textContent = newVal;
+            } else {
+              alert('Ошибка: ' + (res.j.detail || JSON.stringify(res.j)));
+              span.textContent = original;
+            }
+          }).catch(function(e) {
+            span.classList.remove('editable-saving');
+            alert('Сетевая ошибка: ' + e.message);
+            span.textContent = original;
+          });
+      }
+      function cancel() {
+        if (saved) return;
+        saved = true;
+        span.textContent = original;
+      }
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); save(); }
+        else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+      });
+      input.addEventListener('blur', save);
+    });
+  });
+})();
+
 </script>
 
 {# === ТАБ 2: РЕСУРСНАЯ СПЕЦИФИКАЦИЯ === #}

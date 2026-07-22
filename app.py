@@ -949,6 +949,66 @@ async def api_confirm_operation(operation_id: int, request: Request, new_time: f
     return {"status": "ok" if ok else "error", "operation_id": operation_id, "new_time": new_time}
 
 
+@app.post("/api/operations/{operation_id}/update")
+async def api_update_operation(operation_id: int, request: Request):
+    """Q-004 (M35t): inline-edit для любого поля операции.
+    Поддерживает: name, time_per_unit_min, time_setup_min, workshop_id, equipment_id, profession_id.
+    FK-поля (workshop_id, equipment_id, profession_id) принимают int ID (а не код).
+    Текстовые поля (name) — str. Числовые (time_*) — float.
+    """
+    user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(401)
+    body = await request.json()
+    field = body.get("field")
+    value = body.get("value")
+    if not field or value is None:
+        raise HTTPException(400, "field and value required")
+
+    # Whitelist допустимых полей
+    allowed_text = ["name"]
+    allowed_num = ["time_per_unit_min", "time_setup_min"]
+    allowed_fk = ["workshop_id", "equipment_id", "profession_id"]
+    if field in allowed_text:
+        sql_value = str(value)[:200]
+    elif field in allowed_num:
+        try:
+            sql_value = float(value)
+        except (TypeError, ValueError):
+            raise HTTPException(400, f"invalid numeric value: {value!r}")
+    elif field in allowed_fk:
+        try:
+            sql_value = int(value) if value != "" else None
+        except (TypeError, ValueError):
+            raise HTTPException(400, f"invalid FK value: {value!r}")
+    else:
+        raise HTTPException(400, f"field {field!r} not editable")
+
+    # Защита: операция должна существовать
+    op = db.query_one("SELECT id, tech_card_id, name FROM operations WHERE id = ?", (operation_id,))
+    if not op:
+        raise HTTPException(404, "operation not found")
+
+    # Защита: нельзя править утверждённую ТК
+    tc = db.query_one("SELECT is_approved FROM tech_cards WHERE id = ?", (op["tech_card_id"],))
+    if tc and tc["is_approved"]:
+        raise HTTPException(403, "ТК утверждена — правки запрещены (откройте новую версию)")
+
+    # Запись в БД + логирование в edits (для петли обратной связи Q-001)
+    try:
+        old_value = op["name"] if field == "name" else None
+        db.execute(f"UPDATE operations SET {field} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                   (sql_value, operation_id))
+        # Если меняется name — логируем в edits
+        if field == "name":
+            db.execute("""INSERT INTO edits (draft_id, op_id, field, old_value, new_value, user, ts)
+                          VALUES (?, ?, ?, ?, ?, ?, datetime('now'))""",
+                       (op["tech_card_id"], operation_id, field, old_value, sql_value, user.username))
+        return {"status": "ok", "operation_id": operation_id, "field": field, "value": sql_value}
+    except Exception as e:
+        raise HTTPException(500, f"db error: {e}")
+
+
 @app.post("/api/tech-cards/{tech_card_id}/regenerate")
 async def api_regenerate(tech_card_id: int, request: Request):
     """Перегенерировать ТК через LLM (mock)."""
