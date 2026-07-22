@@ -1,60 +1,14 @@
-# Python
+# M37-#6: TLS certs
+certs/
+*.pem
+*.key
+*.crt
+
+# Existing
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-venv/
-.venv/
-ENV/
-*.egg-info/
-.pytest_cache/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Project-specific
+*.pyc
 data/*.db
-data/one_c_exchange/in/
-data/one_c_exchange/out/
-.rag/
-.master_key
-.env
-.env.local
-.ENV
-*.log
-
-# Sprint 4 stuff
-audit_logs/
-qdrant_data/
-chroma_data/
-test_results/
-
-# OCR промежуточные (из attachments)
-attachments/ocr/
-attachments/extracted/
-attachments/ocr_output/
-
-# Backup
-backups/
-*.tar.gz
-!wiki-2026-07-03.tar.gz
-
-# Мусор
-*.bak
-*.tmp
-*.orig
-
-# GitHub Actions — нужно PAT с workflow scope
-.github/workflows/
-
-# SQLite WAL mode — never commit (causes db corruption on git pull)
 data/*.db-shm
 data/*.db-wal
+.env
+.master_key

@@ -1315,7 +1315,13 @@ async def startup_event():
 
 if __name__ == "__main__":
     import uvicorn
+    import os as _os
+    _ssl_kwargs = {}
+    if _os.path.exists("certs/cert.pem") and _os.path.exists("certs/key.pem"):
+        _ssl_kwargs = {"ssl_keyfile": "certs/key.pem", "ssl_certfile": "certs/cert.pem"}
+        print("🔒 TLS enabled (certs/cert.pem)")
     uvicorn.run(
         app, host="0.0.0.0", port=8000, log_level="info",
         timeout_graceful_shutdown=30,  # M37-#5: 30s drain
+        **_ssl_kwargs,
     )
