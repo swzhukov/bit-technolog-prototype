@@ -3,7 +3,7 @@
 {% block title %}Мои задачи — БИТ.Технолог{% endblock %}
 {% block content %}
 <h1>Добрый день{% if current_user %}, коллега{% endif %}</h1>
-<p class="muted" style="font-size: 12px; margin: -8px 0 0;">Вы вошли как: {{ current_user.display_name if current_user else "—" }}</p>
+<p class="muted" style="font-size: 12px; margin: -8px 0 0;">Вы вошли как: {{ current_user.username if current_user else "—" }}</p>
 <p class="lead">Всего в системе: {{ counters.drafts }} черновиков, {{ counters.review }} на утверждении, {{ counters.notices }} нерешённых извещений. Ваших задач ниже.</p>
 
 <div style="display: flex; gap: 12px; margin: 20px 0 24px; flex-wrap: wrap; align-items: center;">

@@ -956,6 +956,10 @@ async def notice_generate_diff(request: Request, notice_id: int):
     normalize_user_role(user)
     if not user or user.role not in ("admin", "main_technologist", "technologist"):
         raise HTTPException(403, "Недостаточно прав")
+    # F2-004: 404 check
+    n = get_notice(notice_id)
+    if not n:
+        raise HTTPException(404, "Извещение не найдено")
     try:
         ai_diff = generate_ai_diff(notice_id)
         return {"status": "ok", "ai_diff": ai_diff}
@@ -989,11 +993,28 @@ async def api_list_notices(status: Optional[str] = None):
 
 @app.get("/api/change-notices/{notice_id}")
 async def api_notice(notice_id: int):
+    """F2-003: lazy AI diff (не вызывается на GET — иначе 24 сек LLM)."""
     n = get_notice(notice_id)
     if not n:
         raise HTTPException(404)
-    n["ai_diff"] = generate_ai_diff(notice_id)
+    # AI diff генерится только через /api/change-notices/{id}/diff
     return n
+
+
+@app.post("/api/change-notices/{notice_id}/diff")
+async def api_notice_diff(notice_id: int, request: Request):
+    """F2-003: явный запрос AI diff (lazy)."""
+    user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(401)
+    normalize_user_role(user)
+    if user.role not in ("admin", "main_technologist", "technologist"):
+        raise HTTPException(403)
+    try:
+        ai_diff = generate_ai_diff(notice_id)
+        return {"status": "ok", "ai_diff": ai_diff}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
 
 
 @app.get("/profiles", response_class=HTMLResponse)
@@ -1206,6 +1227,10 @@ async def api_confirm_operation(operation_id: int, request: Request, new_time: f
     normalize_user_role(user)
     if user.role not in ("admin", "main_technologist", "technologist"):
         raise HTTPException(403, "Недостаточно прав")
+    # F2-005: 404 check
+    op = db.query_one("SELECT id FROM operations WHERE id = ?", (operation_id,))
+    if not op:
+        raise HTTPException(404, "Операция не найдена")
     if new_time is None:
         try:
             body = await request.json()

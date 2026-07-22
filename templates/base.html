@@ -128,7 +128,7 @@
  {% if current_user %}
  <span class="user">
  <span class="avatar">{{ current_user.username[0]|upper }}{{ current_user.username[1]|upper }}</span>
- <span>{{ current_user.display_name }} <span class="muted">({{ current_user.role_display }})</span></span>
+ <span>{{ current_user.username }} <span class="muted">({{ current_user.role_display }})</span></span>
  </span>
  {% else %}
  <span class="user">
