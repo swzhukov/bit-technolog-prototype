@@ -679,3 +679,81 @@ sqlite3.OperationalError: no such table: pilot_runs
 ```
 
 Каждый пункт = assert. Не "выглядит ок", а **действие выполнено успешно**.
+
+## M35n (2026-07-22, 12:00) — Аудит prod v0.8.5 с чистого листа: 5 точек зрения, 11 находок
+
+**Ситуация:** Сергей попросил провести **большой аудит** v0.8.5: цели/ценности, концепции, реализация, UX, эксплуатация. С чистого взгляда, без оглядки на HANDOFF. Что я нашёл:
+
+### Критичные (блокеры для пилота 27.07)
+
+| # | Баг | Где | Что сделал |
+|---|---|---|---|
+| 1 | **`href="/detail/"` БЕЗ id** в дашборде (5 ссылок вели в 404) | `templates/dashboard.html:57` + `app.py:301` SQL | ✅ **M35l: fixed** — добавил `i.id AS item_id` в SELECT, `t.item_id` в шаблоне. Commit ed1c4e2 + 7258339 |
+| 2 | **3 test извещения** в проде с reason="Smoke" (мои от smoke-тестов) | `change_notices` в БД | ✅ **M35m: removed** — DELETE WHERE number LIKE 'И-TEST%' OR reason IN ('Smoke', 'test', 'test reason'). БД теперь: 2 реальных извещения |
+| 3 | **Mock mode в проде** | `is_mock_mode: true` в /health | ⚠️ Требует решения Сергея — в .env есть LLM ключ, но в БД нет llm_providers записи. Нужно сделать setup через /llm-admin |
+| 4 | **"Петля обучения" с выдуманными цифрами** (42% → 61% — placeholder) | `templates/dashboard.html` | ❓ Требует решения — это мок или реальные данные? |
+
+### False alarms (проверил — НЕ баги)
+
+| # | "Баг" | Реальность |
+|---|---|---|
+| A | "Нет inline-edit в /detail" | ✅ Есть! `submitConfirm(opId)` → POST /api/operations/{id}/confirm. Правда только для `time_per_unit_min` (Тшт), не для других полей |
+| B | "operations: op_name/time_min/evidence_level" | ✅ Код использует `name`, `time_per_unit_min`, `evidence_json` — корректно. Я ошибся в grep'е |
+| C | "Битая кириллица (Ð°TEST-001)" | ✅ В HTML кириллица в UTF-8, terminal показывал Latin-1. Curl верно отдаёт, браузер тоже |
+
+### Архитектурные находки (для размышления)
+
+| # | Наблюдение |
+|---|---|
+| 5 | **9 файлов в `_old/`** — tracked, не импортируются, но видны в graphify community hubs. Технический долг |
+| 6 | **2 мёртвых файла в рабочей директории**: `utils/drawing_recognize.py` (258 строк) и `attachments/ocr_drawings.py` (70 строк) — НЕ подключены, остались от M28 |
+| 7 | **5 ролей vs 4 в UI** — "constructor" и "quality" — есть в БД, нет в UI |
+| 8 | **8-осевая РС-фабрика** — overengineering или future-proof? 14 эталонов — норм, но 100+ — будет сложно |
+
+### UX/эксплуатация
+
+| # | Проблема |
+|---|---|
+| 9 | "Мои задачи" = ВСЕ задачи, нет user_id привязки. Технолог видит чужие черновики |
+| 10 | 3 кнопки в header: "Создать ТК" / "Извещения" / "База знаний" — "Создать ТК" ведёт на /products. Дублирование с "Изделия" в nav |
+| 11 | /metrics показывает 14% зелёных норм без абсолютных цифр — не информативно |
+
+### Lesson (5 главных)
+
+1. **Smoke test на prod ≠ "9 экранов 200 OK".** Это значит что страница открывается. Нужно проверять что на странице есть **содержимое** (5 табов, 51 items, операции) и что **ссылки рабочие**. Я бы пропустил битые `/detail/` если бы не сделал `grep -oE 'href="/detail/[^"]*"'`.
+2. **"9 экранов 200" лгут.** Страница может вернуть 200 с 0 контента или с битыми ссылками. Нужно проверять **что на странице** — операции, items, кнопки.
+3. **Test data в проде — это не "опечатка", это серьёзный риск.** 3 извещения с reason="Smoke" мог попасть в отчёт руководству Техинкома. **Smoke test в проде = test data в проде, если не чистить.** Решение: отдельная test-ветка prod или ручная чистка после smoke.
+4. **"Mock mode в проде" — неочевидный fail.** /health возвращает 200 OK, всё работает. Но технолог работает с **фейковыми данными LLM**. Для пилота 27.07 — это критично, но я бы не заметил без `curl /health` и проверки `is_mock_mode`.
+5. **HANDOFF "91/91 passing" ≠ "prod готов".** Тесты не покрыли `/detail/` без ID. Тесты не покрыли pilot_runs. Тесты не покрыли mock mode в проде. **End-to-end ручной workflow = единственный надёжный чек.**
+
+### Reusable ритуал "аудит prod перед пилотом":
+
+```bash
+# 1) Здоровье
+curl -s http://prod/health | jq .  # version, items, etalons, is_mock_mode
+curl -s -I http://prod/ | head -5  # charset в Content-Type
+
+# 2) Все 9 экранов
+for p in / /products /knowledge /notices /metrics /llm-admin /settings /detail/1 /help; do
+  curl -s -b cookies http://prod$p -o screen_$p.html
+done
+
+# 3) Анализ HTML
+for f in screen_*.html; do
+  echo "=== $f ==="
+  grep -oE 'href="/[^"]+"' $f | sort -u | head -20
+  echo "tables: $(grep -c '<table' $f)"
+  echo "rows: $(grep -c '<tr' $f)"
+done
+
+# 4) Битые ссылки
+grep -oE 'href="/detail/[^"]*"' screen_root.html | grep -E 'href="/detail/[^0-9]'
+
+# 5) Test data в БД
+sqlite3 prod.db "SELECT * FROM change_notices WHERE reason LIKE '%test%' OR reason LIKE '%Smoke%'"
+
+# 6) Mock mode
+curl -s http://prod/health | jq '.is_mock_mode'  # должен быть false перед пилотом
+```
+
+Каждый пункт = ручной assert. **Не "выглядит ОК", а "X = expected".**
