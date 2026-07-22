@@ -1172,3 +1172,93 @@ for username, role_name in ROLES:
 - **Каждый показ = прогнать E2E.** Без E2E я пропустил бы: 404 на /details/new, "Концепцию" в проде, "Профили выхода РС", 401 на покупном, inline-edit ошибки. **E2E = страховка от регрессий перед пользователем.**
 - **Сценарии — это API приложения.** Они говорят что приложение ДЕЛАЕТ, а не как устроено. Если я не могу описать что приложение делает в 10 сценариях — я не понимаю что я построил.
 
+
+## M37 (2026-07-22, 12:30) — Рабочий релиз: 7 пунктов до production-ready
+
+**Контекст:** Сергей: "Избавляемся от ярлыков 'прототип, демо'. Делаем рабочий релиз. Что отделяет?"
+
+**Всё за ~3 часа:**
+
+### #1 Renaming (M37-#1)
+- GitHub репо: `bit-technolog-prototype` → `bit-technolog` (через API)
+- git remote обновлён, redirect сохранён автоматически
+- В коде: app.py, README, template — `v0.8.5` → `1.0.0`, "прототип" → "рабочая система"
+- **НЕ тронуто:** docs/adr/* (исторические), migrations/001_v0_8_init.sql (БД знает что 001 применена)
+
+### #2 CSRF (M37-#2)
+- Middleware: для всех POST/PUT/DELETE/PATCH проверяет
+  - `X-Requested-With: XMLHttpRequest` (AJAX, Same-Origin Policy)
+  - ИЛИ `Origin/Referer == base URL` (form submit)
+  - Иначе 403
+- Исключение: `/login` (первичный логин)
+- Без CSRF: `<form action='/items/3/generate'>` на чужом сайте → submit с cookies жертвы
+- Test fix: добавлен Origin header в test_create_notice_via_form, test_settings_save_llm
+
+### #3 Rate limit (M37-#3)
+- `_rate_limit_check(key, max_calls, window_sec)` — in-memory dict
+- `/items/{id}/generate`: 5 calls per 60 sec per user
+- 429 + Retry-After header
+- "Слишком много генераций. Подождите N сек."
+
+### #4 LLM Semaphore (M37-#4)
+- `threading.Semaphore(5)` в `domain/llm_provider.call_llm`
+- Макс 5 одновременных LLM-вызовов
+- 6+ ждут
+- Защита 1bitai.ru от rate limit (RPS)
+
+### #5 Graceful shutdown (M37-#5)
+- `_shutting_down` flag + signal handlers (SIGTERM/SIGINT)
+- Middleware: 503 + Retry-After: 30 если shutting down
+- `uvicorn.run(..., timeout_graceful_shutdown=30)`
+- In-flight запросы успевают завершиться
+
+### #6 TLS (M37-#6) — через ⭐ самые большие грабли
+- Self-signed cert через openssl (rsa:2048, 365 дней)
+- `app.py`: uvicorn.run auto-SSL если certs/cert.pem существуют
+- `deploy/tls_setup.sh`: gen certs + update systemd unit + restart
+- **ГРАБЛЯ:** я случайно закоммитил `venv/` (включая Playwright driver 117MB)
+  - GitHub отклонил push: "exceeds 100MB file size limit"
+  - Долго разбирался — оказалось pre-receive hook declined
+  - Решение: `git filter-branch --index-filter "git rm -r --cached venv/"` + `git push --force`
+  - **Lesson:** НИКОГДА не добавлять venv/ в git. Если случайно — filter-branch + force push
+- Self-signed → браузер ругается "Not Secure" — для пилота ОК
+- E2E: добавил `ignore_https_errors=True` в browser context, X-Requested-With в S04 POST
+
+### #7 Load test (M37-#7)
+- locust сценарий: 80% Technologist + 20% Admin, 50 users, 60s
+- **Результаты:** 22.7 req/s, p50/p95/p99 = 180/370/640 ms
+- 0× 5xx — приложение стабильно
+- 78 errors (5.79%) — все 403 на /settings, /llm-admin (RBAC корректно)
+- Login медленнее (600мс) — bcrypt hash, до пилота: кэш
+
+## Состояние prod на 12:30 22.07.2026
+
+- **URL:** https://217.114.7.5:8081 (TLS ✅)
+- **HEAD:** 009fa5f (M37-#7)
+- **v1.0.0** (не v0.8.5)
+- **Health:** ok, db ok
+- **E2E:** 44/44 за 17 сек
+- **Load:** 22.7 req/s, p95=370ms, 0 5xx
+- **Безопасность:** CSRF, Rate limit, LLM semaphore
+- **Готовность:** пилот 27.07
+
+## Reusable паттерн "production-ready в 1 день"
+
+1. Renaming → 1 час
+2. CSRF middleware → 2 часа
+3. Rate limit + Semaphore → 2 часа
+4. Graceful shutdown → 30 мин
+5. TLS (self-signed) → 1 час (+ грабли с venv)
+6. Load test (locust) → 2 часа
+7. Итого: 1 рабочий день на серьёзный prod-grade
+
+## Главный урок M37
+
+**Каждый "потом сделаю" в архитектуре = потенциальный инцидент в пилоте.**
+- Без rate limit — один технолог-вредитель = 1320₽/час
+- Без LLM semaphore — 50 юзеров = rate limit от 1bitai.ru
+- Без graceful shutdown — systemd restart = потеря данных
+- Без CSRF — потенциальный incident security
+
+Не откладывай "некритичное" — это становится критичным в момент пилота.
+
