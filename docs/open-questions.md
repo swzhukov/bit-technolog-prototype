@@ -133,7 +133,13 @@
 
 **Сергей сказал:** "Не знаю, сделай исследование конкурентов, предложи наиболее логичное решение."
 
-**Статус:** 🚧 В работе — будет конкурентный анализ в следующем коммите.
+**Статус:** ✅ **M35q закрыто**. Убрал 3 кнопки из header, оставил 1 primary "Открыть список изделий" + контекстная подсказка про top_draft.
+
+**Решение (конкурентный анализ):**
+- **Linear/Notion/Slack** — sidebar слева, header = только global (user, search, settings). НЕТ большого action-меню в header.
+- **PLM (Onshape/Arena)** — sidebar + action buttons в контексте (на самой странице детали).
+- **Balsamiq button best practices:** "Не более одной primary кнопки за раз".
+- **Итог:** 1 primary "Открыть список изделий" + контекстная подсказка "Или начните с {top_draft.designation}".
 
 ---
 
@@ -157,7 +163,13 @@
 - B. Удалить `constructor` и `quality` (не используются), оставить 5 ролей
 - C. Удалить `constructor` и `quality` + объединить admin → 4 роли: `technologist`, `main_technologist`, `workshop_chief`, `admin`
 
-**Статус:** ⏸ На паузе, жду выбора.
+**Статус:** ✅ **M35q закрыто**. Объединил tech_admin + llm_admin → admin (суперсет permissions) через алиасы в `_ROLE_ALIASES`. Бонус — убрал emoji-иконки ролей (нарушали правило 50+ технолога).
+
+**Решение:** 4 роли
+- `technologist` — рядовой
+- `main_technologist` — гл. технолог
+- `workshop_chief` — нач. цеха
+- `admin` — суперсет (бывший tech_admin + llm_admin)
 
 ---
 
@@ -177,7 +189,9 @@
 
 **Рекомендация:** C — `pilot_runs.user` уже есть, можно JOIN'ить. Не нужна миграция.
 
-**Статус:** 🚧 В работе.
+**Статус:** ✅ **M35q закрыто**. LEFT JOIN `pilot_runs pr ON pr.item_id = tc.item_id AND pr.user = ?` + `WHERE pr.id IS NOT NULL`. Показывает ТК, для которых текущий пользователь делал generation (даже если ещё не утвердил). Без миграции (pilot_runs уже хранит user).
+
+---
 
 ---
 EOF
