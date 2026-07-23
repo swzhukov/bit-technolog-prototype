@@ -1623,16 +1623,20 @@ async def api_update_operation(operation_id: int, request: Request):
 
     # Запись в БД + логирование в edits (для петли обратной связи Q-001)
     try:
-        old_value = op["name"] if field == "name" else None
+        # C3 (Sprint 6): логируем ВСЕ поля inline-edit в edits (для diff версий)
+        # Раньше логировался только name — теперь любое поле
+        old_value_raw = op.get(field) if field in op.keys() else None
+        old_value_str = str(old_value_raw) if old_value_raw is not None else None
+        new_value_str = str(sql_value) if sql_value is not None else None
         db.execute(f"UPDATE operations SET {field} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                    (sql_value, operation_id))
-        # Если меняется name — логируем в edits
-        if field == "name":
+        # C3: логируем ВСЕ поля (не только name) — для diff версий
+        if old_value_str != new_value_str:  # Не пишем если значение не изменилось
             db.execute("""INSERT INTO edits (tech_card_id, operation_id, field, old_value, new_value, user, ts)
                           VALUES (?, ?, ?, ?, ?, ?, datetime('now'))""",
-                       (op["tech_card_id"], operation_id, field, old_value, sql_value, user.username)) # same
+                       (op["tech_card_id"], operation_id, field, old_value_str, new_value_str, user.username))
         # B3 (Sprint 6): audit-trail
-        log_history("operation", operation_id, "update", user.username, {"field": field, "value": sql_value, "old_value": old_value})
+        log_history("operation", operation_id, "update", user.username, {"field": field, "value": sql_value, "old_value": old_value_str})
         return {"status": "ok", "operation_id": operation_id, "field": field, "value": sql_value}
     except Exception as e:
         raise HTTPException(500, f"db error: {e}")
@@ -1658,6 +1662,68 @@ async def api_regenerate(tech_card_id: int, request: Request):
                       prompt=f"Сгенерируй ТК для {tc.get('item_designation')}",
                       system=refine_system)
     return {"status": "ok", "llm_response": result.parse_json(), "model": result.model}
+
+
+@app.get("/api/tech-cards/{tech_card_id}/diff")
+async def api_tech_card_diff(request: Request, tech_card_id: int):
+    """C3 (Sprint 6): список изменений (edits) для ТК — визуальный diff версий.
+
+    Возвращает все правки inline-edit (поле, было, стало, кто, когда).
+    Используется технологом перед утверждением — увидеть что отличается от эталона.
+    """
+    user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(401)
+    normalize_user_role(user)
+    # RBAC: все аутентифицированные пользователи могут смотреть diff (read-only)
+    if user.role not in ("admin", "main_technologist", "technologist", "workshop_chief"):
+        raise HTTPException(403, "Недостаточно прав")
+
+    # Проверим что ТК существует
+    tc = db.query_one("SELECT id, item_designation, is_approved FROM tech_cards WHERE id = ?", (tech_card_id,))
+    if not tc:
+        raise HTTPException(404, "ТК не найдена")
+
+    # Все edits для этой ТК, сгруппированные по операции
+    rows = db.query(
+        """SELECT e.id, e.operation_id, e.field, e.old_value, e.new_value, e.user, e.ts, e.reason,
+                  o.operation_no, o.name as op_name
+           FROM edits e
+           LEFT JOIN operations o ON o.id = e.operation_id
+           WHERE e.tech_card_id = ?
+           ORDER BY e.operation_id, e.ts""",
+        (tech_card_id,),
+    )
+    edits = db.rows_to_dicts(rows)
+
+    # Группировка по операциям
+    by_op = {}
+    for e in edits:
+        op_id = e["operation_id"]
+        if op_id not in by_op:
+            by_op[op_id] = {
+                "operation_id": op_id,
+                "operation_no": e.get("operation_no"),
+                "operation_name": e.get("op_name"),
+                "edits": [],
+            }
+        by_op[op_id]["edits"].append({
+            "id": e["id"],
+            "field": e["field"],
+            "old_value": e["old_value"],
+            "new_value": e["new_value"],
+            "user": e["user"],
+            "ts": e["ts"],
+            "reason": e.get("reason"),
+        })
+
+    return {
+        "tech_card_id": tech_card_id,
+        "item_designation": tc["item_designation"],
+        "is_approved": bool(tc["is_approved"]),
+        "total_edits": len(edits),
+        "by_operation": list(by_op.values()),
+    }
 
 
 @app.post("/api/tech-cards/{tech_card_id}/approve")
