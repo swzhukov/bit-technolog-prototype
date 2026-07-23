@@ -1517,66 +1517,73 @@ async def api_approve(tech_card_id: int, request: Request):
     # Получить операции как dict
     operations = tc.get("operations", [])
 
-    # Создаём эталон из текущей ТК (если ещё нет эталона с таким designation)
+    # B1 (Sprint 6): атомарная транзакция — INSERT/UPDATE etalons + UPDATE tech_cards
+    # Если что-то упадёт между — откат, etalon и tech_card синхронны.
     designation = tc.get("designation") or f"TC-{tech_card_id}"
-    existing = db.query_one("SELECT id FROM etalons WHERE designation = ?", (designation,))
-    if existing:
-        # Обновляем существующий эталон
-        etalon_id = existing["id"]
-        db.execute("""
-            UPDATE etalons SET name=?, source_doc=?, approved_by=?, is_approved=1, is_published=1,
-            content_json=?, approved_date=CURRENT_DATE
-            WHERE id=?
-        """, (
-            tc.get("name", ""),
-            f"Утверждена {user.username} из ТК v{tc.get('version', 1)}",
-            user.username,  # M38-v6-152: 152-ФЗ — пишем login, не ФИО
-            json.dumps({
-                "operations": [
-                    {
-                        "op_number": op.get("op_number"),
-                        "name": op.get("name"),
-                        "time_setup_min": op.get("time_setup_min", 0),
-                        "time_per_unit_min": op.get("time_per_unit_min", 0),
-                        "profession_code": op.get("profession_code", ""),
-                        "equipment_name": op.get("equipment_name", ""),
-                    }
-                    for op in operations
-                ],
-            }, ensure_ascii=False),
-            etalon_id,
-        ))
-    else:
-        etalon_id = db.insert_and_get_id("etalons", {
-            "designation": designation,
-            "name": tc.get("name", ""),
-            "product_type": "",
-            "source_doc": f"Утверждена {user.username} из ТК v{tc.get('version', 1)}",
-            "source_pages": 0,
-            "approved_by": user.username,  # M38-v6-152: 152-ФЗ
-            "approved_date": None,
-            "is_approved": 1,
-            "is_published": 1,
-            "content_json": json.dumps({
-                "operations": [
-                    {
-                        "op_number": op.get("op_number"),
-                        "name": op.get("name"),
-                        "time_setup_min": op.get("time_setup_min", 0),
-                        "time_per_unit_min": op.get("time_per_unit_min", 0),
-                        "profession_code": op.get("profession_code", ""),
-                        "equipment_name": op.get("equipment_name", ""),
-                    }
-                    for op in operations
-                ],
-            }, ensure_ascii=False),
-        })
-    # Обновим ТК (is_approved, status, approver)
-    db.execute("""
-        UPDATE tech_cards SET is_approved = 1, status = 'approved',
-        approver_chief = ?, approved_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-    """, (user.username, tech_card_id))  # M38-v6-152
+    with db.transaction() as conn:
+        existing = conn.execute("SELECT id FROM etalons WHERE designation = ?", (designation,)).fetchone()
+        if existing:
+            # Обновляем существующий эталон
+            etalon_id = existing["id"]
+            conn.execute("""
+                UPDATE etalons SET name=?, source_doc=?, approved_by=?, is_approved=1, is_published=1,
+                content_json=?, approved_date=CURRENT_DATE
+                WHERE id=?
+            """, (
+                tc.get("name", ""),
+                f"Утверждена {user.username} из ТК v{tc.get('version', 1)}",
+                user.username,  # M38-v6-152: 152-ФЗ — пишем login, не ФИО
+                json.dumps({
+                    "operations": [
+                        {
+                            "op_number": op.get("op_number"),
+                            "name": op.get("name"),
+                            "time_setup_min": op.get("time_setup_min", 0),
+                            "time_per_unit_min": op.get("time_per_unit_min", 0),
+                            "profession_code": op.get("profession_code", ""),
+                            "equipment_name": op.get("equipment_name", ""),
+                        }
+                        for op in operations
+                    ],
+                }, ensure_ascii=False),
+                etalon_id,
+            ))
+        else:
+            cur = conn.execute("""
+                INSERT INTO etalons (designation, name, product_type, source_doc, source_pages,
+                                     approved_by, approved_date, is_approved, is_published, content_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                designation,
+                tc.get("name", ""),
+                "",
+                f"Утверждена {user.username} из ТК v{tc.get('version', 1)}",
+                0,
+                user.username,  # M38-v6-152
+                None,
+                1,
+                1,
+                json.dumps({
+                    "operations": [
+                        {
+                            "op_number": op.get("op_number"),
+                            "name": op.get("name"),
+                            "time_setup_min": op.get("time_setup_min", 0),
+                            "time_per_unit_min": op.get("time_per_unit_min", 0),
+                            "profession_code": op.get("profession_code", ""),
+                            "equipment_name": op.get("equipment_name", ""),
+                        }
+                        for op in operations
+                    ],
+                }, ensure_ascii=False),
+            ))
+            etalon_id = cur.lastrowid
+        # Обновим ТК (is_approved, status, approver)
+        conn.execute("""
+            UPDATE tech_cards SET is_approved = 1, status = 'approved',
+            approver_chief = ?, approved_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (user.username, tech_card_id))  # M38-v6-152
 
     # Метрика b: финиш замера (если был start в pilot_runs)
     from services.metrics import finish_tc_generation, record_green_pct
