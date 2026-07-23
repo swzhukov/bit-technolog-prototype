@@ -77,6 +77,10 @@ from services.notices import (  # noqa
     resolve_notice as resolve_notice_svc, find_affected_items,
 )
 from services.audit import log_history  # B3 (Sprint 6): audit-trail
+from services.drawing_storage import save_upload, create_drawing_row, get_drawing, update_drawing, list_drawings, get_drawings_dir, MAX_FILE_SIZE, ALLOWED_FORMATS  # Sprint 7 D1
+from services.ocr_pipeline import process_drawing as ocr_process_drawing  # Sprint 7 D2
+from domain.drawing_extractor import extract_with_llm as llm_extract  # Sprint 7 D3
+from services.drawing_to_item import create_item_from_drawing as create_item_svc  # Sprint 7 D4
 from gateways.one_c_gateway import get_gateway, OneCResourceSpec  # noqa
 
 # === Инициализация ===
@@ -1864,6 +1868,253 @@ async def api_process_notice(notice_id: int, request: Request):
     log_history("notice", notice_id, "process", user.username, {"decision": decision, "result": result})
     return result
 
+
+
+# ============================================================
+# Sprint 7 D1: Drawings (upload + OCR + LLM)
+# ============================================================
+from fastapi import UploadFile, File
+from typing import List as _List
+
+
+@app.post("/api/drawings/upload")
+async def api_drawings_upload(request: Request, file: UploadFile = File(...)):
+    """Загрузить чертёж (PDF/PNG/JPG, max 50MB).
+    
+    Sprint 7 D1: endpoint + storage + table row.
+    D2-D4 (next): async OCR + LLM extraction.
+    """
+    user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(401, "Auth required")
+    normalize_user_role(user)
+    # RBAC: все авторизованные могут загружать (workshop_chief — read-only, но upload — OK)
+    if user.role not in ("admin", "main_technologist", "technologist", "workshop_chief"):
+        raise HTTPException(403, "Недостаточно прав")
+    
+    # CSRF check
+    if request.headers.get("x-requested-with") != "XMLHttpRequest":
+        raise HTTPException(403, "CSRF check failed")
+    
+    try:
+        content = await file.read()
+        saved = save_upload(file.filename or "unnamed", content, file.content_type)
+        drawing_id = create_drawing_row(
+            uuid_str=saved["uuid"],
+            file_path=saved["file_path"],
+            original_filename=saved["original_filename"],
+            fmt=saved["format"],
+            file_size_bytes=saved["file_size_bytes"],
+            uploaded_by=user.id,
+        )
+        log_history("drawing", drawing_id, "upload", user.username, {
+            "filename": saved["original_filename"],
+            "format": saved["format"],
+            "size": saved["file_size_bytes"],
+        })
+        return {
+            "id": drawing_id,
+            "uuid": saved["uuid"],
+            "filename": saved["original_filename"],
+            "format": saved["format"],
+            "size": saved["file_size_bytes"],
+            "status": "uploaded",
+            "next": "POST /api/drawings/{id}/process для OCR + LLM".format(id=drawing_id),
+        }
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.exception("drawing upload failed")
+        raise HTTPException(500, f"upload failed: {e}")
+
+
+@app.get("/api/drawings")
+async def api_drawings_list(request: Request, limit: int = 50):
+    """Список загруженных чертежей (все для admin/main_tech, свои для остальных)."""
+    user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(401)
+    normalize_user_role(user)
+    
+    if user.role in ("admin", "main_technologist"):
+        drawings = list_drawings(limit=limit)
+    else:
+        drawings = list_drawings(uploaded_by=user.id, limit=limit)
+    
+    return {"drawings": drawings, "total": len(drawings)}
+
+
+@app.get("/api/drawings/{drawing_id}")
+async def api_drawing_get(drawing_id: int, request: Request):
+    """Получить чертеж по ID (метаданные + OCR + LLM)."""
+    user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(401)
+    normalize_user_role(user)
+    
+    drawing = get_drawing(drawing_id)
+    if not drawing:
+        raise HTTPException(404, "drawing not found")
+    return drawing
+
+
+
+
+
+@app.post("/api/drawings/{drawing_id}/process")
+async def api_drawing_process(drawing_id: int, request: Request):
+    """Запустить OCR + (опционально) LLM для чертежа.
+    
+    Sprint 7 D2: только OCR.
+    Sprint 7 D3: добавится LLM extraction.
+    """
+    user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(401)
+    normalize_user_role(user)
+    if user.role not in ("admin", "main_technologist", "technologist", "workshop_chief"):
+        raise HTTPException(403, "Недостаточно прав")
+    
+    # CSRF
+    if request.headers.get("x-requested-with") != "XMLHttpRequest":
+        raise HTTPException(403, "CSRF check failed")
+    
+    # Получить чертеж
+    drawing = get_drawing(drawing_id)
+    if not drawing:
+        raise HTTPException(404, "drawing not found")
+    
+    if drawing["ocr_status"] == "processing":
+        raise HTTPException(409, "OCR уже в процессе")
+    
+    # Обновить статус
+    update_drawing(drawing_id, ocr_status="processing")
+    
+    try:
+        result = ocr_process_drawing(
+            drawing_id=drawing_id,
+            file_path=drawing["file_path"],
+            fmt=drawing["format"],
+        )
+        
+        if result["success"]:
+            update_drawing(
+                drawing_id,
+                ocr_status="done",
+                ocr_text=result["text"],
+                ocr_duration_ms=result["duration_ms"],
+                ocr_at="CURRENT_TIMESTAMP",
+            )
+            log_history("drawing", drawing_id, "ocr_done", user.username, {
+                "duration_ms": result["duration_ms"],
+                "text_length": len(result["text"]),
+            })
+            
+            # Sprint 7 D3: LLM extraction
+            update_drawing(drawing_id, llm_status="processing")
+            try:
+                llm_start = _time.time()
+                llm_ok, llm_data, llm_err = llm_extract(result["text"])
+                llm_duration_ms = int((_time.time() - llm_start) * 1000)
+                
+                if llm_ok:
+                    update_drawing(
+                        drawing_id,
+                        llm_status="done",
+                        llm_extracted_json=json.dumps(llm_data, ensure_ascii=False),
+                        llm_duration_ms=llm_duration_ms,
+                        llm_at="CURRENT_TIMESTAMP",
+                    )
+                    log_history("drawing", drawing_id, "llm_done", user.username, {
+                        "duration_ms": llm_duration_ms,
+                        "designation": llm_data.get("designation"),
+                        "name": llm_data.get("name"),
+                    })
+                else:
+                    update_drawing(
+                        drawing_id,
+                        llm_status="failed",
+                        llm_error=llm_err,
+                        llm_duration_ms=llm_duration_ms,
+                        llm_at="CURRENT_TIMESTAMP",
+                    )
+                    log_history("drawing", drawing_id, "llm_failed", user.username, {
+                        "error": llm_err,
+                    })
+            except Exception as llm_e:
+                logger.exception("LLM extraction crashed")
+                update_drawing(drawing_id, llm_status="failed", llm_error=str(llm_e))
+        else:
+            update_drawing(
+                drawing_id,
+                ocr_status="failed",
+                ocr_error=result["error"],
+                ocr_duration_ms=result["duration_ms"],
+                ocr_at="CURRENT_TIMESTAMP",
+            )
+            log_history("drawing", drawing_id, "ocr_failed", user.username, {
+                "error": result["error"],
+            })
+        
+        # Return updated drawing
+        return get_drawing(drawing_id)
+    except Exception as e:
+        update_drawing(drawing_id, ocr_status="failed", ocr_error=str(e))
+        logger.exception("drawing process failed")
+        raise HTTPException(500, f"process failed: {e}")
+
+
+
+@app.post("/api/drawings/{drawing_id}/create-item")
+async def api_drawing_create_item(drawing_id: int, request: Request):
+    """Создать item на основе распознанных данных чертежа.
+    
+    Sprint 7 D4: auto-create draft item из LLM extraction.
+    """
+    user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(401)
+    normalize_user_role(user)
+    # Только admin/main_tech/technologist могут создавать items
+    if user.role not in ("admin", "main_technologist", "technologist"):
+        raise HTTPException(403, "Только технологи могут создавать items")
+    
+    if request.headers.get("x-requested-with") != "XMLHttpRequest":
+        raise HTTPException(403, "CSRF check failed")
+    
+    ok, item_id, err = create_item_svc(drawing_id, user.id, user.username)
+    if not ok:
+        raise HTTPException(400, err)
+    
+    log_history("drawing", drawing_id, "create_item", user.username, {"item_id": item_id})
+    log_history("item", item_id, "create_from_drawing", user.username, {"drawing_id": drawing_id})
+    
+    return {
+        "success": True,
+        "drawing_id": drawing_id,
+        "item_id": item_id,
+    }
+
+
+@app.post("/api/drawings/{drawing_id}/dismiss")
+async def api_drawing_dismiss(drawing_id: int, request: Request):
+    """Отклонить чертёж (не создавать item).
+    
+    Sprint 7 D6: review screen кнопка "Отклонить".
+    """
+    user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(401)
+    normalize_user_role(user)
+    if user.role not in ("admin", "main_technologist", "technologist"):
+        raise HTTPException(403)
+    if request.headers.get("x-requested-with") != "XMLHttpRequest":
+        raise HTTPException(403, "CSRF check failed")
+    
+    from services.drawing_storage import update_drawing
+    update_drawing(drawing_id, item_creation_status="dismissed")
+    log_history("drawing", drawing_id, "dismiss", user.username, {})
+    return {"success": True, "drawing_id": drawing_id}
 
 # ============================================================
 # STARTUP
