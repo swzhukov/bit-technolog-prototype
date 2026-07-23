@@ -192,6 +192,78 @@
     "comment": ""
   },
   {
+    "id": "DRAW-01",
+    "name": "Upload PDF",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "DRAW-02",
+    "name": "Upload PNG",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "DRAW-03",
+    "name": "List drawings",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "DRAW-04",
+    "name": "Get drawing",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "DRAW-05",
+    "name": "Process drawing",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "DRAW-06",
+    "name": "Drawings list page",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "DRAW-07",
+    "name": "Upload page",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "DRAW-08",
+    "name": "Review page",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "DRAW-09",
+    "name": "Drawing 999 not found",
+    "expected": 404,
+    "got": 404,
+    "status": "pass",
+    "comment": ""
+  },
+  {
     "id": "C01",
     "name": "Дашборд",
     "expected": 200,

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Проверить чертёж — БИТ.Технолог{% endblock %}
+{% block content %}
+
+<div class="container">
+  <h2>Проверить чертёж #{{ drawing.id }}</h2>
+  <p class="muted">Файл: <code>{{ drawing.original_filename }}</code> ({{ drawing.format }}, {{ drawing.file_size_bytes }} bytes)</p>
+  
+  {% if drawing.ocr_status == 'done' %}
+    <h3>Распознанные данные</h3>
+    <form id="create-form">
+      <div class="form-group">
+        <label>Обозначение:</label>
+        <input type="text" id="designation" name="designation" value="{{ llm_data.designation or '' }}" required>
+      </div>
+      <div class="form-group">
+        <label>Наименование:</label>
+        <input type="text" id="name" name="name" value="{{ llm_data.name or '' }}" required>
+      </div>
+      <div class="form-group">
+        <label>Материал:</label>
+        <input type="text" id="material" name="material" value="{{ llm_data.material or '' }}">
+      </div>
+      <div class="form-group">
+        <label>ГОСТ:</label>
+        <input type="text" id="gost" name="gost" value="{{ llm_data.gost or '' }}">
+      </div>
+      <div class="form-group">
+        <label>Размеры:</label>
+        <input type="text" id="dimensions" name="dimensions" value="{{ llm_data.dimensions or '' }}">
+      </div>
+      <div class="form-group">
+        <label>Масса (кг):</label>
+        <input type="number" step="0.01" id="mass_kg" name="mass_kg" value="{{ llm_data.mass_kg or '' }}">
+      </div>
+      <div class="form-group">
+        <label>Покрытие:</label>
+        <input type="text" id="surface_treatment" name="surface_treatment" value="{{ llm_data.surface_treatment or '' }}">
+      </div>
+      
+      <details>
+        <summary>OCR текст (распознанный tesseract)</summary>
+        <pre style="max-height: 200px; overflow: auto; background: #f3f4f6; padding: 8px;">{{ drawing.ocr_text or '(нет)' }}</pre>
+      </details>
+      
+      <div class="actions">
+        <button type="button" class="btn btn-primary" id="create-btn">Создать item</button>
+        <button type="button" class="btn btn-secondary" id="dismiss-btn">Отклонить</button>
+      </div>
+    </form>
+    <div id="result" class="result-box" style="display:none"></div>
+  {% else %}
+    <p class="muted">Обработка не завершена. OCR: {{ drawing.ocr_status }}, LLM: {{ drawing.llm_status }}.</p>
+  {% endif %}
+</div>
+
+<script>
+const drawingId = {{ drawing.id }};
+
+document.getElementById('create-btn').addEventListener('click', async () => {
+  const designation = document.getElementById('designation').value.trim();
+  const name = document.getElementById('name').value.trim();
+  if (!designation || !name) {
+    alert('Обозначение и наименование обязательны');
+    return;
+  }
+  
+  // Сначала dismiss (если уже был process), потом create
+  // Напрямую вызовем create-item (использует уже распознанные данные)
+  const r = await fetch('/bit-technolog/api/drawings/' + drawingId + '/create-item', {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+  });
+  const data = await r.json();
+  const result = document.getElementById('result');
+  result.style.display = 'block';
+  if (!r.ok) {
+    result.innerHTML = '<p class="error">Ошибка: ' + (data.detail || JSON.stringify(data)) + '</p>';
+  } else {
+    result.innerHTML = '<p class="success">Item создан! ID = ' + data.item_id + '</p>' +
+      '<a href="/bit-technolog/detail/' + data.item_id + '" class="btn btn-primary">Открыть item →</a>';
+  }
+});
+
+document.getElementById('dismiss-btn').addEventListener('click', async () => {
+  const r = await fetch('/bit-technolog/api/drawings/' + drawingId + '/dismiss', {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+  });
+  if (r.ok) {
+    window.location.href = '/bit-technolog/drawings';
+  }
+});
+</script>
+
+{% endblock %}

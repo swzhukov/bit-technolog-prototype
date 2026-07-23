@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Чертежи — БИТ.Технолог{% endblock %}
+{% block content %}
+
+<div class="container">
+  <div class="header-row">
+    <h2>Загруженные чертежи</h2>
+    <a href="/bit-technolog/drawings/upload" class="btn btn-primary">Загрузить чертёж</a>
+  </div>
+  
+  {% if not drawings %}
+    <p class="muted">Пока нет загруженных чертежей.</p>
+  {% else %}
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Файл</th>
+          <th>Формат</th>
+          <th>OCR</th>
+          <th>LLM</th>
+          <th>Item</th>
+          <th>Загружен</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in drawings %}
+        <tr>
+          <td>{{ d.id }}</td>
+          <td><code>{{ d.original_filename }}</code></td>
+          <td>{{ d.format }}</td>
+          <td>
+            {% if d.ocr_status == 'done' %}
+              <span class="badge ok">{{ d.ocr_duration_ms }}мс</span>
+            {% elif d.ocr_status == 'failed' %}
+              <span class="badge err">failed</span>
+            {% else %}
+              <span class="badge">{{ d.ocr_status }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if d.llm_status == 'done' %}
+              <span class="badge ok">{{ d.llm_duration_ms or '?' }}мс</span>
+            {% elif d.llm_status == 'failed' %}
+              <span class="badge err">failed</span>
+            {% else %}
+              <span class="badge">{{ d.llm_status }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if d.item_created_id %}
+              <a href="/bit-technolog/detail/{{ d.item_created_id }}">#{{ d.item_created_id }}</a>
+            {% else %}
+              <span class="muted">—</span>
+            {% endif %}
+          </td>
+          <td>{{ d.uploaded_at }}</td>
+          <td>
+            <a href="/bit-technolog/drawings/{{ d.id }}/review" class="btn btn-sm">Проверить</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>
+
+{% endblock %}

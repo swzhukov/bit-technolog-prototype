@@ -23,8 +23,13 @@ def curl(method, path, user=None, form_data=None, json_data=None, hdr=None, time
         ssh_exec(f"printf '%s' '{body_s}' > /tmp/body.json")
         cmd += ['-H', 'Content-Type: application/json', '-d', '@/tmp/body.json']
     elif form_data is not None:
-        for k, v in form_data.items():
-            cmd += ['--data-urlencode', f'{k}={v}']
+        # Sprint 7: file upload via __file__:PATH marker
+        if isinstance(form_data, str) and form_data.startswith('__file__:'):
+            file_path = form_data.replace('__file__:', '')
+            cmd += ['-F', f'file=@{file_path}']
+        else:
+            for k, v in form_data.items():
+                cmd += ['--data-urlencode', f'{k}={v}']
     if hdr:
         for k, v in hdr.items():
             cmd += ['-H', f'{k}: {v}']
@@ -64,6 +69,11 @@ for u in USERS:
 # Динамический filename для A11
 RS_FILENAME = fetch_rs_filename() or 'RS_ЛМША.304142.010_0049.xml'
 print(f'[TR.py] A11: {RS_FILENAME}')
+# Per-test timeout override (Sprint 7: DRAW-05 = OCR+LLM ~60s)
+DRAW_TIMEOUTS = {
+    'DRAW-05': 120,
+}
+
 # Тесты
 TESTS = [
     ('A01', 'Создание детали', 'POST', '/details/new', 303, 'tarrietsky', None,
@@ -120,7 +130,22 @@ TESTS = [
     ('B20', 'Пустое name', 'POST', '/details/new', 400, 'tarrietsky', None,
      {'designation': f'TEST-B20-{int(time.time())}', 'name':'', 'level':'detail'},
      {'X-Requested-With': 'XMLHttpRequest'}),
-    ('C01', 'Дашборд', 'GET', '/', 200, 'tarrietsky', None, None, None),
+
+    # Sprint 7: Drawings (DRAW-01..DRAW-09)
+    ('DRAW-01', 'Upload PDF', 'POST', '/api/drawings/upload', 200, 'techadmin', None,
+     '__file__:/opt/beget/bit-technolog/attachments/test_drawing.pdf',
+     {'X-Requested-With': 'XMLHttpRequest'}),
+    ('DRAW-02', 'Upload PNG', 'POST', '/api/drawings/upload', 200, 'techadmin', None,
+     '__file__:/opt/beget/bit-technolog/attachments/076692ce__48a78129-d61c-4586-a34a-e94ee05d47ab.png',
+     {'X-Requested-With': 'XMLHttpRequest'}),
+    ('DRAW-03', 'List drawings', 'GET', '/api/drawings', 200, 'techadmin', None, None, None),
+    ('DRAW-04', 'Get drawing', 'GET', '/api/drawings/3', 200, 'techadmin', None, None, None),
+    ('DRAW-05', 'Process drawing', 'POST', '/api/drawings/3/process', 200, 'techadmin', None, None,
+     {'X-Requested-With': 'XMLHttpRequest'}),
+    ('DRAW-06', 'Drawings list page', 'GET', '/drawings', 200, 'techadmin', None, None, None),
+    ('DRAW-07', 'Upload page', 'GET', '/drawings/upload', 200, 'techadmin', None, None, None),
+    ('DRAW-08', 'Review page', 'GET', '/drawings/3/review', 200, 'techadmin', None, None, None),
+    ('DRAW-09', 'Drawing 999 not found', 'GET', '/api/drawings/999', 404, 'techadmin', None, None, None),    ('C01', 'Дашборд', 'GET', '/', 200, 'tarrietsky', None, None, None),
     ('C02', '/products', 'GET', '/products', 200, 'tarrietsky', None, None, None),
     ('C03', '/products?level=detail', 'GET', '/products?level=detail', 200, 'tarrietsky', None, None, None),
     ('C04', '/products?q=ЛМША', 'GET', '/products?q=%D0%9B%D0%9C%D0%A8%D0%90', 200, 'tarrietsky', None, None, None),
@@ -175,7 +200,8 @@ print("\n--- A+B+C ---")
 for tid, name, method, path, expected, user, json_d, form_d, hdr in TESTS:
     if user is not None:
         login(user)  # FRESH login
-    code = curl(method, path, user=user, json_data=json_d, form_data=form_d, hdr=hdr)
+    test_timeout = DRAW_TIMEOUTS.get(tid, 15)
+    code = curl(method, path, user=user, json_data=json_d, form_data=form_d, hdr=hdr, timeout=test_timeout)
     if tid in SKIP:
         record(tid, name, expected, code, 'skip')
     else:

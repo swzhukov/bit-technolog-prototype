@@ -2116,6 +2116,68 @@ async def api_drawing_dismiss(drawing_id: int, request: Request):
     log_history("drawing", drawing_id, "dismiss", user.username, {})
     return {"success": True, "drawing_id": drawing_id}
 
+
+
+@app.get("/drawings", response_class=HTMLResponse)
+async def drawings_list_page(request: Request):
+    """Sprint 7 D5: список загруженных чертежей."""
+    user = get_user_from_request(request)
+    if not user:
+        return RedirectResponse(url="/bit-technolog/login", status_code=303)
+    normalize_user_role(user)
+    
+    if user.role in ("admin", "main_technologist"):
+        drawings = list_drawings(limit=100)
+    else:
+        drawings = list_drawings(uploaded_by=user.id, limit=100)
+    
+    return templates.TemplateResponse(
+        "drawings_list.html",
+        {"request": request, "user": user, "drawings": drawings,
+         "daily_cost": 0, "cost_budget": 500},
+    )
+
+
+@app.get("/drawings/upload", response_class=HTMLResponse)
+async def drawings_upload_page(request: Request):
+    """Sprint 7 D5: страница загрузки чертежа."""
+    user = get_user_from_request(request)
+    if not user:
+        return RedirectResponse(url="/bit-technolog/login", status_code=303)
+    normalize_user_role(user)
+    
+    return templates.TemplateResponse(
+        "drawing_upload.html",
+        {"request": request, "user": user,
+         "daily_cost": 0, "cost_budget": 500},
+    )
+
+
+@app.get("/drawings/{drawing_id}/review", response_class=HTMLResponse)
+async def drawings_review_page(drawing_id: int, request: Request):
+    """Sprint 7 D6: review screen."""
+    user = get_user_from_request(request)
+    if not user:
+        return RedirectResponse(url="/bit-technolog/login", status_code=303)
+    normalize_user_role(user)
+    
+    drawing = get_drawing(drawing_id)
+    if not drawing:
+        raise HTTPException(404, "drawing not found")
+    
+    llm_data = {}
+    if drawing.get("llm_extracted_json"):
+        try:
+            llm_data = json.loads(drawing["llm_extracted_json"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+    
+    return templates.TemplateResponse(
+        "drawing_review.html",
+        {"request": request, "user": user, "drawing": drawing, "llm_data": llm_data,
+         "daily_cost": 0, "cost_budget": 500},
+    )
+
 # ============================================================
 # STARTUP
 # ============================================================

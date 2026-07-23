@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Загрузить чертёж — БИТ.Технолог{% endblock %}
+{% block content %}
+
+<div class="container">
+  <h2>Загрузить чертёж</h2>
+  <p class="muted">PDF, PNG или JPG. До 50 МБ. После загрузки — автоматическое распознавание (OCR + LLM, ~30 сек).</p>
+  
+  <form id="upload-form" enctype="multipart/form-data">
+    <div class="form-group">
+      <label for="file-input">Файл чертежа:</label>
+      <input type="file" id="file-input" name="file" accept=".pdf,.png,.jpg,.jpeg" required>
+    </div>
+    <button type="submit" class="btn btn-primary" id="submit-btn">Загрузить</button>
+  </form>
+  
+  <div id="status" class="status-box" style="display:none"></div>
+  <div id="result" class="result-box" style="display:none"></div>
+</div>
+
+<script>
+document.getElementById('upload-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const file = document.getElementById('file-input').files[0];
+  if (!file) return;
+  
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const status = document.getElementById('status');
+  const result = document.getElementById('result');
+  const submitBtn = document.getElementById('submit-btn');
+  
+  status.style.display = 'block';
+  result.style.display = 'none';
+  status.textContent = 'Загрузка...';
+  submitBtn.disabled = true;
+  
+  try {
+    const r = await fetch('/bit-technolog/api/drawings/upload', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: formData,
+    });
+    const data = await r.json();
+    
+    if (!r.ok) {
+      status.textContent = 'Ошибка: ' + (data.detail || JSON.stringify(data));
+      submitBtn.disabled = false;
+      return;
+    }
+    
+    status.textContent = 'Загружено! Запускаю распознавание... (id=' + data.id + ')';
+    
+    // Запускаем process
+    const r2 = await fetch('/bit-technolog/api/drawings/' + data.id + '/process', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const d2 = await r2.json();
+    
+    if (!r2.ok) {
+      status.textContent = 'Ошибка обработки: ' + (d2.detail || JSON.stringify(d2));
+      submitBtn.disabled = false;
+      return;
+    }
+    
+    status.textContent = 'Распознавание завершено!';
+    result.style.display = 'block';
+    result.innerHTML = '<h3>Результат</h3>' +
+      '<p>ID: ' + d2.id + '</p>' +
+      '<p>OCR: ' + d2.ocr_status + ' (' + d2.ocr_duration_ms + ' мс)</p>' +
+      '<p>LLM: ' + d2.llm_status + ' (' + (d2.llm_duration_ms || '?') + ' мс)</p>' +
+      '<a href="/bit-technolog/drawings/' + d2.id + '/review" class="btn btn-primary">Проверить и создать item →</a>';
+  } catch (err) {
+    status.textContent = 'Ошибка сети: ' + err.message;
+    submitBtn.disabled = false;
+  }
+});
+</script>
+
+{% endblock %}
