@@ -1678,3 +1678,40 @@ except Exception:
 2. **Worktree для каждого аудита** — изолировал фиксы в `audit/m38-final`.
 3. **Перед каждым большим коммитом — карта ВСЕХ endpoints** (CARTE.md).
 4. **Multi-role curl matrix обязательно** — 26 GET × 4 роли + 15 POST × 4 роли = 164 теста.
+
+## Feature: форма создания детали (2026-07-22 22:00)
+
+**Контекст:** Sprint 6 C2. Заменил /details/new placeholder на полноценную форму.
+
+### Поля
+- Обязательные: designation (уникальное), name, level
+- Опциональные: type, mass_kg, drawing_no, ref_1c
+- FK: material_id (18), product_model_id (5)
+- Уровень: detail/assembly/product/purchased/semi
+- Способ: make/buy/coop_da/coop_full
+
+### Валидация (5 случаев)
+- Пустое обязательное → 400
+- Дубликат designation → 400
+- Неверный level → 400
+- mass_kg не число → 400
+- FK не найден → 400
+
+### RBAC
+- admin / main_technologist / technologist → 200/303 ✅
+- workshop_chief → 403 ✅
+
+### Audit
+- INSERT в history (entity_type='item', action='create', user=username, details_json) ✅
+- Можно посмотреть через SELECT * FROM history WHERE entity_type='item'
+
+### Баги в процессе
+- `form_data` undefined в GET — fixed
+- base.html требует ROLES/daily_cost в error response — fixed (get_template_context)
+- venv symlink сломался несколько раз при git операциях — fixed (python3 -m venv)
+- systemd StartLimitBurst=3 (60s window) — slow restart (нужно ждать)
+
+### Файлы
+- app.py: 619 + 760 (POST endpoint) = 141 строк
+- templates/detail_new.html: 6246 bytes
+- 1 commit: `3329fb2`
