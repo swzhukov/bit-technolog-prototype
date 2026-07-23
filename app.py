@@ -842,7 +842,7 @@ async def item_generate_post(request: Request, item_id: int):
         "version": new_version,
         "status": "draft",
         "is_approved": 0,
-        "author": user.display_name,
+        "author": user.username,
         "created_at": None,
     })
 
@@ -1041,7 +1041,7 @@ async def notice_create(request: Request):
     normalize_user_role(user)
     if user.role not in ("admin", "main_technologist", "technologist"):
         raise HTTPException(403, "Только технолог может создавать извещения")
-    author = user.display_name if user else form.get("author", "Технолог")
+    author = user.username if user else form.get("author", "Технолог")
     nid = create_notice(
         number=form.get("number", "").strip(),
         date=form.get("date", ""),
@@ -1112,7 +1112,7 @@ async def notice_resolve(request: Request, notice_id: int):
         raise HTTPException(404, "Извещение не найдено")
     decision = form.get("decision", "manual_review")
     notes = form.get("notes", "")
-    result = resolve_notice_svc(notice_id, user.display_name, decision, notes)
+    result = resolve_notice_svc(notice_id, user.username, decision, notes)
     return RedirectResponse(url=f"/notices/{notice_id}", status_code=303)
 
 
@@ -1398,7 +1398,7 @@ async def api_confirm_operation(operation_id: int, request: Request, new_time: f
             new_time = float(body.get("new_time", 0))
         except Exception:
             raise HTTPException(400, "invalid JSON body or missing new_time")
-    ok = update_operation_evidence(operation_id, new_time, user.display_name, "Подтверждение в UI")
+    ok = update_operation_evidence(operation_id, new_time, user.username, "Подтверждение в UI")
     # Метрика c: после подтверждения записать % зелёных
     try:
         from services.metrics import record_green_pct
@@ -1524,7 +1524,7 @@ async def api_approve(tech_card_id: int, request: Request):
         """, (
             tc.get("name", ""),
             f"Утверждена {user.username} из ТК v{tc.get('version', 1)}",
-            user.display_name,
+            user.username,  # M38-v6-152: 152-ФЗ — пишем login, не ФИО
             json.dumps({
                 "operations": [
                     {
@@ -1547,7 +1547,7 @@ async def api_approve(tech_card_id: int, request: Request):
             "product_type": "",
             "source_doc": f"Утверждена {user.username} из ТК v{tc.get('version', 1)}",
             "source_pages": 0,
-            "approved_by": user.display_name,
+            "approved_by": user.username,  # M38-v6-152: 152-ФЗ
             "approved_date": None,
             "is_approved": 1,
             "is_published": 1,
@@ -1570,7 +1570,7 @@ async def api_approve(tech_card_id: int, request: Request):
         UPDATE tech_cards SET is_approved = 1, status = 'approved',
         approver_chief = ?, approved_at = CURRENT_TIMESTAMP
         WHERE id = ?
-    """, (user.display_name, tech_card_id))
+    """, (user.username, tech_card_id))  # M38-v6-152
 
     # Метрика b: финиш замера (если был start в pilot_runs)
     from services.metrics import finish_tc_generation, record_green_pct
@@ -1600,7 +1600,7 @@ async def api_process_notice(notice_id: int, request: Request):
     except Exception:
         raise HTTPException(400, "invalid JSON body")
     decision = body.get("decision", "manual_review")
-    return resolve_notice_svc(notice_id, user.display_name, decision, "")
+    return resolve_notice_svc(notice_id, user.username, decision, "")  # M38-v6-152
 
 
 # ============================================================
