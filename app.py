@@ -1625,7 +1625,8 @@ async def api_update_operation(operation_id: int, request: Request):
     try:
         # C3 (Sprint 6): логируем ВСЕ поля inline-edit в edits (для diff версий)
         # Раньше логировался только name — теперь любое поле
-        old_value_raw = op.get(field) if field in op.keys() else None
+        # sqlite3.Row не имеет .get() — используем bracket notation
+        old_value_raw = op[field] if field in op.keys() else None
         old_value_str = str(old_value_raw) if old_value_raw is not None else None
         new_value_str = str(sql_value) if sql_value is not None else None
         db.execute(f"UPDATE operations SET {field} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -1679,8 +1680,14 @@ async def api_tech_card_diff(request: Request, tech_card_id: int):
     if user.role not in ("admin", "main_technologist", "technologist", "workshop_chief"):
         raise HTTPException(403, "Недостаточно прав")
 
-    # Проверим что ТК существует
-    tc = db.query_one("SELECT id, item_designation, is_approved FROM tech_cards WHERE id = ?", (tech_card_id,))
+    # Проверим что ТК существует (JOIN с items для designation)
+    tc = db.query_one(
+        """SELECT tc.id, tc.is_approved, i.designation AS item_designation
+           FROM tech_cards tc
+           LEFT JOIN items i ON i.id = tc.item_id
+           WHERE tc.id = ?""",
+        (tech_card_id,),
+    )
     if not tc:
         raise HTTPException(404, "ТК не найдена")
 
