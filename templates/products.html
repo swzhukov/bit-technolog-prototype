@@ -18,6 +18,9 @@
   </select>
   <button type="submit" class="btn btn-primary">Найти</button>
   {% if q or level_filter %}<a class="btn btn-ghost" href="/products">Сбросить</a>{% endif %}
+  {% if user and user.role in ('admin', 'main_technologist', 'technologist') %}
+  <a href="/details/new" class="btn btn-secondary" style="margin-left: auto;">+ Новая деталь</a>
+  {% endif %}
 </form>
 
 <div class="panel">
