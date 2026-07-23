@@ -627,6 +627,8 @@ async def detail(request: Request, item_id: int, flash_kind: str = "", flash_mes
         "workshops_list": ctx_workshops,  # C1 (Sprint 6): для inline-edit
         "equipment_list": ctx_equipment,
         "professions_list": ctx_professions,
+        "user_can_edit": user.role in ("admin", "main_technologist", "technologist"),
+        "user_can_approve": user.role in ("admin", "main_technologist"),
         "rs_preview": rs_preview,
         "bom_children": bom_children,
         "history": history,
