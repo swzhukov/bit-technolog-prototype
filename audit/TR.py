@@ -116,7 +116,7 @@ TESTS = [
 RBAC_TESTS = [
     ('RBAC-01', 'Создание детали', 'POST', '/details/new',
      {'techadmin': 303, 'vorobyev': 303, 'tarrietsky': 303, 'golubev': 403},
-     None, lambda: {'designation': f'RBAC-{int(time.time())}', 'name': 'R', 'level': 'detail'},
+     None, lambda u='x': {'designation': f'RBAC-{int(time.time()*1000)}-{u[:3]}', 'name': 'R', 'level': 'detail'},
      {'X-Requested-With': 'XMLHttpRequest'}),
     ('RBAC-02', 'Inline-edit', 'POST', '/api/operations/32/update',
      {'techadmin': 200, 'vorobyev': 200, 'tarrietsky': 200, 'golubev': 403},

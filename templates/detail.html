@@ -1,5 +1,7 @@
 {% extends "base.html" %}
-{% set active_page = 'products' %}
+{% set active_page = 'detail' %}
+{% set user_can_edit = user and user.role in ('admin', 'main_technologist', 'technologist') %}
+{% set user_can_approve = user and user.role in ('admin', 'main_technologist') %}
 {% block title %}{{ item.designation }} — БИТ.Технолог{% endblock %}
 {% block extra_head %}
 <style>
@@ -48,8 +50,6 @@
 </div>
 {% endif %}
 
-{% set user_can_edit = user and user.role in ('admin', 'main_technologist', 'technologist') %}
-{% set user_can_approve = user and user.role in ('admin', 'main_technologist') %}
 <div class="tabs" style="position: sticky; top: 0; background: var(--v8-bg); z-index: 5;">
   <a class="tab active" href="#ops">Маршрут</a>
   <a class="tab" href="#rs">Ресурсы</a>
