@@ -1028,6 +1028,9 @@ async def notice_new(request: Request):
     user = get_user_from_request(request)
     if not user:
         return RedirectResponse(url="/login?next=/notices/new", status_code=303)
+    normalize_user_role(user)
+    if user.role not in ("admin", "main_technologist", "technologist"):
+        raise HTTPException(403, "Создавать извещения могут только технологи")
     ctx = get_template_context(request, user)
     return templates.TemplateResponse("notice_form.html", ctx)
 
