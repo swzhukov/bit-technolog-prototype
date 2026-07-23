@@ -129,14 +129,14 @@ RBAC_TESTS = [
      None, None, {'X-Requested-With': 'XMLHttpRequest'}),
     ('RBAC-05', 'Создание извещения', 'POST', '/notices/new',
      {'techadmin': 303, 'vorobyev': 303, 'tarrietsky': 303, 'golubev': 403},
-     None, lambda: {'number': f'И-RBAC-{int(time.time())}', 'date':'2026-07-23','reason':'r','affected_item_designation':'ЛМША.301314.010'},
+     None, lambda u='x': {'number': f'И-RBAC-{int(time.time()*1000)}-{u[:3]}', 'date':'2026-07-23','reason':'r','affected_item_designation':'ЛМША.301314.010'},
      {'X-Requested-With': 'XMLHttpRequest'}),
     ('RBAC-06', 'Решение по извещению', 'POST', '/notices/1/resolve',
      {'techadmin': 303, 'vorobyev': 303, 'tarrietsky': 303, 'golubev': 403},
      None, lambda: {'decision':'manual_review'}, {'X-Requested-With': 'XMLHttpRequest'}),
     ('RBAC-07', 'AI diff извещения', 'POST', '/notices/1/generate-diff',
      {'techadmin': 200, 'vorobyev': 200, 'tarrietsky': 200, 'golubev': 403},
-     None, None, {'X-Requested-With': 'XMLHttpRequest'}),
+     None, None, {'X-Requested-With': 'XMLHttpRequest'}, 60),
     ('RBAC-08', '/knowledge все', 'GET', '/knowledge',
      {'techadmin': 200, 'vorobyev': 200, 'tarrietsky': 200, 'golubev': 200}, None, None, None),
     ('RBAC-09', '/rs все', 'GET', '/rs',
@@ -166,17 +166,25 @@ for tid, name, method, path, expected, user, json_d, form_d, hdr in TESTS:
 
 print("\n--- RBAC (fresh login per user) ---")
 for rbac_t in RBAC_TESTS:
-    tid, name, method, path, exp_map, json_d, form_d, hdr = rbac_t
+    if len(rbac_t) == 9:
+        tid, name, method, path, exp_map, json_d, form_d, hdr, custom_timeout = rbac_t
+    else:
+        tid, name, method, path, exp_map, json_d, form_d, hdr = rbac_t
+        custom_timeout = 15
     results_per_user = {}
     ok = True
     for u in USERS:
         # Если form_d - lambda, вызываем для КАЖДОГО пользователя (свежее designation/number)
         if callable(form_d):
-            fd = form_d()
+            try:
+                fd = form_d(u)  # Передаём user для уникальности
+            except TypeError:
+                fd = form_d()
         else:
             fd = form_d
         login(u)  # FRESH login per user
-        c = curl(method, path, user=u, json_data=json_d, form_data=fd, hdr=hdr)
+        # custom_timeout уже в переменной
+        c = curl(method, path, user=u, json_data=json_d, form_data=fd, hdr=hdr, timeout=custom_timeout)
         results_per_user[u] = c
         if c != exp_map[u]:
             ok = False
@@ -218,5 +226,5 @@ if bugs:
     print(f"\n❌ FAILED ({len(bugs)}):")
     for b in bugs:
         print(f"   {b['id']}: {b['name']} - exp={b['expected']} got={b['got']}")
-with open('/workspace/audit/TEST_RESULTS.json', 'w') as f:
+with open('/workspace/bit-technolog-prototype/audit/TEST_RESULTS.json', 'w') as f:
     json.dump(RESULTS, f, indent=2, ensure_ascii=False)
