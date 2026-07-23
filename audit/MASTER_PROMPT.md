@@ -4,28 +4,38 @@
 
 ---
 
-## ⚡ STATUS: v9-v12 = 0 замечаний × 4 цикла (КРИТЕРИЙ ОСТАНОВКИ × 2)
+## ⚡ STATUS: v9-v14 = 0 замечаний × 6 циклов (КРИТЕРИЙ ОСТАНОВКИ × 3)
 
 **Дата:** 2026-07-23
-**HEAD:** `02b2f0e` (Sprint 7: Drawing recognition)
+**HEAD:** `2a3493d` (Sprint 7: bulk + cleanup + T6)
 **URL:** `https://seefeesnahurid.beget.app/bit-technolog/`
 **Architecture:** Docker (bit-technolog:1.0.0) + Traefik 3.6.5 + Let's Encrypt
 
-### Sprint 7: Drawing Recognition (D1-D9, D11-D12)
+### Sprint 7: Drawing Recognition — COMPLETE (D1-D9 + D11-D12)
 - ✅ Upload PDF/PNG/JPG (50MB max)
 - ✅ OCR via tesseract -l rus (~15 sec)
 - ✅ LLM extraction (1bitai.ru + regex fallback, ~30 sec)
 - ✅ Auto-create draft item
 - ✅ UI: list, upload (drag & drop), review screen
 - ✅ 9 новых тестов (DRAW-01..DRAW-09)
+- ✅ T6 scenario в TECHNOLOGIST_SESSIONS (9 ✅)
+- ✅ BULK_DRAWINGS.py — quality assessment
+- ✅ Cleanup 190 test items (245 → 55)
 
-### Test results (4 cycles подряд 0 замечаний)
+### Quality assessment (5 PDF чертежей)
+- **На реальных чертежах деталей:** designation 100% (1/1 — 103-ТВ.30.19.02)
+- **На спецификациях/планах:** low (out of scope — это не детали)
+- **Avg process time:** 21s (OCR ~12s + LLM ~9s)
+
+### Test results (6 cycles подряд 0 замечаний)
 | Cycle | TR.py | UI_SMOKE | TECHNOLOGIST_SESSIONS | Итог |
 |-------|-------|----------|----------------------|------|
-| v9    | 42/42 ✅ | 0 | 0 | ✅ |
+| v9    | 42/42 ✅ | 0 | 0 | ✅ (v9: Docker+Traefik) |
 | v10   | 42/42 ✅ | 0 | 0 | ✅ |
-| v11   | 51/51 ✅ | 0 | 0 | ✅ (Sprint 7) |
+| v11   | 51/51 ✅ | 0 | 0 | ✅ (Sprint 7: D1-D9) |
 | v12   | 51/51 ✅ | 0 | 0 | ✅ |
+| v13   | 51/51 ✅ | 0 | 0 | ✅ (после cleanup 190 items) |
+| v14   | 51/51 ✅ | 0 | 0 | ✅ |
 
 ### Следующий шаг: пилот 27.07.2026
 - Сергей звонит 4 пользователям (A1)
