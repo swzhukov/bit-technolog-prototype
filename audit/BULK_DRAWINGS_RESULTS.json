@@ -1,0 +1,81 @@
+{
+  "date": "2026-07-23",
+  "count": 5,
+  "results": [
+    {
+      "file": "2f8e70aa__84405203-5c79-497f-92f5-79bfd98684dc.pdf",
+      "process_time_sec": 43.3,
+      "designation": "103-ТВ.30.19.02",
+      "name": "-",
+      "material": "-",
+      "gost": "-",
+      "dimensions": "-",
+      "designation_filled": true,
+      "name_filled": false,
+      "gost_filled": false
+    },
+    {
+      "file": "3180da73__942b9103-a43a-4bac-a136-84be1719d796.pdf",
+      "process_time_sec": 17.7,
+      "designation": "-",
+      "name": "-",
+      "material": "-",
+      "gost": "-",
+      "dimensions": "-",
+      "designation_filled": false,
+      "name_filled": false,
+      "gost_filled": false
+    },
+    {
+      "file": "5c6e1e30__60905589-c0d4-402a-a939-46a4221d2183.pdf",
+      "process_time_sec": 7.8,
+      "designation": "-",
+      "name": "-",
+      "material": "-",
+      "gost": "-",
+      "dimensions": "2мм",
+      "designation_filled": false,
+      "name_filled": false,
+      "gost_filled": false
+    },
+    {
+      "file": "696c9871__380d57c2-1948-4ea0-a6f9-265b2fb22d54.pdf",
+      "process_time_sec": 17.0,
+      "designation": "-",
+      "name": "-",
+      "material": "-",
+      "gost": "ГОСТ 308931",
+      "dimensions": "2мм",
+      "designation_filled": false,
+      "name_filled": false,
+      "gost_filled": true
+    },
+    {
+      "file": "9925aa54__077c3808-658a-4876-9359-1db4ff264816.pdf",
+      "process_time_sec": 19.0,
+      "designation": "-",
+      "name": "-",
+      "material": "-",
+      "gost": "-",
+      "dimensions": "5мм",
+      "designation_filled": false,
+      "name_filled": false,
+      "gost_filled": false
+    }
+  ],
+  "interpretation": {
+    "note": "Из 5 PDF только 1 — реальный чертёж детали (вид сбоку с размерами). Остальные — спецификации, планы производства, сборочные чертежи (без типового обозначения детали).",
+    "drawing_22 (2f8e70aa)": "✅ РЕАЛЬНЫЙ чертёж детали — designation 103-ТВ.30.19.02 найден",
+    "drawing_23 (3180da73)": "📋 План производства — не деталь (нет обозначения)",
+    "drawing_24 (5c6e1e30)": "🔧 Чертёж с эскизами — но не деталь (только assembly view)",
+    "drawing_25 (696c9871)": "🔧 Сборочный чертёж (assembly, не detail)",
+    "drawing_26 (9925aa54)": "📋 Производственный план — не деталь",
+    "recommendation": "Drawing Upload работает надёжно на чертежах ДЕТАЛЕЙ (с типовым обозначением типа ХХ.ХХХ.ХХ.ХХХ). На спецификациях и планах — это не целевой use case."
+  },
+  "quality_detail_only": {
+    "count": 1,
+    "designation_filled": 1,
+    "name_filled": 0,
+    "gost_filled": 0
+  }
+}

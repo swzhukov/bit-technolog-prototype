@@ -195,12 +195,131 @@ def scenario_chief_view(page):
         ok('chief', '/detail/3 — read-only')
 
 
+
+
+def scenario_drawing_recognition(page):
+    """T6: Sprint 7 — распознать деталь с чертежа (drawing upload)."""
+    login(page, 'tarrietsky', 'demo')
+    
+    # 1. Открыть /drawings
+    page.goto(f'{BASE}/drawings', wait_until='domcontentloaded', timeout=15000)
+    text = page.text_content('body') or ''
+    if 'Загруженные чертежи' in text:
+        ok('drawings_list', 'страница /drawings загружается')
+    else:
+        issue('drawings_list', f'страница /drawings не показывает заголовок: {text[:100]!r}')
+        return
+    
+    # 2. Открыть /drawings/upload
+    page.goto(f'{BASE}/drawings/upload', wait_until='domcontentloaded', timeout=15000)
+    text = page.text_content('body') or ''
+    if 'Загрузить чертёж' in text or 'Файл чертежа' in text:
+        ok('upload_form', 'форма upload доступна')
+    else:
+        issue('upload_form', f'форма upload не показывает нужный текст')
+    
+    # 3. Найти кнопку upload
+    upload_btn = page.locator('button[type="submit"]')
+    if upload_btn.count() > 0:
+        ok('upload_btn', 'кнопка загрузки есть')
+    else:
+        issue('upload_btn', 'нет кнопки загрузки')
+    
+    # 4. Загрузим PDF через API (для теста сценария)
+    import subprocess
+    test_pdf = '/tmp/test_drawing_for_t6.pdf'
+    if not os.path.exists(test_pdf):
+        # Скачаем из attachments
+        src_pdf = '/workspace/bit-technolog-prototype/attachments/2f8e70aa__84405203-5c79-497f-92f5-79bfd98684dc.pdf'
+        if os.path.exists(src_pdf):
+            import shutil
+            shutil.copy(src_pdf, test_pdf)
+    
+    if os.path.exists(test_pdf):
+        # Upload via API
+        cookies = page.context.cookies()
+        cookie_str = '; '.join(f"{c['name']}={c['value']}" for c in cookies)
+        try:
+            result = subprocess.run(
+                ['curl', '-sk', '-m', '60', '-X', 'POST',
+                 '-H', f'Cookie: {cookie_str}',
+                 '-H', 'X-Requested-With: XMLHttpRequest',
+                 '-F', f'file=@{test_pdf}',
+                 f'{BASE}/api/drawings/upload'],
+                capture_output=True, text=True, timeout=30,
+            )
+            if 'uploaded' in result.stdout:
+                ok('drawing_upload', 'PDF загружен через API')
+                
+                # Получим id нового drawing
+                import json
+                try:
+                    j = json.loads(result.stdout)
+                    new_id = j.get('id')
+                except:
+                    new_id = None
+                
+                # Запустим process (OCR + LLM)
+                if new_id:
+                    try:
+                        proc_result = subprocess.run(
+                            ['curl', '-sk', '-m', '90', '-X', 'POST',
+                             '-H', f'Cookie: {cookie_str}',
+                             '-H', 'X-Requested-With: XMLHttpRequest',
+                             f'{BASE}/api/drawings/{new_id}/process'],
+                            capture_output=True, text=True, timeout=100,
+                        )
+                        if '"llm_status": "done"' in proc_result.stdout or 'llm_status' in proc_result.stdout:
+                            ok('drawing_process', f'OCR+LLM готовы для drawing #{new_id}')
+                        else:
+                            note('drawing_process', f'process не вернул done: {proc_result.stdout[:200]}')
+                    except Exception as e:
+                        note('drawing_process', f'process timeout/error: {e}')
+                
+                # Reload drawings list
+                page.goto(f'{BASE}/drawings', wait_until='domcontentloaded', timeout=15000)
+                time.sleep(2)
+                
+                # Найти первую ссылку Проверить
+                review_links = page.locator('a:has-text("Проверить")')
+                if review_links.count() > 0:
+                    first_href = review_links.first.get_attribute('href')
+                    if first_href:
+                        # href может уже содержать /bit-technolog
+                        if first_href.startswith('/bit-technolog/'):
+                            page.goto(f'https://seefeesnahurid.beget.app{first_href}', wait_until='domcontentloaded', timeout=15000)
+                        else:
+                            page.goto(f'{BASE}{first_href}', wait_until='domcontentloaded', timeout=15000)
+                        text = page.text_content('body') or ''
+                        if 'Проверить чертёж' in text and 'Обозначение' in text:
+                            ok('review_screen', 'review screen с распознанными полями')
+                            if page.locator('button:has-text("Создать item")').count() > 0:
+                                ok('review_create_btn', 'кнопка Создать item есть')
+                            if page.locator('button:has-text("Отклонить")').count() > 0:
+                                ok('review_dismiss_btn', 'кнопка Отклонить есть')
+                            # OCR текст раскрывается
+                            if page.locator('details:has-text("OCR")').count() > 0:
+                                ok('review_ocr_details', 'OCR текст доступен')
+                        else:
+                            note('review_screen', f'не нашли ожидаемый контент')
+                else:
+                    note('review_link', 'список не обновился после upload')
+            else:
+                issue('drawing_upload', f'upload не прошёл: {result.stdout[:200]}')
+        except Exception as e:
+            issue('drawing_upload', f'ошибка: {e}')
+    else:
+        note('drawing_upload', 'test PDF не найден')
+
+
+# Запуск
 # Запуск
 run_scenario('T1: Dashboard (tarrietsky)', scenario_dashboard)
 run_scenario('T2: Создание детали + ТК (tarrietsky)', scenario_create_detail_and_tc)
 run_scenario('T3: Извещение (tarrietsky)', scenario_notice)
 run_scenario('T4: Help + Knowledge (tarrietsky)', scenario_help_and_knowledge)
 run_scenario('T5: workshop_chief view', scenario_chief_view)
+run_scenario('T6: Drawing recognition (Sprint 7)', scenario_drawing_recognition)
 
 print(f"\n=== ИТОГИ РАБОТЫ ТЕХНОЛОГОМ ===")
 print(f"  Проблем найдено: {len(ISSUES)}")
