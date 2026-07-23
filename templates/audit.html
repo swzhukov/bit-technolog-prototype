@@ -7,13 +7,13 @@
 
 <!-- Tabs -->
 <div class="tabs" style="display: flex; gap: 8px; border-bottom: 1px solid var(--v8-line); margin: 16px 0;">
-  <a class="tab {% if tab == 'logins' %}active{% endif %}" href="/audit?tab=logins" style="padding: 10px 18px; text-decoration: none; color: var(--v8-text-2); border-bottom: 2px solid transparent; {% if tab == 'logins' %}border-bottom-color: var(--v8-brand); color: var(--v8-brand);{% endif %}">Логины ({{ login_count }})</a>
-  <a class="tab {% if tab == 'history' %}active{% endif %}" href="/audit?tab=history" style="padding: 10px 18px; text-decoration: none; color: var(--v8-text-2); border-bottom: 2px solid transparent; {% if tab == 'history' %}border-bottom-color: var(--v8-brand); color: var(--v8-brand);{% endif %}">Изменения ({{ history_count }})</a>
-  <a class="tab {% if tab == 'llm' %}active{% endif %}" href="/audit?tab=llm" style="padding: 10px 18px; text-decoration: none; color: var(--v8-text-2); border-bottom: 2px solid transparent; {% if tab == 'llm' %}border-bottom-color: var(--v8-brand); color: var(--v8-brand);{% endif %}">LLM-вызовы ({{ llm_count }})</a>
+  <a class="tab {% if tab == 'logins' %}active{% endif %}" href="/bit-technolog/audit?tab=logins" style="padding: 10px 18px; text-decoration: none; color: var(--v8-text-2); border-bottom: 2px solid transparent; {% if tab == 'logins' %}border-bottom-color: var(--v8-brand); color: var(--v8-brand);{% endif %}">Логины ({{ login_count }})</a>
+  <a class="tab {% if tab == 'history' %}active{% endif %}" href="/bit-technolog/audit?tab=history" style="padding: 10px 18px; text-decoration: none; color: var(--v8-text-2); border-bottom: 2px solid transparent; {% if tab == 'history' %}border-bottom-color: var(--v8-brand); color: var(--v8-brand);{% endif %}">Изменения ({{ history_count }})</a>
+  <a class="tab {% if tab == 'llm' %}active{% endif %}" href="/bit-technolog/audit?tab=llm" style="padding: 10px 18px; text-decoration: none; color: var(--v8-text-2); border-bottom: 2px solid transparent; {% if tab == 'llm' %}border-bottom-color: var(--v8-brand); color: var(--v8-brand);{% endif %}">LLM-вызовы ({{ llm_count }})</a>
 </div>
 
 <!-- Filters -->
-<form method="GET" action="/audit" class="filters" style="background: var(--v8-panel); padding: 12px 16px; border-radius: 4px; margin-bottom: 16px; display: flex; gap: 12px; align-items: end; flex-wrap: wrap;">
+<form method="GET" action="/bit-technolog/audit" class="filters" style="background: var(--v8-panel); padding: 12px 16px; border-radius: 4px; margin-bottom: 16px; display: flex; gap: 12px; align-items: end; flex-wrap: wrap;">
   <input type="hidden" name="tab" value="{{ tab }}"/>
   <label style="display: flex; flex-direction: column; gap: 4px;">
     <span style="font-size: 12px; color: var(--v8-muted);">Пользователь</span>
@@ -42,7 +42,7 @@
     </select>
   </label>
   <button type="submit" class="btn btn-primary" style="padding: 7px 16px;">Применить</button>
-  <a href="/audit?tab={{ tab }}" class="btn btn-secondary" style="padding: 7px 16px; text-decoration: none; color: var(--v8-text-2);">Сбросить</a>
+  <a href="/bit-technolog/audit?tab={{ tab }}" class="btn btn-secondary" style="padding: 7px 16px; text-decoration: none; color: var(--v8-text-2);">Сбросить</a>
 </form>
 
 <!-- Tab: logins -->

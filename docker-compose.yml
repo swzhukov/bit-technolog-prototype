@@ -1,0 +1,65 @@
+# БИТ.Технолог — Docker Compose для prod
+# Traefik подхватывает автоматически через labels
+# Данные хранятся на хосте (bind mount), не в image
+
+services:
+  bit-technolog:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bit-technolog:1.0.0
+    container_name: bit-technolog
+    restart: always
+    # Только в docker network (через traefik, не напрямую)
+    expose:
+      - "8081"
+    environment:
+      # Traefik передаёт original IP/port
+      - TRUSTED_HOSTS=*
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+    volumes:
+      # Данные — read-write (БД может обновляться)
+      - /opt/beget/bit-technolog/data:/app/data:rw
+      # Мастер-ключ — rw (может создать Fernet.generate_key() при первом запуске)
+      - /opt/beget/bit-technolog/.master_key:/app/.master_key:rw
+      # Env vars для LLM
+      - /opt/beget/bit-technolog/.env:/app/.env:ro
+      # Справочник операций для LLM
+      - /opt/beget/bit-technolog/seed:/app/seed:ro
+      # Templates (Jinja2) — volume для мгновенного обновления
+      - /opt/beget/bit-technolog/templates:/app/templates:rw
+      # Static (CSS, JS, htmx)
+      - /opt/beget/bit-technolog/static:/app/static:ro
+      # Данные Техинкома (OCR, PDF)
+      - /opt/beget/bit-technolog/attachments:/app/attachments:ro
+    labels:
+      # Traefik подхват
+      - "traefik.enable=true"
+      - "traefik.http.routers.bt.rule=Host(`seefeesnahurid.beget.app`) && PathPrefix(`/bit-technolog`)"
+      - "traefik.http.routers.bt.entrypoints=websecure"
+      - "traefik.http.routers.bt.tls=true"
+      - "traefik.http.routers.bt.tls.certresolver=mytlschallenge"
+      # Strip prefix при проксировании
+      - "traefik.http.routers.bt.middlewares=bt-strip"
+      - "traefik.http.middlewares.bt-strip.stripprefix.prefixes=/bit-technolog"
+      # Backend
+      - "traefik.http.services.bt.loadbalancer.server.port=8081"
+    networks:
+      - n8n_net
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  n8n_net:
+    external: true
+    name: n8n_net

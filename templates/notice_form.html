@@ -2,12 +2,12 @@
 {% set active_page = 'notices' %}
 {% block title %}Новое извещение — БИТ.Технолог{% endblock %}
 {% block content %}
-<div class="breadcrumbs"><a href="/notices">Извещения</a> →</div>
+<div class="breadcrumbs"><a href="/bit-technolog/notices">Извещения</a> →</div>
 <h1>Создать извещение</h1>
 <p class="lead">По ГОСТ 2.503. После создания система автоматически найдёт затронутые детали и предложит diff.</p>
 
 <div class="panel" style="max-width: 720px;">
-  <form method="post" action="/notices/new" class="panel-body">
+  <form method="post" action="/bit-technolog/notices/new" class="panel-body">
     <div style="margin-bottom: 12px;">
       <label>Номер извещения <span class="muted">(например, И-2026-015)</span></label>
       <input type="text" name="number" required style="width: 100%;">
@@ -41,7 +41,7 @@
     </div>
     <div style="display: flex; gap: 8px; margin-top: 16px;">
       <button type="submit" class="btn btn-primary">Создать и обработать</button>
-      <a href="/notices" class="btn btn-secondary">Отмена</a>
+      <a href="/bit-technolog/notices" class="btn btn-secondary">Отмена</a>
     </div>
   </form>
 </div>

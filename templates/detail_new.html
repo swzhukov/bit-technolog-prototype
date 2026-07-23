@@ -3,7 +3,7 @@
 {% block title %}Новая деталь — БИТ.Технолог{% endblock %}
 {% block content %}
 <div class="breadcrumbs">
-  <a href="/products">Изделия</a> → <span>Новая деталь</span>
+  <a href="/bit-technolog/products">Изделия</a> → <span>Новая деталь</span>
 </div>
 
 <h1>Создание новой детали</h1>
@@ -17,7 +17,7 @@
 </div>
 {% endif %}
 
-<form method="post" action="/details/new" class="panel">
+<form method="post" action="/bit-technolog/details/new" class="panel">
   <div class="panel-body">
     <div class="grid2" style="grid-template-columns: 1fr 1fr; gap: 16px;">
       <!-- Левая колонка: обязательные -->
@@ -132,7 +132,7 @@
   </div>
 
   <div class="panel-body" style="border-top: 1px solid var(--border); background: var(--bg-muted); display: flex; gap: 8px; justify-content: space-between; align-items: center;">
-    <a href="/products" class="btn">← Отмена</a>
+    <a href="/bit-technolog/products" class="btn">← Отмена</a>
     <button type="submit" class="btn btn-primary">Создать деталь</button>
   </div>
 </form>

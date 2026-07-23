@@ -100,7 +100,17 @@ def _rate_limit_check(key: str, max_calls: int, window_sec: int) -> tuple[bool, 
     """D1 (Sprint 6): rate limit через shared state (SQLite). Возвращает (ok, retry_after_sec)."""
     return _state.rate_limit_check(key, max_calls, window_sec)
 
-app = FastAPI(title="БИТ.Технолог", version="1.0.0")
+app = FastAPI(title="БИТ.Технолог", version="1.0.0", root_path="/bit-technolog")
+
+
+# v9: Traefik проксирует через /bit-technolog/, переписываем Location headers
+@app.middleware("http")
+async def _rewrite_location_for_subpath(request, call_next):
+    response = await call_next(request)
+    loc = response.headers.get("location")
+    if loc and loc.startswith("/") and not loc.startswith("/bit-technolog"):
+        response.headers["location"] = "/bit-technolog" + loc
+    return response
 
 # ============================================================
 # GRACEFUL SHUTDOWN (M37-#5) — no signal handler, just check before requests

@@ -30,7 +30,7 @@
 
 <script>
 async function loadRs() {
-  const r = await fetch('/api/rs/list', {credentials: 'same-origin'});
+  const r = await fetch('/bit-technolog/api/rs/list', {credentials: 'same-origin'});
   if (!r.ok) { document.getElementById('rs-list').innerHTML = '<div class="empty">Ошибка загрузки</div>'; return; }
   const data = await r.json();
   const list = data.files || [];
@@ -42,7 +42,7 @@ async function loadRs() {
   for (const f of list) {
     const date = new Date(f.modified * 1000).toLocaleString('ru-RU');
     const sizeKb = (f.size / 1024).toFixed(1) + ' КБ';
-    html.push(`<tr><td><b>${f.filename}</b></td><td>${sizeKb}</td><td class="muted">${date}</td><td><a class="btn btn-primary" href="/api/rs/download/${f.filename}">Скачать XML</a></td></tr>`);
+    html.push(`<tr><td><b>${f.filename}</b></td><td>${sizeKb}</td><td class="muted">${date}</td><td><a class="btn btn-primary" href="/bit-technolog/api/rs/download/${f.filename}">Скачать XML</a></td></tr>`);
   }
   html.push('</tbody></table>');
   document.getElementById('rs-list').innerHTML = html.join('');

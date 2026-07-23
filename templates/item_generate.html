@@ -2,7 +2,7 @@
 {% set active_page = 'products' %}
 {% block title %}Сгенерировать ТК — {{ item.designation }}{% endblock %}
 {% block content %}
-<div class="breadcrumbs"><a href="/products">Изделия</a> → <a href="/detail/{{ item.id }}">{{ item.designation }}</a> →</div>
+<div class="breadcrumbs"><a href="/bit-technolog/products">Изделия</a> → <a href="/bit-technolog/detail/{{ item.id }}">{{ item.designation }}</a> →</div>
 <h1>Сгенерировать техкарту</h1>
 <p class="lead">
   <span class="badge brand">{{ item.level }}</span>
@@ -21,11 +21,11 @@
   </div>
 </div>
 
-<form method="POST" action="/items/{{ item.id }}/generate" id="gen-form">
+<form method="POST" action="/bit-technolog/items/{{ item.id }}/generate" id="gen-form">
   <button type="submit" class="btn btn-primary" style="font-size: 14px; padding: 10px 20px;" id="gen-btn">
     Сгенерировать черновик
   </button>
-  <a class="btn btn-ghost" href="/detail/{{ item.id }}">Отмена</a>
+  <a class="btn btn-ghost" href="/bit-technolog/detail/{{ item.id }}">Отмена</a>
 </form>
 
 <!-- M38: progress overlay — показывается после submit -->

@@ -37,7 +37,7 @@
 
 <h2>Добавить/обновить LLM провайдер</h2>
 <div class="panel" style="max-width: 720px;">
-  <form method="post" action="/settings/llm" class="panel-body">
+  <form method="post" action="/bit-technolog/settings/llm" class="panel-body">
     <div style="margin-bottom: 12px;">
       <label>Имя провайдера <span class="muted">(yandexgpt, gigachat, deepseek, openai)</span></label>
       <input type="text" name="name" required style="width: 100%;">
@@ -66,7 +66,7 @@
     </div>
     <div style="display: flex; gap: 8px; margin-top: 16px;">
       <button type="submit" class="btn btn-primary">Сохранить</button>
-      <a href="/llm-admin" class="btn btn-secondary">Назад</a>
+      <a href="/bit-technolog/llm-admin" class="btn btn-secondary">Назад</a>
     </div>
   </form>
 </div>
@@ -75,7 +75,7 @@
   <div class="panel-body">
     <b>Важно:</b> В препилоте все ключи хранятся в БД (зашифрованы). В пилоте — будут перенесены в .env (через настройки systemd).
     <br><br>
-    Подробнее в <a href="/help">Помощи</a>.
+    Подробнее в <a href="/bit-technolog/help">Помощи</a>.
   </div>
 </div>
 {% endblock %}

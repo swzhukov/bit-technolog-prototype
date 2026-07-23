@@ -9,7 +9,7 @@ document.getElementById('btn-gen-diff')?.addEventListener('click', async functio
   btn.textContent = 'Генерирую...';
   status.textContent = 'AI анализирует извещение...';
   try {
-    const r = await fetch(`/notices/${noticeId}/generate-diff`, {
+    const r = await fetch(`/bit-technolog/notices/${noticeId}/generate-diff`, {
       method: 'POST',
       headers: {'X-Requested-With': 'XMLHttpRequest'},
       credentials: 'same-origin'
@@ -33,7 +33,7 @@ document.getElementById('btn-gen-diff')?.addEventListener('click', async functio
 
 {% endblock %}
 {% block content %}
-<div class="breadcrumbs"><a href="/notices">Извещения</a> →</div>
+<div class="breadcrumbs"><a href="/bit-technolog/notices">Извещения</a> →</div>
 <h1>Извещение {{ notice.number }} <span class="muted" style="font-size:14px; font-weight:400;">от {{ notice.date }}</span></h1>
 <p class="lead">
   {% if notice.status == 'open' %}<span class="badge bad">Требует решения</span>
@@ -120,7 +120,7 @@ document.getElementById('btn-gen-diff')?.addEventListener('click', async functio
 <h2>Решение</h2>
 <div class="panel">
   <div class="panel-body">
-    <form method="post" action="/notices/{{ notice.id }}/resolve" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end;">
+    <form method="post" action="/bit-technolog/notices/{{ notice.id }}/resolve" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end;">
       <div style="flex: 1; min-width: 200px;">
         <label>Ваше решение</label>
         <select name="decision" style="width: 100%;">
@@ -166,7 +166,7 @@ document.getElementById('btn-gen-diff')?.addEventListener('click', async functio
   btn.textContent = 'Генерирую...';
   status.textContent = 'AI анализирует извещение...';
   try {
-    const r = await fetch(`/notices/${noticeId}/generate-diff`, {
+    const r = await fetch(`/bit-technolog/notices/${noticeId}/generate-diff`, {
       method: 'POST',
       headers: {'X-Requested-With': 'XMLHttpRequest'},
       credentials: 'same-origin'

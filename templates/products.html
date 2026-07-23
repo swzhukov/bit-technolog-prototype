@@ -5,7 +5,7 @@
 <h1>Изделия и состав</h1>
 <p class="lead">{{ items|length }} номенклатурных позиций. Универсальная сущность <code>items</code> (деталь/узел/сборка/покупное/полуфабрикат).</p>
 
-<form method="GET" action="/products" style="margin: 12px 0 16px; display: flex; gap: 8px; flex-wrap: wrap;">
+<form method="GET" action="/bit-technolog/products" style="margin: 12px 0 16px; display: flex; gap: 8px; flex-wrap: wrap;">
   <input type="text" name="q" value="{{ q or '' }}" placeholder="Поиск по обозначению или названию"
          style="padding: 8px 12px; border: 1px solid var(--v8-line); background: var(--v8-panel-2); color: var(--v8-fg); border-radius: 4px; min-width: 280px;">
   <select name="level" style="padding: 8px 12px; border: 1px solid var(--v8-line); background: var(--v8-panel-2); color: var(--v8-fg); border-radius: 4px;">
@@ -17,9 +17,9 @@
     <option value="semi" {% if level_filter == 'semi' %}selected{% endif %}>Полуфабрикат</option>
   </select>
   <button type="submit" class="btn btn-primary">Найти</button>
-  {% if q or level_filter %}<a class="btn btn-ghost" href="/products">Сбросить</a>{% endif %}
+  {% if q or level_filter %}<a class="btn btn-ghost" href="/bit-technolog/products">Сбросить</a>{% endif %}
   {% if user and user.role in ('admin', 'main_technologist', 'technologist') %}
-  <a href="/details/new" class="btn btn-secondary" style="margin-left: auto;">+ Новая деталь</a>
+  <a href="/bit-technolog/details/new" class="btn btn-secondary" style="margin-left: auto;">+ Новая деталь</a>
   {% endif %}
 </form>
 
@@ -44,7 +44,7 @@
  {% elif it.sourcing == 'coop_full' %}<span class="badge warn">Кооперация (полная)</span>
  {% else %}<span class="badge">{{ it.sourcing }}</span>{% endif %}
  </td>
- <td><a class="btn btn-ghost" href="/detail/{{ it.id }}">Карточка →</a></td>
+ <td><a class="btn btn-ghost" href="/bit-technolog/detail/{{ it.id }}">Карточка →</a></td>
  </tr>
  {% endfor %}
  </tbody>

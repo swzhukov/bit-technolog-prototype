@@ -1,0 +1,85 @@
+# .dockerignore — что НЕ копировать в Docker image
+# (volume mounts на эти папки делаем отдельно)
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Git
+.git/
+.gitignore
+
+# Данные (монтируются как volumes)
+data/
+*.db
+*.db-shm
+*.db-wal
+.master_key
+.env
+
+# Сертификаты (для прямого https, нам не нужны в Docker)
+certs/
+
+# Справочные данные (монтируются как volume)
+seed/
+attachments/
+
+# Архивы и старое
+_old/
+archive/
+graphify-out/
+docs/
+drawings/
+backups/
+bit_technolog.db
+
+# Аудит (большие скриншоты, отчёты)
+audit/screenshots/
+audit/*.png
+audit/*.jpg
+audit/CYCLE_*.md
+audit/SPRINT_*.md
+audit/TR.py
+audit/UI_SMOKE.py
+audit/TECHNOLOGIST_SESSIONS.py
+audit/MASTER_PROMPT.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+.editorconfig
+.flake8
+.graphifyignore
+
+# Deploy systemd (не docker)
+deploy/bit-technolog.service
+deploy/bit-technolog-http-redirect.service
+deploy/install.sh
+deploy/serve.sh
+deploy/deploy.sh
+deploy/backup.sh
+deploy/verify_backup.sh
+deploy/weekly_report.sh
+deploy/logrotate-bit-technolog
+deploy/tls_setup.sh
+deploy/health_check.sh
+
+# Tests
+check_all_buttons.py
+
+# README/CHANGELOG/HANDOFF (большие, для image не нужны)
+README.md
+CHANGELOG.md
+HANDOFF.md
+HOW_TO_BOOTSTRAP.md
+AUDIT_2026-07-20.md
+REPO_AUDIT_2026-07-21.md
+E2E_REPORT.md
+MISTAKES.md

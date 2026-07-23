@@ -16,9 +16,9 @@
  <tbody>
  {% for d in details %}
  <tr class="status-{{ d.status or 'new' }}">
- <td><a href="/detail/{{ d.id }}" class="designation">{{ d.designation }}</a></td>
+ <td><a href="/bit-technolog/detail/{{ d.id }}" class="designation">{{ d.designation }}</a></td>
  <td>
- <a href="/detail/{{ d.id }}" style="color:inherit; text-decoration:none;">
+ <a href="/bit-technolog/detail/{{ d.id }}" style="color:inherit; text-decoration:none;">
  {{ d.name or '—' }}
  </a>
  {% if d.model %}<br><small style="color:var(--c-text-faint);">{{ d.model }}</small>{% endif %}
@@ -33,7 +33,7 @@
  {% else %}<span class="badge">{{ d.status or '—' }}</span>{% endif %}
  </td>
  <td>
- <a href="/detail/{{ d.id }}" class="btn btn-sm">Открыть</a>
+ <a href="/bit-technolog/detail/{{ d.id }}" class="btn btn-sm">Открыть</a>
  </td>
  </tr>
  {% endfor %}
@@ -44,7 +44,7 @@
  <div class="empty-icon"> </div>
  <h3>Ничего не найдено</h3>
  <p>Попробуйте изменить фильтры или создать новую деталь</p>
- <a href="/details/new" class="btn btn-primary">＋ Новая деталь</a>
+ <a href="/bit-technolog/details/new" class="btn btn-primary">＋ Новая деталь</a>
 </div>
 {% endif %}
 </div>

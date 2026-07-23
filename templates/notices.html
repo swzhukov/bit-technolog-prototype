@@ -6,7 +6,7 @@
 <p class="lead">Регистрация изменений в техпроцессах. По извещению автоматически находятся затронутые детали, AI строит diff, технолог принимает решение и РС пересчитывается.</p>
 
 <div style="display: flex; gap: 8px; margin-bottom: 16px;">
-  <a href="/notices/new" class="btn btn-primary">Создать извещение</a>
+  <a href="/bit-technolog/notices/new" class="btn btn-primary">Создать извещение</a>
 </div>
 
 <div class="panel">
@@ -37,14 +37,14 @@
         {% elif n.status == 'resolved' %}<span class="badge ok">Решено</span>
         {% else %}<span class="badge">{{ n.status }}</span>{% endif %}
       </td>
-      <td><a class="btn btn-ghost" href="/notices/{{ n.id }}">Открыть</a></td>
+      <td><a class="btn btn-ghost" href="/bit-technolog/notices/{{ n.id }}">Открыть</a></td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 {% else %}
 <div class="empty">
-  <div style="font-size: 13px; color: var(--v8-muted); padding: 24px;">Нет извещений. Создайте новое: <a href="/notices/new">Создать извещение</a></div>
+  <div style="font-size: 13px; color: var(--v8-muted); padding: 24px;">Нет извещений. Создайте новое: <a href="/bit-technolog/notices/new">Создать извещение</a></div>
 </div>
 {% endif %}
 </div>

@@ -15,7 +15,7 @@
 </style>
 {% endblock %}
 {% block content %}
-<div class="breadcrumbs"><a href="/products">Изделия</a> → <a href="/products?level={{ item.level }}">{{ item.level|ru_level }}</a> →</div>
+<div class="breadcrumbs"><a href="/bit-technolog/products">Изделия</a> → <a href="/bit-technolog/products?level={{ item.level }}">{{ item.level|ru_level }}</a> →</div>
 <h1>{{ item.name }} <span class="muted" style="font-size:14px; font-weight:400;">{{ item.designation }}</span></h1>
 <p class="lead">
   <span class="badge brand">{{ item.level|ru_level }}</span>
@@ -29,7 +29,7 @@
 
 <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap: wrap;">
   {% if not tech_card and user_can_edit %}
-  <a class="btn btn-primary" href="/items/{{ item.id }}/generate">Сгенерировать ТК</a>
+  <a class="btn btn-primary" href="/bit-technolog/items/{{ item.id }}/generate">Сгенерировать ТК</a>
   {% else %}
   {% if not tech_card.is_approved %}
   {% if user_can_approve %}<button class="btn btn-primary" id="btn-approve" data-tc-id="{{ tech_card.id }}">Утвердить и в эталоны</button>{% endif %}
@@ -37,11 +37,11 @@
   {% if user_can_edit %}
   <button class="btn btn-secondary" id="btn-regenerate" data-tc-id="{{ tech_card.id }}">Перегенерировать</button>
   <button class="btn btn-secondary" id="btn-export" data-tc-id="{{ tech_card.id }}" data-item-id="{{ item.id }}">Экспорт в 1С</button>
-  <a class="btn btn-ghost" href="/notices/new?item_id={{ item.id }}">+ Извещение</a>
+  <a class="btn btn-ghost" href="/bit-technolog/notices/new?item_id={{ item.id }}">+ Извещение</a>
   {% endif %}
   <button class="btn btn-secondary" id="btn-diff" data-tc-id="{{ tech_card.id }}">Изменения</button>
   {% endif %}
-  <a class="btn btn-ghost" href="/products?level={{ item.level }}">← Назад</a>
+  <a class="btn btn-ghost" href="/bit-technolog/products?level={{ item.level }}">← Назад</a>
 </div>
 
 {% if flash %}
@@ -227,7 +227,7 @@ function bindAction(btnId, action) {
     el.disabled = true;
     el.textContent = '...';
     try {
-      const r = await fetch(`/api/tech-cards/${tcId}/${action}`, {
+      const r = await fetch(`/bit-technolog/api/tech-cards/${tcId}/${action}`, {
         method: 'POST',
         headers: {'X-Requested-With': 'XMLHttpRequest'},
         credentials: 'same-origin'
@@ -261,7 +261,7 @@ if (btnExport) {
     btnExport.disabled = true;
     btnExport.textContent = 'Экспорт...';
     try {
-      const r = await fetch(`/api/items/${itemId}/export-to-1c`, {
+      const r = await fetch(`/bit-technolog/api/items/${itemId}/export-to-1c`, {
         method: 'POST',
         headers: {'X-Requested-With': 'XMLHttpRequest'},
         credentials: 'same-origin'
@@ -290,7 +290,7 @@ if (btnDiff) {
     btnDiff.disabled = true;
     btnDiff.textContent = 'Загрузка...';
     try {
-      const r = await fetch(`/api/tech-cards/${tcId}/diff`, {
+      const r = await fetch(`/bit-technolog/api/tech-cards/${tcId}/diff`, {
         headers: {'X-Requested-With': 'XMLHttpRequest'},
         credentials: 'same-origin'
       });
@@ -384,7 +384,7 @@ async function confirmOp(opId, currentTime) {
   const newTime = parseFloat(v.replace(',', '.'));
   if (isNaN(newTime) || newTime < 0) { alert('Введите число ≥ 0'); return; }
   try {
-    const r = await fetch(`/api/operations/${opId}/confirm?new_time=${newTime}`, {
+    const r = await fetch(`/bit-technolog/api/operations/${opId}/confirm?new_time=${newTime}`, {
       method: 'POST',
       headers: {'X-Requested-With': 'XMLHttpRequest'},
       credentials: 'same-origin'
@@ -423,7 +423,7 @@ async function submitConfirm(opId) {
   const newTime = parseFloat(input.value.replace(',', '.'));
   if (isNaN(newTime) || newTime < 0) { alert('Введите число ≥ 0'); input.focus(); return; }
   try {
-    const r = await fetch(`/api/operations/${opId}/confirm?new_time=${newTime}`, {
+    const r = await fetch(`/bit-technolog/api/operations/${opId}/confirm?new_time=${newTime}`, {
       method: 'POST',
       headers: {'X-Requested-With': 'XMLHttpRequest'},
       credentials: 'same-origin'
@@ -473,7 +473,7 @@ async function submitConfirm(opId) {
         const newVal = input.value;
         if (newVal === original) { span.textContent = original; return; }
         span.classList.add('editable-saving');
-        fetch('/api/operations/' + opId + '/update', {
+        fetch('/bit-technolog/api/operations/' + opId + '/update', {
           method: 'POST',
           headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
           credentials: 'same-origin',
@@ -517,7 +517,7 @@ async function submitConfirm(opId) {
       const newVal = sel.value;
       sel.classList.add('editable-saving');
       try {
-        const r = await fetch('/api/operations/' + opId + '/update', {
+        const r = await fetch('/bit-technolog/api/operations/' + opId + '/update', {
           method: 'POST',
           headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
           credentials: 'same-origin',
@@ -604,7 +604,7 @@ async function submitConfirm(opId) {
   <tbody>
     {% for ch in bom_children %}
     <tr>
-      <td><a href="/detail/{{ ch.id }}"><b>{{ ch.designation }}</b></a></td>
+      <td><a href="/bit-technolog/detail/{{ ch.id }}"><b>{{ ch.designation }}</b></a></td>
       <td>{{ ch.name }}</td>
       <td><span class="badge">{{ ch.level|ru_level }}</span></td>
       <td>{{ ch.qty }}</td>
