@@ -1124,6 +1124,8 @@ async def notice_resolve(request: Request, notice_id: int):
     decision = form.get("decision", "manual_review")
     notes = form.get("notes", "")
     result = resolve_notice_svc(notice_id, user.username, decision, notes)
+    # B3 (Sprint 6): audit-trail
+    log_history("notice", notice_id, "resolve", user.username, {"decision": decision, "result": result})
     return RedirectResponse(url=f"/notices/{notice_id}", status_code=303)
 
 
@@ -1416,6 +1418,8 @@ async def api_confirm_operation(operation_id: int, request: Request, new_time: f
         record_green_pct("all")
     except Exception:
         pass
+    # B3 (Sprint 6): audit-trail
+    log_history("operation", operation_id, "confirm", user.username, {"new_time": new_time, "ok": ok})
     return {"status": "ok" if ok else "error", "operation_id": operation_id, "new_time": new_time}
 
 
@@ -1482,6 +1486,8 @@ async def api_update_operation(operation_id: int, request: Request):
             db.execute("""INSERT INTO edits (tech_card_id, operation_id, field, old_value, new_value, user, ts)
                           VALUES (?, ?, ?, ?, ?, ?, datetime('now'))""",
                        (op["tech_card_id"], operation_id, field, old_value, sql_value, user.username)) # same
+        # B3 (Sprint 6): audit-trail
+        log_history("operation", operation_id, "update", user.username, {"field": field, "value": sql_value, "old_value": old_value})
         return {"status": "ok", "operation_id": operation_id, "field": field, "value": sql_value}
     except Exception as e:
         raise HTTPException(500, f"db error: {e}")
@@ -1601,6 +1607,8 @@ async def api_approve(tech_card_id: int, request: Request):
     # Метрика c: записать % зелёных
     record_green_pct("all")
 
+        # B3 (Sprint 6): audit-trail
+    log_history("tech_card", tech_card_id, "approve", user.username, {"etalon_id": etalon_id, "version": tc.get("version", 1)})
     return {"status": "ok", "etalon_id": etalon_id, "message": "ТК утверждена и добавлена в эталоны", "duration_sec": None}
 
 
@@ -1618,7 +1626,10 @@ async def api_process_notice(notice_id: int, request: Request):
     except Exception:
         raise HTTPException(400, "invalid JSON body")
     decision = body.get("decision", "manual_review")
-    return resolve_notice_svc(notice_id, user.username, decision, "")  # M38-v6-152
+    # B3 (Sprint 6): audit-trail
+    result = resolve_notice_svc(notice_id, user.username, decision, "")
+    log_history("notice", notice_id, "process", user.username, {"decision": decision, "result": result})
+    return result
 
 
 # ============================================================
