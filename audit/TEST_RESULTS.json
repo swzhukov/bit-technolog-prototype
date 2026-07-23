@@ -1,0 +1,338 @@
+[
+  {
+    "id": "A01",
+    "name": "Создание детали",
+    "expected": 303,
+    "got": 303,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "A02",
+    "name": "Создание минимальное",
+    "expected": 303,
+    "got": 303,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "A05",
+    "name": "Inline-edit name",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "A06",
+    "name": "Inline-edit time",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "A08",
+    "name": "Подтвердить норму",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "A10",
+    "name": "Экспорт РС в 1С",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "A11",
+    "name": "Скачать XML РС",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "A12",
+    "name": "Создание извещения",
+    "expected": 303,
+    "got": 303,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "A13",
+    "name": "С предзаполнением",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "A15",
+    "name": "Решение Принять AI",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "A16",
+    "name": "Решение Ручная",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "A17",
+    "name": "Решение Отклонить",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "B04",
+    "name": "material_id 99999",
+    "expected": 400,
+    "got": 400,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "B08",
+    "name": "Дубликат обозначения",
+    "expected": 400,
+    "got": 400,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "B09",
+    "name": "mass_kg=abc",
+    "expected": 400,
+    "got": 400,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "B10",
+    "name": "level=invalid",
+    "expected": 400,
+    "got": 400,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "B12",
+    "name": "Approve от technologist",
+    "expected": 403,
+    "got": 403,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "B14",
+    "name": "CSRF bypass",
+    "expected": 403,
+    "got": 403,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "B15",
+    "name": "Invalid JSON",
+    "expected": 400,
+    "got": 400,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "B16",
+    "name": "/notices/999/resolve",
+    "expected": 404,
+    "got": 404,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "B17",
+    "name": "/api/operations/99999/confirm",
+    "expected": 404,
+    "got": 404,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "B18",
+    "name": "Logout",
+    "expected": 303,
+    "got": 303,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "B19",
+    "name": "Пустое designation",
+    "expected": 400,
+    "got": 400,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "B20",
+    "name": "Пустое name",
+    "expected": 400,
+    "got": 400,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "C01",
+    "name": "Дашборд",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "C02",
+    "name": "/products",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "C03",
+    "name": "/products?level=detail",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "C04",
+    "name": "/products?q=ЛМША",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "C05",
+    "name": "/knowledge",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "C06",
+    "name": "/help",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "C07",
+    "name": "/rs",
+    "expected": 200,
+    "got": 200,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "C09",
+    "name": "Не залогинен /detail/3",
+    "expected": 303,
+    "got": 303,
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "RBAC-01",
+    "name": "Создание детали",
+    "expected": "tec:303|vor:303|tar:303|gol:403",
+    "got": "tec:303|vor:303|tar:303|gol:403",
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "RBAC-02",
+    "name": "Inline-edit",
+    "expected": "tec:200|vor:200|tar:200|gol:403",
+    "got": "tec:200|vor:200|tar:200|gol:403",
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "RBAC-03",
+    "name": "Approve ТК",
+    "expected": "tec:200|vor:200|tar:403|gol:403",
+    "got": "tec:200|vor:200|tar:403|gol:403",
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "RBAC-04",
+    "name": "Экспорт РС",
+    "expected": "tec:200|vor:200|tar:200|gol:403",
+    "got": "tec:200|vor:200|tar:200|gol:403",
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "RBAC-05",
+    "name": "Создание извещения",
+    "expected": "tec:303|vor:303|tar:303|gol:403",
+    "got": "tec:303|vor:303|tar:303|gol:403",
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "RBAC-06",
+    "name": "Решение по извещению",
+    "expected": "tec:303|vor:303|tar:303|gol:403",
+    "got": "tec:303|vor:303|tar:303|gol:403",
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "RBAC-07",
+    "name": "AI diff извещения",
+    "expected": "tec:200|vor:200|tar:200|gol:403",
+    "got": "tec:200|vor:200|tar:200|gol:403",
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "RBAC-08",
+    "name": "/knowledge все",
+    "expected": "tec:200|vor:200|tar:200|gol:200",
+    "got": "tec:200|vor:200|tar:200|gol:200",
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "RBAC-09",
+    "name": "/rs все",
+    "expected": "tec:200|vor:200|tar:200|gol:200",
+    "got": "tec:200|vor:200|tar:200|gol:200",
+    "status": "pass",
+    "comment": ""
+  },
+  {
+    "id": "SMOKE",
+    "name": "Smoke test 7 endpoints",
+    "expected": "all 200",
+    "got": "[('/', 200), ('/products', 200), ('/detail/3', 200), ('/notices', 200), ('/knowledge', 200), ('/help', 200), ('/rs', 200",
+    "status": "pass",
+    "comment": ""
+  }
+]

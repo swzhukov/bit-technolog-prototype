@@ -1,0 +1,807 @@
+{
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/login",
+      "fn": "login_page"
+    },
+    {
+      "method": "POST",
+      "path": "/login",
+      "fn": "login_post"
+    },
+    {
+      "method": "GET",
+      "path": "/logout",
+      "fn": "logout"
+    },
+    {
+      "method": "GET",
+      "path": "/settings",
+      "fn": "settings_page"
+    },
+    {
+      "method": "POST",
+      "path": "/settings/llm",
+      "fn": "settings_save_llm"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "fn": "dashboard"
+    },
+    {
+      "method": "GET",
+      "path": "/products",
+      "fn": "products"
+    },
+    {
+      "method": "GET",
+      "path": "/detail/{item_id}",
+      "fn": "detail"
+    },
+    {
+      "method": "GET",
+      "path": "/details/new",
+      "fn": "detail_new_placeholder"
+    },
+    {
+      "method": "GET",
+      "path": "/items/{item_id}/generate",
+      "fn": "item_generate_form"
+    },
+    {
+      "method": "POST",
+      "path": "/items/{item_id}/generate",
+      "fn": "item_generate_post"
+    },
+    {
+      "method": "POST",
+      "path": "/api/items/{item_id}/export-to-1c",
+      "fn": "api_export_to_1c"
+    },
+    {
+      "method": "GET",
+      "path": "/notices",
+      "fn": "notices"
+    },
+    {
+      "method": "GET",
+      "path": "/notices/new",
+      "fn": "notice_new"
+    },
+    {
+      "method": "POST",
+      "path": "/notices/new",
+      "fn": "notice_create"
+    },
+    {
+      "method": "GET",
+      "path": "/notices/{notice_id}",
+      "fn": "notice_detail"
+    },
+    {
+      "method": "POST",
+      "path": "/notices/{notice_id}/generate-diff",
+      "fn": "notice_generate_diff"
+    },
+    {
+      "method": "POST",
+      "path": "/notices/{notice_id}/resolve",
+      "fn": "notice_resolve"
+    },
+    {
+      "method": "GET",
+      "path": "/api/change-notices",
+      "fn": "api_list_notices"
+    },
+    {
+      "method": "GET",
+      "path": "/api/change-notices/{notice_id}",
+      "fn": "api_notice"
+    },
+    {
+      "method": "GET",
+      "path": "/profiles",
+      "fn": "profiles"
+    },
+    {
+      "method": "GET",
+      "path": "/knowledge",
+      "fn": "knowledge"
+    },
+    {
+      "method": "GET",
+      "path": "/llm-admin",
+      "fn": "llm_admin"
+    },
+    {
+      "method": "GET",
+      "path": "/help",
+      "fn": "help_page"
+    },
+    {
+      "method": "GET",
+      "path": "/metrics",
+      "fn": "metrics_page"
+    },
+    {
+      "method": "POST",
+      "path": "/metrics/record-green",
+      "fn": "metrics_record_green"
+    },
+    {
+      "method": "GET",
+      "path": "/rs",
+      "fn": "rs_export_page"
+    },
+    {
+      "method": "GET",
+      "path": "/api/rs/list",
+      "fn": "api_rs_list"
+    },
+    {
+      "method": "GET",
+      "path": "/api/rs/download/{filename}",
+      "fn": "api_rs_download"
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "fn": "health"
+    },
+    {
+      "method": "GET",
+      "path": "/api/items",
+      "fn": "api_items"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tech-cards/{tech_card_id}/rs-preview",
+      "fn": "api_rs_preview"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tech-cards/{tech_card_id}/evidence",
+      "fn": "api_evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/operations/{operation_id}/confirm",
+      "fn": "api_confirm_operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/operations/{operation_id}/update",
+      "fn": "api_update_operation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tech-cards/{tech_card_id}/regenerate",
+      "fn": "api_regenerate"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tech-cards/{tech_card_id}/approve",
+      "fn": "api_approve"
+    },
+    {
+      "method": "POST",
+      "path": "/api/change-notices/{notice_id}/process",
+      "fn": "api_process_notice"
+    }
+  ],
+  "templates": [
+    "_index_table.html",
+    "base.html",
+    "dashboard.html",
+    "detail.html",
+    "detail_new_placeholder.html",
+    "help.html",
+    "item_generate.html",
+    "knowledge.html",
+    "llm_admin.html",
+    "login.html",
+    "metrics.html",
+    "notice_detail.html",
+    "notice_form.html",
+    "notices.html",
+    "products.html",
+    "profiles.html",
+    "rs_export.html",
+    "settings.html"
+  ],
+  "roles": {
+    "technologist": {
+      "display": "Технолог",
+      "permissions": [
+        "view_tech_cards",
+        "edit_own_tech_cards",
+        "approve_own_tech_cards",
+        "view_resource_specs",
+        "view_etalons",
+        "view_work_history"
+      ]
+    },
+    "main_technologist": {
+      "display": "Главный технолог",
+      "permissions": [
+        "view_tech_cards",
+        "edit_tech_cards",
+        "approve_tech_cards",
+        "approve_etalons",
+        "manage_tech_rules",
+        "view_resource_specs",
+        "edit_resource_specs",
+        "view_etalons",
+        "view_work_history",
+        "view_change_notices"
+      ]
+    },
+    "workshop_chief": {
+      "display": "Начальник цеха",
+      "permissions": [
+        "view_tech_cards",
+        "approve_tech_cards",
+        "view_resource_specs",
+        "view_change_notices",
+        "view_etalons"
+      ]
+    }
+  },
+  "fk": [
+    {
+      "from_table": "workshops",
+      "from_col": "parent_id",
+      "to_table": "workshops",
+      "to_col": "id"
+    },
+    {
+      "from_table": "equipment",
+      "from_col": "workshop_id",
+      "to_table": "workshops",
+      "to_col": "id"
+    },
+    {
+      "from_table": "product_models",
+      "from_col": "default_rs_profile_id",
+      "to_table": "rs_output_profiles",
+      "to_col": "id"
+    },
+    {
+      "from_table": "product_models",
+      "from_col": "chassis_id",
+      "to_table": "chassis",
+      "to_col": "id"
+    },
+    {
+      "from_table": "product_configurations",
+      "from_col": "product_model_id",
+      "to_table": "product_models",
+      "to_col": "id"
+    },
+    {
+      "from_table": "items",
+      "from_col": "material_id",
+      "to_table": "materials",
+      "to_col": "id"
+    },
+    {
+      "from_table": "items",
+      "from_col": "configuration_id",
+      "to_table": "product_configurations",
+      "to_col": "id"
+    },
+    {
+      "from_table": "items",
+      "from_col": "product_model_id",
+      "to_table": "product_models",
+      "to_col": "id"
+    },
+    {
+      "from_table": "items",
+      "from_col": "parent_item_id",
+      "to_table": "items",
+      "to_col": "id"
+    },
+    {
+      "from_table": "bom_links",
+      "from_col": "configuration_id",
+      "to_table": "product_configurations",
+      "to_col": "id"
+    },
+    {
+      "from_table": "bom_links",
+      "from_col": "child_item_id",
+      "to_table": "items",
+      "to_col": "id"
+    },
+    {
+      "from_table": "bom_links",
+      "from_col": "parent_item_id",
+      "to_table": "items",
+      "to_col": "id"
+    },
+    {
+      "from_table": "tech_cards",
+      "from_col": "llm_provider_id",
+      "to_table": "llm_providers",
+      "to_col": "id"
+    },
+    {
+      "from_table": "tech_cards",
+      "from_col": "item_id",
+      "to_table": "items",
+      "to_col": "id"
+    },
+    {
+      "from_table": "operations",
+      "from_col": "profession_id",
+      "to_table": "professions",
+      "to_col": "id"
+    },
+    {
+      "from_table": "operations",
+      "from_col": "equipment_id",
+      "to_table": "equipment",
+      "to_col": "id"
+    },
+    {
+      "from_table": "operations",
+      "from_col": "workshop_id",
+      "to_table": "workshops",
+      "to_col": "id"
+    },
+    {
+      "from_table": "operations",
+      "from_col": "tech_card_id",
+      "to_table": "tech_cards",
+      "to_col": "id"
+    },
+    {
+      "from_table": "operation_materials",
+      "from_col": "material_id",
+      "to_table": "materials",
+      "to_col": "id"
+    },
+    {
+      "from_table": "operation_materials",
+      "from_col": "operation_id",
+      "to_table": "operations",
+      "to_col": "id"
+    },
+    {
+      "from_table": "resource_specs",
+      "from_col": "rs_profile_id",
+      "to_table": "rs_output_profiles",
+      "to_col": "id"
+    },
+    {
+      "from_table": "resource_specs",
+      "from_col": "tech_card_id",
+      "to_table": "tech_cards",
+      "to_col": "id"
+    },
+    {
+      "from_table": "resource_specs",
+      "from_col": "item_id",
+      "to_table": "items",
+      "to_col": "id"
+    },
+    {
+      "from_table": "edits",
+      "from_col": "operation_id",
+      "to_table": "operations",
+      "to_col": "id"
+    },
+    {
+      "from_table": "edits",
+      "from_col": "tech_card_id",
+      "to_table": "tech_cards",
+      "to_col": "id"
+    },
+    {
+      "from_table": "llm_model_assignments",
+      "from_col": "llm_provider_id",
+      "to_table": "llm_providers",
+      "to_col": "id"
+    },
+    {
+      "from_table": "llm_calls",
+      "from_col": "llm_provider_id",
+      "to_table": "llm_providers",
+      "to_col": "id"
+    },
+    {
+      "from_table": "drafts",
+      "from_col": "item_id",
+      "to_table": "items",
+      "to_col": "id"
+    },
+    {
+      "from_table": "draft_versions",
+      "from_col": "draft_id",
+      "to_table": "drafts",
+      "to_col": "id"
+    },
+    {
+      "from_table": "pilot_runs",
+      "from_col": "tc_id",
+      "to_table": "tech_cards",
+      "to_col": "id"
+    },
+    {
+      "from_table": "pilot_runs",
+      "from_col": "item_id",
+      "to_table": "items",
+      "to_col": "id"
+    }
+  ],
+  "ui_elements_by_template": {
+    "_index_table.html": [
+      [
+        "link",
+        "{{ d.designation }} -> /detail/{{ d.id }}"
+      ],
+      [
+        "link",
+        "{{ d.name or '—' }} -> /detail/{{ d.id }}"
+      ],
+      [
+        "link",
+        "Открыть -> /detail/{{ d.id }}"
+      ],
+      [
+        "link",
+        "＋ Новая деталь -> /details/new"
+      ]
+    ],
+    "base.html": [
+      [
+        "link",
+        "Войти -> ?login=1"
+      ],
+      [
+        "link",
+        "Мои задачи -> /"
+      ],
+      [
+        "link",
+        "Изделия -> /products"
+      ],
+      [
+        "link",
+        "База знаний -> /knowledge"
+      ],
+      [
+        "link",
+        "Выгрузка РС -> /rs"
+      ],
+      [
+        "link",
+        "Шаблоны маршрутов -> /profiles"
+      ],
+      [
+        "link",
+        "Метрики -> /metrics"
+      ],
+      [
+        "link",
+        "Модели LLM -> /llm-admin"
+      ],
+      [
+        "link",
+        "Настройки -> /settings"
+      ],
+      [
+        "link",
+        "Помощь -> /help"
+      ],
+      [
+        "link",
+        "Выход -> /logout"
+      ],
+      [
+        "link",
+        "Войти -> /login"
+      ]
+    ],
+    "dashboard.html": [
+      [
+        "link",
+        "Открыть список изделий -> /products"
+      ],
+      [
+        "link",
+        "{{ top_draft.designation }} -> /detail/{{ top_draft.item_id }}"
+      ],
+      [
+        "link",
+        "Открыть -> /detail/{{ t.item_id }}"
+      ],
+      [
+        "link",
+        "Изделия -> /products"
+      ],
+      [
+        "link",
+        "Разобрать -> /notices/{{ n.id }}"
+      ],
+      [
+        "link",
+        "Изделиях -> /products"
+      ]
+    ],
+    "detail.html": [
+      [
+        "button",
+        "Утвердить и в эталоны"
+      ],
+      [
+        "button",
+        "Перегенерировать"
+      ],
+      [
+        "button",
+        "Экспорт в 1С"
+      ],
+      [
+        "button",
+        "Подтвердить"
+      ],
+      [
+        "button",
+        "OK"
+      ],
+      [
+        "button",
+        "Отмена"
+      ],
+      [
+        "link",
+        "Изделия -> /products"
+      ],
+      [
+        "link",
+        "{{ item.level|ru_level }} -> /products?level={{ item.level }}"
+      ],
+      [
+        "link",
+        "Сгенерировать ТК -> /items/{{ item.id }}/generate"
+      ],
+      [
+        "link",
+        "+ Извещение -> /notices/new?item_id={{ item.id }}"
+      ],
+      [
+        "link",
+        "← Назад -> /products?level={{ item.level }}"
+      ],
+      [
+        "link",
+        "Маршрут -> #ops"
+      ],
+      [
+        "link",
+        "Ресурсы -> #rs"
+      ],
+      [
+        "link",
+        "Состав -> #bom"
+      ],
+      [
+        "link",
+        "Детали -> #params"
+      ],
+      [
+        "link",
+        "История -> #history"
+      ]
+    ],
+    "detail_new_placeholder.html": [
+      [
+        "link",
+        "← К списку изделий -> /products"
+      ]
+    ],
+    "help.html": [
+      [
+        "link",
+        "Изделия -> /products"
+      ],
+      [
+        "link",
+        "эталоны -> /knowledge"
+      ]
+    ],
+    "item_generate.html": [
+      [
+        "button",
+        "Сгенерировать черновик"
+      ],
+      [
+        "link",
+        "Изделия -> /products"
+      ],
+      [
+        "link",
+        "{{ item.designation }} -> /detail/{{ item.id }}"
+      ],
+      [
+        "link",
+        "Отмена -> /detail/{{ item.id }}"
+      ]
+    ],
+    "login.html": [
+      [
+        "input",
+        "username"
+      ],
+      [
+        "input",
+        "password"
+      ],
+      [
+        "button",
+        "Войти"
+      ]
+    ],
+    "metrics.html": [
+      [
+        "button",
+        "Зафиксировать замер (точка на графике)"
+      ]
+    ],
+    "notice_detail.html": [
+      [
+        "input",
+        "decision"
+      ],
+      [
+        "input",
+        "notes"
+      ],
+      [
+        "button",
+        "Сгенерировать diff"
+      ],
+      [
+        "button",
+        "Подтвердить"
+      ],
+      [
+        "link",
+        "Извещения -> /notices"
+      ]
+    ],
+    "notice_form.html": [
+      [
+        "input",
+        "number"
+      ],
+      [
+        "input",
+        "date"
+      ],
+      [
+        "input",
+        "foundation_doc"
+      ],
+      [
+        "input",
+        "reason"
+      ],
+      [
+        "input",
+        "description"
+      ],
+      [
+        "input",
+        "affected_item_designation"
+      ],
+      [
+        "input",
+        "author"
+      ],
+      [
+        "button",
+        "Создать и обработать"
+      ],
+      [
+        "link",
+        "Извещения -> /notices"
+      ],
+      [
+        "link",
+        "Отмена -> /notices"
+      ]
+    ],
+    "notices.html": [
+      [
+        "link",
+        "Создать извещение -> /notices/new"
+      ],
+      [
+        "link",
+        "Открыть -> /notices/{{ n.id }}"
+      ],
+      [
+        "link",
+        "Создать извещение -> /notices/new"
+      ]
+    ],
+    "products.html": [
+      [
+        "input",
+        "q"
+      ],
+      [
+        "input",
+        "level"
+      ],
+      [
+        "button",
+        "Найти"
+      ],
+      [
+        "link",
+        "Сбросить -> /products"
+      ],
+      [
+        "link",
+        "Карточка → -> /detail/{{ it.id }}"
+      ]
+    ],
+    "rs_export.html": [
+      [
+        "button",
+        "Обновить"
+      ],
+      [
+        "link",
+        "Скачать XML -> /api/rs/download/${f.filename}"
+      ]
+    ],
+    "settings.html": [
+      [
+        "input",
+        "name"
+      ],
+      [
+        "input",
+        "display_name"
+      ],
+      [
+        "input",
+        "endpoint"
+      ],
+      [
+        "input",
+        "api_key"
+      ],
+      [
+        "input",
+        "cost"
+      ],
+      [
+        "button",
+        "Сохранить"
+      ],
+      [
+        "link",
+        "Назад -> /llm-admin"
+      ],
+      [
+        "link",
+        "Помощи -> /help"
+      ]
+    ]
+  },
+  "stats": {
+    "n_endpoints": 38,
+    "n_templates": 18,
+    "n_fk": 31,
+    "n_tables": 34,
+    "n_roles": 3
+  }
+}

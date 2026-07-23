@@ -1,0 +1,58 @@
+{
+  "techadmin": {
+    "/api/operations/32/update": 403,
+    "/api/operations/99999/update": 403,
+    "/metrics/record-green": 303,
+    "/api/change-notices/1/process": 200,
+    "/api/tech-cards/1/regenerate": 200,
+    "/api/tech-cards/1/approve": 200,
+    "/notices/1/generate-diff": 200,
+    "/login": 303,
+    "/logout": 403,
+    "/settings/llm": 303,
+    "/notices/1/resolve": 303,
+    "/notices/999/resolve": 303
+  },
+  "vorobyev": {
+    "/api/operations/32/update": 400,
+    "/api/operations/99999/update": 404,
+    "/metrics/record-green": 403,
+    "/api/change-notices/1/process": 200,
+    "/api/tech-cards/1/regenerate": 200,
+    "/api/tech-cards/1/approve": 200,
+    "/notices/1/generate-diff": 200,
+    "/login": 303,
+    "/logout": 403,
+    "/settings/llm": 403,
+    "/notices/1/resolve": 303,
+    "/notices/999/resolve": 303
+  },
+  "tarrietsky": {
+    "/api/operations/32/update": 400,
+    "/api/operations/99999/update": 404,
+    "/metrics/record-green": 403,
+    "/api/change-notices/1/process": 200,
+    "/api/tech-cards/1/regenerate": 200,
+    "/api/tech-cards/1/approve": 200,
+    "/notices/1/generate-diff": 200,
+    "/login": 303,
+    "/logout": 403,
+    "/settings/llm": 403,
+    "/notices/1/resolve": 303,
+    "/notices/999/resolve": 303
+  },
+  "golubev": {
+    "/api/operations/32/update": 403,
+    "/api/operations/99999/update": 403,
+    "/metrics/record-green": 403,
+    "/api/change-notices/1/process": 200,
+    "/api/tech-cards/1/regenerate": 200,
+    "/api/tech-cards/1/approve": 200,
+    "/notices/1/generate-diff": 403,
+    "/login": 303,
+    "/logout": 403,
+    "/settings/llm": 403,
+    "/notices/1/resolve": 303,
+    "/notices/999/resolve": 303
+  }
+}
