@@ -1352,15 +1352,15 @@ async def audit_page(
             where.append("user = ?")
             params.append(user_filter)
         if date_from:
-            where.append("created_at >= ?")
+            where.append("ts >= ?")
             params.append(date_from)
         if date_to:
-            where.append("created_at <= ?")
+            where.append("ts <= ?")
             params.append(date_to + " 23:59:59")
         where_sql = ("WHERE " + " AND ".join(where)) if where else ""
         rows = db.query(
             f"SELECT id, task_type, model_name, user, status, error_message, "
-            f"duration_ms, prompt_tokens, completion_tokens, created_at "
+            f"duration_ms, prompt_tokens, completion_tokens, ts "
             f"FROM llm_calls {where_sql} ORDER BY id DESC LIMIT ?",
             tuple(params) + (limit,),
         )

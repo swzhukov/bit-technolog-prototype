@@ -139,7 +139,7 @@
         {% for r in llm_calls %}
         <tr>
           <td><span class="muted">{{ r.id }}</span></td>
-          <td><span class="muted" style="font-size: 12px;">{{ r.created_at or '—' }}</span></td>
+          <td><span class="muted" style="font-size: 12px;">{{ r.ts or '—' }}</span></td>
           <td><span style="font-family: monospace; font-size: 11px;">{{ r.task_type or '—' }}</span></td>
           <td><span class="muted" style="font-size: 11px;">{{ r.model_name or '—' }}</span></td>
           <td>{{ r.user or '—' }}</td>
