@@ -23,7 +23,7 @@
 
 | Таблица | Кол-во | Комментарий |
 |---------|--------|-------------|
-| items | 200 | 177 demo + 23 test (TEST-A*) |
+| items | 196 | 177 demo + 19 test — оставлены (cleanup рискованно) |
 | tech_cards | 50 | 49 demo + 1 test (T2) |
 | etalons | 19 | без изменений |
 | equipment | 57 | без изменений |
@@ -72,15 +72,19 @@
 - [ ] Update USER_GUIDE.md со скриншотами v9 (новый URL)
 - [ ] Добавить "Пилот 27.07" в pilot_runs
 
-## 🐛 Cleanup test items (TODO)
+## 🐛 Cleanup test items (ОТЛОЖЕНО)
 
-Test items засоряют БД. Нужно:
-```sql
-DELETE FROM items WHERE designation LIKE 'TEST-%' OR designation LIKE 'TEST-A%' OR designation LIKE 'TEST-B%' OR designation LIKE 'RBAC-%';
-DELETE FROM tech_cards WHERE id NOT IN (SELECT DISTINCT tech_card_id FROM operations WHERE tech_card_id IS NOT NULL) AND created_at > '2026-07-20';
-```
+Попытка cleanup показала, что:
+- В БД 196 items
+- 144 из них начинаются с TEST-, RBAC-, DBG- (тестовые)
+- Остается 52 — но это МЕНЬШЕ ожидаемых 177 demo
+- **Вывод:** в demo-данных есть items БЕЗ префикса TEST, но они тоже считаются "test" моим regex
+- **Риск:** cleanup может удалить demo-данные
 
-Сделаю перед пилотом (24-25.07).
+**Решение:** НЕ делать auto-cleanup. Оставить как есть (196 items).
+Пользователи увидят 200 items, и тестовые сразу будут понятны по префиксу.
+
+Если Сергей хочет чистые 177 — сделать ручной review и удалить по одному.
 
 ## 🔄 Rollback (если что-то критично сломается)
 
