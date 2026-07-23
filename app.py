@@ -58,6 +58,7 @@ from services.notices import (  # noqa
     create_notice, list_notices, get_notice, generate_ai_diff,
     resolve_notice as resolve_notice_svc, find_affected_items,
 )
+from services.audit import log_history  # B3 (Sprint 6): audit-trail
 from gateways.one_c_gateway import get_gateway, OneCResourceSpec  # noqa
 
 # === Инициализация ===
@@ -1012,6 +1013,8 @@ async def api_export_to_1c(request: Request, item_id: int):
         f.write(spec.to_xml())
 
     # Регистрируем извещение об изменении (для аудита)
+    # B3 (Sprint 6): audit-trail
+    log_history("item", item_id, "export", user.username, {"path": fpath, "ops_count": len(report.rows)})
     return {"status": "ok", "path": fpath, "ops_count": len(report.rows), "total_time_min": sum(r.to_dict().get("time_per_unit_min", 0) for r in report.rows) if report.rows else 0}
 
 
@@ -1057,6 +1060,8 @@ async def notice_create(request: Request):
         author=author,
         affected_item_designation=form.get("affected_item_designation", "").strip(),
     )
+    # B3 (Sprint 6): audit-trail
+    log_history("notice", nid, "create", user.username, {"number": form.get("number", ""), "affected_item": form.get("affected_item_designation", "")})
     return RedirectResponse(url=f"/notices/{nid}", status_code=303)
 
 
