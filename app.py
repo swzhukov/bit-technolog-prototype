@@ -1036,6 +1036,11 @@ async def notice_new(request: Request):
 async def notice_create(request: Request):
     form = await request.form()
     user = get_user_from_request(request)
+    if not user:
+        raise HTTPException(401)
+    normalize_user_role(user)
+    if user.role not in ("admin", "main_technologist", "technologist"):
+        raise HTTPException(403, "Только технолог может создавать извещения")
     author = user.display_name if user else form.get("author", "Технолог")
     nid = create_notice(
         number=form.get("number", "").strip(),
