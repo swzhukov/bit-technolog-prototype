@@ -581,8 +581,15 @@ def call_llm(
             _log_call(task_type, provider.name, "", prompt, result, user, "ok", None)
             return result
         except LLMError as e:
-            # Fallback на mock
-            logger.warning(f"LLM error in {provider.name} for {task_type}: {e}, falling back to mock")
+            # D7 (Sprint 6): fallback chain (1bitai → YandexGPT → Mock)
+            logger.warning(f"LLM error in {provider.name} for {task_type}: {e}, trying YandexGPT fallback")
+            fallback_result = _try_yandex_fallback(
+                task_type, prompt, system, temperature, max_tokens, response_format, user, str(e), registry
+            )
+            if fallback_result is not None:
+                return fallback_result
+            # Final fallback: Mock
+            logger.warning(f"YandexGPT also failed, falling back to Mock")
             result = MockLLMProvider().generate(prompt, system, temperature, max_tokens, response_format=response_format)
             _log_call(task_type, "mock", "", prompt, result, user, "fallback", str(e))
             return result
@@ -620,6 +627,49 @@ def _log_call(
     except Exception as e:
         logger.error(f"Failed to log LLM call: {e}")
 
+
+
+def _try_yandex_fallback(
+    task_type: str,
+    prompt: str,
+    system: str,
+    temperature: float,
+    max_tokens: int,
+    response_format: str,
+    user: str,
+    primary_error: str,
+    registry: "LLMProviderRegistry",
+) -> Optional[LLMResult]:
+    """D7 (Sprint 6): попробовать YandexGPT если primary провайдер упал.
+
+    Returns LLMResult если YandexGPT успешен, иначе None.
+    """
+    try:
+        # Ищем YandexGPT provider (по name)
+        row = db.query_one("SELECT id, name, endpoint, api_key_enc FROM llm_providers WHERE name = 'yandexgpt' AND is_active = 1 LIMIT 1")
+        if not row or not row["api_key_enc"]:
+            logger.warning("YandexGPT fallback: no active provider or no API key")
+            return None
+
+        api_key = decrypt_api_key(row["api_key_enc"])
+        folder_id = ""
+        endpoint = row["endpoint"] or ""
+        if endpoint.startswith("gpt://") and "/" in endpoint:
+            folder_id = endpoint.split("/")[2] if len(endpoint.split("/")) > 2 else ""
+
+        yandex = YandexGPTProvider(api_key=api_key, folder_id=folder_id, endpoint=endpoint)
+        result = yandex.generate(
+            prompt=prompt,
+            system=system,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+        )
+        _log_call(task_type, "yandexgpt", "fallback", prompt, result, user, "fallback", primary_error)
+        return result
+    except Exception as e:
+        logger.error(f"YandexGPT fallback also failed: {e}")
+        return None
 
 def parse_llm_json_safe(content: str) -> Dict[str, Any]:
     """Парсит JSON из ответа LLM. Если ошибка — пытается вытащить из блока ```json ... ```."""
