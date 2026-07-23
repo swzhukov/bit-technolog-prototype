@@ -1,5 +1,5 @@
 [Unit]
-Description=БИТ.Технолог — HTTP→HTTPS redirect (8081 → 8443)
+Description=БИТ.Технолог — HTTP→HTTPS redirect (8082 → 8081)
 After=network.target
 
 [Service]
