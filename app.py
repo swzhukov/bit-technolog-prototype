@@ -562,7 +562,7 @@ async def detail(request: Request, item_id: int, flash_kind: str = "", flash_mes
     workshop_names = {w["code"]: w["name"] for w in db.query("SELECT code, name FROM workshops")}
     profession_names = {p["code"]: p["name"] for p in db.query("SELECT code, name FROM professions")}
     ctx_workshops = db.rows_to_dicts(db.query("SELECT id, code, name FROM workshops ORDER BY code"))
-    ctx_equipment = db.rows_to_dicts(db.query("SELECT id, code, name, workshop_id FROM equipment ORDER BY code"))
+    ctx_equipment = db.rows_to_dicts(db.query("SELECT id, inventory_no AS code, name, workshop_id FROM equipment ORDER BY inventory_no"))
     ctx_professions = db.rows_to_dicts(db.query("SELECT id, code, name, category FROM professions ORDER BY code"))
 
     # РС preview (из resource_specs)
