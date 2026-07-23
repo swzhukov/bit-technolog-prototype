@@ -26,16 +26,18 @@
 </p>
 
 <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap: wrap;">
-  {% if not tech_card %}
+  {% if not tech_card and user_can_edit %}
   <a class="btn btn-primary" href="/items/{{ item.id }}/generate">Сгенерировать ТК</a>
   {% else %}
   {% if not tech_card.is_approved %}
   {% if user_can_approve %}<button class="btn btn-primary" id="btn-approve" data-tc-id="{{ tech_card.id }}">Утвердить и в эталоны</button>{% endif %}
   {% endif %}
+  {% if user_can_edit %}
   <button class="btn btn-secondary" id="btn-regenerate" data-tc-id="{{ tech_card.id }}">Перегенерировать</button>
   <button class="btn btn-secondary" id="btn-export" data-tc-id="{{ tech_card.id }}" data-item-id="{{ item.id }}">Экспорт в 1С</button>
-  <button class="btn btn-secondary" id="btn-diff" data-tc-id="{{ tech_card.id }}">Изменения</button>
   <a class="btn btn-ghost" href="/notices/new?item_id={{ item.id }}">+ Извещение</a>
+  {% endif %}
+  <button class="btn btn-secondary" id="btn-diff" data-tc-id="{{ tech_card.id }}">Изменения</button>
   {% endif %}
   <a class="btn btn-ghost" href="/products?level={{ item.level }}">← Назад</a>
 </div>
