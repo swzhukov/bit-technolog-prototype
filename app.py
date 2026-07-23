@@ -256,7 +256,10 @@ async def login_post(request: Request):
     form = await request.form()
     username = form.get("username", "").strip()
     password = form.get("password", "")
-    user = authenticate(username, password)
+    # B2 (Sprint 6): IP + User-Agent для audit_logins
+    client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "")
+    user_agent = request.headers.get("user-agent", "")
+    user = authenticate(username, password, ip=client_ip, user_agent=user_agent)
     if not user:
         return templates.TemplateResponse(
             "login.html",
