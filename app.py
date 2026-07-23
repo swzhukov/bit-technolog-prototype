@@ -73,21 +73,14 @@ logger = logging.getLogger(__name__)
 # N операций за окно T. In-memory dict (до пилота; потом Redis).
 import time as _time
 from collections import defaultdict as _defaultdict
+from services import state as _state  # D1 (Sprint 6): shared state (sessions + rate limit)
 
-_rate_limit_buckets: dict = _defaultdict(list)  # key -> [timestamps]
+_rate_limit_buckets: dict = _defaultdict(list)  # DEPRECATED (D1): см. state.rate_limit_check
+
 
 def _rate_limit_check(key: str, max_calls: int, window_sec: int) -> tuple[bool, int]:
-    """Проверить rate limit. Возвращает (ok, retry_after_sec)."""
-    now = _time.time()
-    bucket = _rate_limit_buckets[key]
-    # Очищаем старые timestamps
-    bucket[:] = [t for t in bucket if now - t < window_sec]
-    if len(bucket) >= max_calls:
-        # Сколько секунд до освобождения слота
-        retry_after = int(window_sec - (now - bucket[0])) + 1
-        return False, retry_after
-    bucket.append(now)
-    return True, 0
+    """D1 (Sprint 6): rate limit через shared state (SQLite). Возвращает (ok, retry_after_sec)."""
+    return _state.rate_limit_check(key, max_calls, window_sec)
 
 app = FastAPI(title="БИТ.Технолог", version="1.0.0")
 
@@ -191,32 +184,30 @@ seed_users(verbose=False)
 # AUTH (Cookie + Basic fallback)
 # ============================================================
 
-# Простая in-memory сессия (для препилота)
-_sessions: Dict[str, str] = {}
+# D1 (Sprint 6): shared sessions через SQLite (для multi-worker)
+# Старая in-memory: _sessions: Dict[str, str] = {}
 
 
 def _create_session(username: str) -> str:
-    import secrets as _sec
-    sid = _sec.token_urlsafe(32)
-    _sessions[sid] = username
-    return sid
+    return _state.session_create(username)
 
 
 def get_current_user(request: Request) -> Optional[User]:
     # 1. Cookie (нормальная авторизация через login-форму)
     session_id = request.cookies.get("session_id")
-    if session_id and session_id in _sessions:
-        username = _sessions[session_id]
-        row = db.query_one("SELECT * FROM pilot_users WHERE username = ? AND is_active = 1", (username,))
-        if row:
-            return User(
-                id=row["id"],
-                username=row["username"],
-                role=row["role"],
-                display_name=row["display_name"],
-                email=row["email"] or "",
-                is_active=bool(row["is_active"]),
-            )
+    if session_id:
+        username = _state.session_get(session_id)
+        if username:
+            row = db.query_one("SELECT * FROM pilot_users WHERE username = ? AND is_active = 1", (username,))
+            if row:
+                return User(
+                    id=row["id"],
+                    username=row["username"],
+                    role=row["role"],
+                    display_name=row["display_name"],
+                    email=row["email"] or "",
+                    is_active=bool(row["is_active"]),
+                )
     # 2. Basic Auth (для curl/тестов)
     auth = request.headers.get("authorization", "")
     if auth.startswith("Basic "):
@@ -276,8 +267,8 @@ async def login_post(request: Request):
 @app.get("/logout")
 async def logout(request: Request):
     sid = request.cookies.get("session_id")
-    if sid and sid in _sessions:
-        del _sessions[sid]
+    if sid:
+        _state.session_delete(sid)
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie("session_id")
     return response
