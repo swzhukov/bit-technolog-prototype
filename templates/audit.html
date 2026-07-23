@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% set active_page = 'audit' %}
+{% block title %}Аудит — БИТ.Технолог{% endblock %}
+{% block content %}
+<h1>Аудит</h1>
+<p class="lead">Sprint 6 / B4 — журнал действий: логины, изменения, LLM-вызовы. Только admin и главный технолог.</p>
+
+<!-- Tabs -->
+<div class="tabs" style="display: flex; gap: 8px; border-bottom: 1px solid var(--v8-line); margin: 16px 0;">
+  <a class="tab {% if tab == 'logins' %}active{% endif %}" href="/audit?tab=logins" style="padding: 10px 18px; text-decoration: none; color: var(--v8-text-2); border-bottom: 2px solid transparent; {% if tab == 'logins' %}border-bottom-color: var(--v8-brand); color: var(--v8-brand);{% endif %}">Логины ({{ login_count }})</a>
+  <a class="tab {% if tab == 'history' %}active{% endif %}" href="/audit?tab=history" style="padding: 10px 18px; text-decoration: none; color: var(--v8-text-2); border-bottom: 2px solid transparent; {% if tab == 'history' %}border-bottom-color: var(--v8-brand); color: var(--v8-brand);{% endif %}">Изменения ({{ history_count }})</a>
+  <a class="tab {% if tab == 'llm' %}active{% endif %}" href="/audit?tab=llm" style="padding: 10px 18px; text-decoration: none; color: var(--v8-text-2); border-bottom: 2px solid transparent; {% if tab == 'llm' %}border-bottom-color: var(--v8-brand); color: var(--v8-brand);{% endif %}">LLM-вызовы ({{ llm_count }})</a>
+</div>
+
+<!-- Filters -->
+<form method="GET" action="/audit" class="filters" style="background: var(--v8-panel); padding: 12px 16px; border-radius: 4px; margin-bottom: 16px; display: flex; gap: 12px; align-items: end; flex-wrap: wrap;">
+  <input type="hidden" name="tab" value="{{ tab }}"/>
+  <label style="display: flex; flex-direction: column; gap: 4px;">
+    <span style="font-size: 12px; color: var(--v8-muted);">Пользователь</span>
+    <select name="user" style="padding: 6px 10px; background: var(--v8-bg); border: 1px solid var(--v8-line); border-radius: 4px; min-width: 140px;">
+      <option value="">— все —</option>
+      {% for u in all_users %}
+      <option value="{{ u }}" {% if u == user_filter %}selected{% endif %}>{{ u }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label style="display: flex; flex-direction: column; gap: 4px;">
+    <span style="font-size: 12px; color: var(--v8-muted);">Дата с</span>
+    <input type="date" name="date_from" value="{{ date_from }}" style="padding: 6px 10px; background: var(--v8-bg); border: 1px solid var(--v8-line); border-radius: 4px;"/>
+  </label>
+  <label style="display: flex; flex-direction: column; gap: 4px;">
+    <span style="font-size: 12px; color: var(--v8-muted);">Дата по</span>
+    <input type="date" name="date_to" value="{{ date_to }}" style="padding: 6px 10px; background: var(--v8-bg); border: 1px solid var(--v8-line); border-radius: 4px;"/>
+  </label>
+  <label style="display: flex; flex-direction: column; gap: 4px;">
+    <span style="font-size: 12px; color: var(--v8-muted);">Лимит</span>
+    <select name="limit" style="padding: 6px 10px; background: var(--v8-bg); border: 1px solid var(--v8-line); border-radius: 4px;">
+      <option value="50" {% if limit == 50 %}selected{% endif %}>50</option>
+      <option value="100" {% if limit == 100 %}selected{% endif %}>100</option>
+      <option value="200" {% if limit == 200 %}selected{% endif %}>200</option>
+      <option value="500" {% if limit == 500 %}selected{% endif %}>500</option>
+    </select>
+  </label>
+  <button type="submit" class="btn btn-primary" style="padding: 7px 16px;">Применить</button>
+  <a href="/audit?tab={{ tab }}" class="btn btn-secondary" style="padding: 7px 16px; text-decoration: none; color: var(--v8-text-2);">Сбросить</a>
+</form>
+
+<!-- Tab: logins -->
+{% if tab == 'logins' %}
+<div class="panel">
+  <div class="panel-body">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Когда</th>
+          <th>Пользователь</th>
+          <th>IP</th>
+          <th>User-Agent</th>
+          <th>Результат</th>
+          <th>Причина</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in logins %}
+        <tr>
+          <td><span class="muted">{{ r.id }}</span></td>
+          <td><span class="muted" style="font-size: 12px;">{{ r.ts or '—' }}</span></td>
+          <td><b>{{ r.username }}</b></td>
+          <td><span class="muted" style="font-family: monospace; font-size: 12px;">{{ r.ip or '—' }}</span></td>
+          <td><span class="muted" style="font-size: 11px;">{{ (r.user_agent or '—')[:60] }}{% if r.user_agent and r.user_agent|length > 60 %}…{% endif %}</span></td>
+          <td>{% if r.success %}<span class="dot g"></span> OK{% else %}<span class="dot r"></span> FAIL{% endif %}</td>
+          <td><span class="muted">{{ r.reason or '—' }}</span></td>
+        </tr>
+        {% endfor %}
+        {% if not logins %}
+        <tr><td colspan="7" class="muted">Нет записей. Измените фильтры.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Tab: history -->
+{% elif tab == 'history' %}
+<div class="panel">
+  <div class="panel-body">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Когда</th>
+          <th>Сущность</th>
+          <th>ID</th>
+          <th>Действие</th>
+          <th>Пользователь</th>
+          <th>Детали</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in history %}
+        <tr>
+          <td><span class="muted">{{ r.id }}</span></td>
+          <td><span class="muted" style="font-size: 12px;">{{ r.ts or '—' }}</span></td>
+          <td><b>{{ r.entity_type }}</b></td>
+          <td><span class="muted">{{ r.entity_id }}</span></td>
+          <td><span class="badge" style="background: var(--v8-brand-soft); color: var(--v8-brand); padding: 2px 8px; border-radius: 3px; font-size: 11px;">{{ r.action }}</span></td>
+          <td>{{ r.user or '—' }}</td>
+          <td><span class="muted" style="font-size: 11px; max-width: 360px; display: inline-block; word-break: break-all;">{{ r.details_json or '—' }}</span></td>
+        </tr>
+        {% endfor %}
+        {% if not history %}
+        <tr><td colspan="7" class="muted">Нет записей. Измените фильтры.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Tab: llm -->
+{% elif tab == 'llm' %}
+<div class="panel">
+  <div class="panel-body">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Когда</th>
+          <th>Задача</th>
+          <th>Модель</th>
+          <th>Пользов.</th>
+          <th>Статус</th>
+          <th>Время, мс</th>
+          <th>Токены (in/out)</th>
+          <th>Ошибка</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in llm_calls %}
+        <tr>
+          <td><span class="muted">{{ r.id }}</span></td>
+          <td><span class="muted" style="font-size: 12px;">{{ r.created_at or '—' }}</span></td>
+          <td><span style="font-family: monospace; font-size: 11px;">{{ r.task_type or '—' }}</span></td>
+          <td><span class="muted" style="font-size: 11px;">{{ r.model_name or '—' }}</span></td>
+          <td>{{ r.user or '—' }}</td>
+          <td>
+            {% if r.status == 'ok' %}<span class="dot g"></span>
+            {% elif r.status == 'fallback' %}<span class="dot y"></span>
+            {% else %}<span class="dot r"></span>{% endif %}
+            {{ r.status or '—' }}
+          </td>
+          <td>{{ r.duration_ms or '—' }}</td>
+          <td><span class="muted" style="font-size: 11px;">{{ r.prompt_tokens or 0 }} / {{ r.completion_tokens or 0 }}</span></td>
+          <td><span class="muted" style="font-size: 11px; max-width: 240px; display: inline-block; word-break: break-all;">{{ (r.error_message or '—')[:80] }}{% if r.error_message and r.error_message|length > 80 %}…{% endif %}</span></td>
+        </tr>
+        {% endfor %}
+        {% if not llm_calls %}
+        <tr><td colspan="9" class="muted">Нет записей. Измените фильтры.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<p class="muted" style="font-size: 12px; margin-top: 12px;">
+  Показано до {{ limit }} записей. Счётчики — общее количество в БД.<br>
+  Sprint 6 / B4: <b>audit-trail</b> (Sprint 6 B3) логирует все mutations. <b>Логины</b> (Sprint 6 B2) фиксируют IP+User-Agent.
+</p>
+{% endblock %}
