@@ -63,6 +63,8 @@ ROLES = {
             "view_etalons",
             "view_work_history",
             "view_change_notices",
+            "view_audit_logins",   # B4 (Sprint 6): audit UI
+            "view_llm_calls",       # B4 (Sprint 6): audit UI
         ],
     },
     "workshop_chief": {

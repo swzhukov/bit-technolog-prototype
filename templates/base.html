@@ -149,6 +149,7 @@
 {% if user and user.role in ('admin', 'main_technologist') %}
  <a href="/profiles" class="nav-item {% if active_page == 'profiles' %}active{% endif %}">Шаблоны маршрутов</a>
  <a href="/metrics" class="nav-item {% if active_page == 'metrics' %}active{% endif %}">Метрики</a>
+ <a href="/audit" class="nav-item {% if active_page == 'audit' %}active{% endif %}">Аудит</a>
  <a href="/llm-admin" class="nav-item {% if active_page == 'llm-admin' %}active{% endif %}">Модели LLM</a>
 {% endif %}
  {% if current_user and current_user.is_admin %}

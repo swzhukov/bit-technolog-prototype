@@ -1271,6 +1271,134 @@ async def metrics_record_green(request: Request):
 
 
 # ============================================================
+# AUDIT UI (Sprint 6 / B4)
+# ============================================================
+# 3 таба: logins / history / llm_calls
+# Фильтры: tab + user + date_from + date_to
+# Permissions: admin (view_audit_logins + view_llm_calls) + main_technologist (те же)
+
+@app.get("/audit", response_class=HTMLResponse)
+async def audit_page(
+    request: Request,
+    tab: str = "logins",
+    user: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    limit: int = 100,
+):
+    user_obj = get_user_from_request(request)
+    if not user_obj:
+        raise HTTPException(401)
+    normalize_user_role(user_obj)
+    if user_obj.role not in ("admin", "main_technologist"):
+        raise HTTPException(403, "Недостаточно прав (нужен admin или main_technologist)")
+
+    # Sanitize inputs
+    if tab not in ("logins", "history", "llm"):
+        tab = "logins"
+    if not isinstance(limit, int) or limit < 10 or limit > 500:
+        limit = 100
+    user_filter = user.strip()
+    date_from = date_from.strip()
+    date_to = date_to.strip()
+
+    # Соберём данные в зависимости от tab
+    logins = []
+    history = []
+    llm_calls = []
+
+    if tab == "logins":
+        where = []
+        params = []
+        if user_filter:
+            where.append("username = ?")
+            params.append(user_filter)
+        if date_from:
+            where.append("ts >= ?")
+            params.append(date_from)
+        if date_to:
+            where.append("ts <= ?")
+            params.append(date_to + " 23:59:59")
+        where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+        rows = db.query(
+            f"SELECT id, username, ip, user_agent, success, reason, ts "
+            f"FROM audit_logins {where_sql} ORDER BY id DESC LIMIT ?",
+            tuple(params) + (limit,),
+        )
+        logins = db.rows_to_dicts(rows)
+    elif tab == "history":
+        where = []
+        params = []
+        if user_filter:
+            where.append("user = ?")
+            params.append(user_filter)
+        if date_from:
+            where.append("ts >= ?")
+            params.append(date_from)
+        if date_to:
+            where.append("ts <= ?")
+            params.append(date_to + " 23:59:59")
+        where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+        rows = db.query(
+            f"SELECT id, entity_type, entity_id, action, user, details_json, ts "
+            f"FROM history {where_sql} ORDER BY id DESC LIMIT ?",
+            tuple(params) + (limit,),
+        )
+        history = db.rows_to_dicts(rows)
+    elif tab == "llm":
+        where = []
+        params = []
+        if user_filter:
+            where.append("user = ?")
+            params.append(user_filter)
+        if date_from:
+            where.append("created_at >= ?")
+            params.append(date_from)
+        if date_to:
+            where.append("created_at <= ?")
+            params.append(date_to + " 23:59:59")
+        where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+        rows = db.query(
+            f"SELECT id, task_type, model_name, user, status, error_message, "
+            f"duration_ms, prompt_tokens, completion_tokens, created_at "
+            f"FROM llm_calls {where_sql} ORDER BY id DESC LIMIT ?",
+            tuple(params) + (limit,),
+        )
+        llm_calls = db.rows_to_dicts(rows)
+
+    # Counts для табов
+    login_count = db.query_one("SELECT COUNT(*) as c FROM audit_logins")["c"]
+    history_count = db.query_one("SELECT COUNT(*) as c FROM history")["c"]
+    llm_count = db.query_one("SELECT COUNT(*) as c FROM llm_calls")["c"]
+
+    # Список уникальных users (для фильтра)
+    user_rows = db.query("SELECT DISTINCT username FROM audit_logins ORDER BY username")
+    login_users = [r["username"] for r in user_rows]
+    user_rows2 = db.query("SELECT DISTINCT user FROM history WHERE user IS NOT NULL ORDER BY user")
+    history_users = [r["user"] for r in user_rows2]
+    user_rows3 = db.query("SELECT DISTINCT user FROM llm_calls WHERE user IS NOT NULL ORDER BY user")
+    llm_users = [r["user"] for r in user_rows3]
+    all_users = sorted(set(login_users + history_users + llm_users))
+
+    ctx = get_template_context(request, user_obj)
+    ctx.update({
+        "tab": tab,
+        "user_filter": user_filter,
+        "date_from": date_from,
+        "date_to": date_to,
+        "limit": limit,
+        "logins": logins,
+        "history": history,
+        "llm_calls": llm_calls,
+        "login_count": login_count,
+        "history_count": history_count,
+        "llm_count": llm_count,
+        "all_users": all_users,
+    })
+    return templates.TemplateResponse("audit.html", ctx)
+
+
+# ============================================================
 # API ENDPOINTS
 # ============================================================
 
