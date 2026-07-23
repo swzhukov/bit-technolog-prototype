@@ -18,3 +18,31 @@ venv/
 venv-*/
 .envrc
 bit-technolog-*/
+
+# Graphify regenerated
+graphify-out/graph.html
+graphify-out/cache/
+graphify-out/.graphify_root
+
+# Audit
+audit/_old/
+audit/debug*.py
+audit/restore*.py
+audit/fix*.py
+audit/regen*.py
+audit/deploy_*.py
+audit/check*.py
+audit/cleanup*.py
+audit/v*_verify*.py
+audit/d*_check.py
+audit/inspect*.py
+audit/post_*.py
+audit/post_*.json
+audit/rbac_test*.py
+audit/llm_check*.py
+audit/find_*.py
+audit/restore_*.py
+audit/final_*.py
+audit/verify_*.py
+audit/db_*.py
+audit/db_*.py
