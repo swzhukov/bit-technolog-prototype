@@ -51,8 +51,8 @@
     "id": "A11",
     "name": "Скачать XML РС",
     "expected": 200,
-    "got": 200,
-    "status": "pass",
+    "got": 404,
+    "status": "fail",
     "comment": ""
   },
   {
