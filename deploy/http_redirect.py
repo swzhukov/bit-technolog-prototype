@@ -34,4 +34,4 @@ class RedirectHandler(BaseHTTPRequestHandler):
         pass  # suppress access log
 
 if __name__ == "__main__":
-    HTTPServer(("0.0.0.0", 8080), RedirectHandler).serve_forever()
+    HTTPServer(("0.0.0.0", 8082), RedirectHandler).serve_forever()

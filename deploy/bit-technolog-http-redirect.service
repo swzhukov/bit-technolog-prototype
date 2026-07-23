@@ -1,0 +1,16 @@
+[Unit]
+Description=БИТ.Технолог — HTTP→HTTPS redirect (8082 → 8081)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/beget/bit-technolog
+ExecStart=/opt/beget/bit-technolog/venv/bin/python3 /opt/beget/bit-technolog/deploy/http_redirect.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/bit-technolog-http-redirect.log
+StandardError=append:/var/log/bit-technolog-http-redirect.err.log
+
+[Install]
+WantedBy=multi-user.target
