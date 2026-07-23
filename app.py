@@ -498,6 +498,8 @@ def _compute_learning() -> dict:
 @app.get("/products", response_class=HTMLResponse)
 async def products(request: Request, q: str = "", level: str = ""):
     user = get_user_from_request(request)
+    if not user:
+        return RedirectResponse(url="/login?next=/products", status_code=303)
     ctx = get_template_context(request, user)
     where = []
     params = []
@@ -525,6 +527,8 @@ async def products(request: Request, q: str = "", level: str = ""):
 @app.get("/detail/{item_id}", response_class=HTMLResponse)
 async def detail(request: Request, item_id: int, flash_kind: str = "", flash_message: str = ""):
     user = get_user_from_request(request)
+    if not user:
+        return RedirectResponse(url="/login?next=/detail/{item_id}", status_code=303)
     ctx = get_template_context(request, user)
 
     item = db.get_item_with_bom(item_id)
@@ -743,6 +747,8 @@ async def details_new_create(request: Request):
 @app.get("/items/{item_id}/generate", response_class=HTMLResponse)
 async def item_generate_form(request: Request, item_id: int):
     user = get_user_from_request(request)
+    if not user:
+        return RedirectResponse(url="/login?next=/items/{item_id}/generate", status_code=303)
     item = db.get_item_with_bom(item_id)
     if not item:
         raise HTTPException(404, "Item not found")
@@ -1009,6 +1015,8 @@ async def api_export_to_1c(request: Request, item_id: int):
 @app.get("/notices", response_class=HTMLResponse)
 async def notices(request: Request):
     user = get_user_from_request(request)
+    if not user:
+        return RedirectResponse(url="/login?next=/notices", status_code=303)
     ctx = get_template_context(request, user)
     n = list_notices(limit=50)
     ctx["notices"] = n
@@ -1018,6 +1026,8 @@ async def notices(request: Request):
 @app.get("/notices/new", response_class=HTMLResponse)
 async def notice_new(request: Request):
     user = get_user_from_request(request)
+    if not user:
+        return RedirectResponse(url="/login?next=/notices/new", status_code=303)
     ctx = get_template_context(request, user)
     return templates.TemplateResponse("notice_form.html", ctx)
 
@@ -1042,6 +1052,8 @@ async def notice_create(request: Request):
 @app.get("/notices/{notice_id}", response_class=HTMLResponse)
 async def notice_detail(request: Request, notice_id: int):
     user = get_user_from_request(request)
+    if not user:
+        return RedirectResponse(url="/login?next=/notices/{notice_id}", status_code=303)
     ctx = get_template_context(request, user)
     notice = get_notice(notice_id)
     if not notice:
@@ -1100,12 +1112,16 @@ async def notice_resolve(request: Request, notice_id: int):
 
 
 @app.get("/api/change-notices")
-async def api_list_notices(status: Optional[str] = None):
+async def api_list_notices(request: Request, status: Optional[str] = None):
+    if not get_user_from_request(request):
+        raise HTTPException(401, "Authentication required")
     return {"notices": list_notices(status=status)}
 
 
 @app.get("/api/change-notices/{notice_id}")
-async def api_notice(notice_id: int):
+async def api_notice(request: Request, notice_id: int):
+    if not get_user_from_request(request):
+        raise HTTPException(401, "Authentication required")
     """F2-003: lazy AI diff (не вызывается на GET — иначе 24 сек LLM)."""
     n = get_notice(notice_id)
     if not n:
@@ -1149,6 +1165,8 @@ async def profiles(request: Request):
 @app.get("/knowledge", response_class=HTMLResponse)
 async def knowledge(request: Request):
     user = get_user_from_request(request)
+    if not user:
+        return RedirectResponse(url="/login?next=/knowledge", status_code=303)
     ctx = get_template_context(request, user)
     etalons = db.rows_to_dicts(db.query("SELECT * FROM etalons ORDER BY approved_date DESC"))
     ctx["etalons"] = etalons
@@ -1158,6 +1176,8 @@ async def knowledge(request: Request):
 @app.get("/llm-admin", response_class=HTMLResponse)
 async def llm_admin(request: Request):
     user = get_user_from_request(request)
+    if not user:
+        return RedirectResponse(url="/login?next=/llm-admin", status_code=303)
     if user and not has_permission(user.role, "manage_llm_providers"):
         raise HTTPException(403, "Requires llm_admin role")
     ctx = get_template_context(request, user)
@@ -1305,16 +1325,21 @@ async def health():
 
 @app.get("/api/items")
 async def api_items(
+    request: Request,
     level: Optional[str] = None,
     search: Optional[str] = None,
     limit: int = 50,
 ):
+    if not get_user_from_request(request):
+        raise HTTPException(401, "Authentication required")
     items = db.list_items(level=level, search=search, limit=limit)
     return {"items": items, "total": len(items)}
 
 
 @app.get("/api/tech-cards/{tech_card_id}/rs-preview")
-async def api_rs_preview(tech_card_id: int, profile_code: str = "default"):
+async def api_rs_preview(request: Request, tech_card_id: int, profile_code: str = "default"):
+    if not get_user_from_request(request):
+        raise HTTPException(401, "Authentication required")
     """Предпросмотр РС по ТК + профилю (детерминированный расчёт)."""
     tc = db.get_tech_card_full(tech_card_id)
     if not tc:
@@ -1337,7 +1362,9 @@ async def api_rs_preview(tech_card_id: int, profile_code: str = "default"):
 
 
 @app.get("/api/tech-cards/{tech_card_id}/evidence")
-async def api_evidence(tech_card_id: int):
+async def api_evidence(request: Request, tech_card_id: int):
+    if not get_user_from_request(request):
+        raise HTTPException(401, "Authentication required")
     """Sprint 5: «Норма с доказательством» — светофор + топ-3 аналога для каждой операции."""
     evidences = collect_evidence_for_tech_card(tech_card_id)
     return {
